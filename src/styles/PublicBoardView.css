@@ -1,0 +1,170 @@
+.public-board {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    background: #0f0f16;
+    color: #ecebf4;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+.public-board--center {
+    align-items: center;
+    justify-content: center;
+}
+
+.public-board__muted {
+    color: #9b99ae;
+}
+
+.public-board__notfound {
+    text-align: center;
+    max-width: 420px;
+    padding: 32px;
+}
+
+.public-board__notfound h1 {
+    font-size: 1.4rem;
+    margin: 16px 0 8px;
+}
+
+.public-board__logo {
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+.public-board__cta,
+.public-board__brand {
+    display: inline-block;
+    text-decoration: none;
+}
+
+.public-board__cta {
+    margin-top: 20px;
+    padding: 10px 22px;
+    border-radius: 10px;
+    background: #8b7cf6;
+    color: #fff;
+    font-weight: 600;
+}
+
+/* Top bar: board identity + persistent sign-up nudge (viral loop). */
+.public-board__bar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    height: 52px;
+    padding: 0 20px;
+    background: rgba(20, 20, 28, 0.92);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    z-index: 2;
+}
+
+.public-board__title {
+    font-weight: 600;
+    font-size: 1.05rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.public-board__bar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.public-board__brand {
+    color: #c4bffb;
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.public-board__brand strong {
+    color: #fff;
+}
+
+/* Scrollable canvas — no pan/zoom engine, just overflow scrolling. */
+.public-board__scroll {
+    flex: 1 1 auto;
+    overflow: auto;
+}
+
+.public-board__canvas {
+    position: relative;
+}
+
+.public-board__links {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.public-card {
+    position: absolute;
+    box-sizing: border-box;
+    padding: 12px 14px;
+    border-radius: 10px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+    color: #22222c;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.public-card__image {
+    width: 100%;
+    border-radius: 6px;
+    object-fit: cover;
+    max-height: 160px;
+}
+
+.public-card__title {
+    font-size: 1em;
+    font-weight: 700;
+    margin: 0;
+    line-height: 1.25;
+}
+
+.public-card__content {
+    font-size: 0.92em;
+    line-height: 1.45;
+    word-break: break-word;
+}
+
+.public-card__content p {
+    margin: 0 0 6px;
+}
+
+.public-card__badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: auto;
+    padding-top: 6px;
+}
+
+.public-card__badge {
+    font-size: 0.72em;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.12);
+    color: inherit;
+    white-space: nowrap;
+}
+
+.public-card__tag {
+    background: rgba(0, 0, 0, 0.08);
+}
+
+@media (max-width: 640px) {
+    .public-board__brand {
+        font-size: 0.78rem;
+    }
+    .public-board__title {
+        font-size: 0.95rem;
+    }
+}

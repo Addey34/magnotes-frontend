@@ -1,0 +1,19 @@
+/node_modules
+/dist
+/firebase-dist
+
+# Claude Code: local/personal settings (shared settings go in settings.json)
+.claude/settings.local.json
+CLAUDE.md
+
+# Local environment (never commit — VITE_API_URL lives in .env.production, which
+# is a public URL and IS committed on purpose)
+.env
+.env.local
+.env.*.local
+
+# Firebase deploy cache
+.firebase/
+
+# Logs
+*.log
