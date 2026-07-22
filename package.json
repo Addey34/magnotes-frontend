@@ -7,7 +7,7 @@
     "author": "Adrian (Addey34)",
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/Addey34/MagNotes.git"
+        "url": "git+https://github.com/Addey34/magnotes-frontend.git"
     },
     "scripts": {
         "dev": "vite",

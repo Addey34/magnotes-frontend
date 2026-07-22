@@ -1,39 +1,121 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SaveState } from '../types/boardTypes';
 
-export const useAutosave = <T>(
+interface PendingSave<T> {
+    timer: number;
+    updates: T;
+}
+
+export const useAutosave = <T extends object>(
     save: (id: string, updates: T) => Promise<void>,
-    delay = 500
+    delay = 500,
+    onError?: () => void
 ) => {
-    const timers = useRef<Record<string, number>>({});
+    const pending = useRef<Record<string, PendingSave<T>>>({});
+    const failed = useRef<Record<string, T>>({});
+    const inFlight = useRef<Record<string, Promise<void>>>({});
+    const mounted = useRef(true);
     const [saveState, setSaveState] = useState<SaveState>({ status: 'idle' });
+
+    const flushSave = useCallback(
+        (id: string): Promise<void> => {
+            const queued = pending.current[id];
+            if (!queued) return inFlight.current[id] || Promise.resolve();
+
+            window.clearTimeout(queued.timer);
+            delete pending.current[id];
+            const updatesToSave = {
+                ...(failed.current[id] || {}),
+                ...queued.updates,
+            } as T;
+            delete failed.current[id];
+
+            if (mounted.current) {
+                setSaveState({ status: 'saving', postItId: id });
+            }
+
+            // Serialize writes for one card so an older, slower request cannot
+            // land after a newer one and overwrite its fields on the server.
+            const previous = inFlight.current[id] || Promise.resolve();
+            const operation = previous
+                .catch(() => undefined)
+                .then(() => save(id, updatesToSave))
+                .then(() => {
+                    if (mounted.current) {
+                        setSaveState({ status: 'saved', postItId: id });
+                    }
+                })
+                .catch((error) => {
+                    console.error('Autosave failed:', error);
+                    failed.current[id] = {
+                        ...updatesToSave,
+                        ...(failed.current[id] || {}),
+                    } as T;
+                    onError?.();
+                    if (mounted.current) {
+                        setSaveState({ status: 'error', postItId: id });
+                    }
+                })
+                .finally(() => {
+                    if (inFlight.current[id] === operation) {
+                        delete inFlight.current[id];
+                    }
+                });
+
+            inFlight.current[id] = operation;
+            return operation;
+        },
+        [onError, save]
+    );
 
     const scheduleSave = useCallback(
         (id: string, updates: T) => {
-            window.clearTimeout(timers.current[id]);
+            const current = pending.current[id];
+            if (current) window.clearTimeout(current.timer);
+
             setSaveState({ status: 'saving', postItId: id });
 
-            timers.current[id] = window.setTimeout(async () => {
-                try {
-                    await save(id, updates);
-                    setSaveState({ status: 'saved', postItId: id });
-                } catch (error) {
-                    console.error('Autosave failed:', error);
-                    setSaveState({ status: 'error', postItId: id });
-                }
-            }, delay);
+            const mergedUpdates = {
+                ...(current?.updates || {}),
+                ...updates,
+            } as T;
+            const timer = window.setTimeout(() => void flushSave(id), delay);
+            pending.current[id] = { timer, updates: mergedUpdates };
         },
-        [delay, save]
+        [delay, flushSave]
     );
 
+    const flushPending = useCallback(() => {
+        const ids = new Set([
+            ...Object.keys(pending.current),
+            ...Object.keys(failed.current),
+        ]);
+        ids.forEach((id) => {
+            if (!pending.current[id] && failed.current[id]) {
+                pending.current[id] = {
+                    timer: 0,
+                    updates: failed.current[id],
+                };
+                delete failed.current[id];
+            }
+        });
+        return Promise.all([...ids].map(flushSave)).then(() => undefined);
+    }, [flushSave]);
+
     useEffect(() => {
+        mounted.current = true;
+        const handlePageHide = () => void flushPending();
+        const handleOnline = () => void flushPending();
+        window.addEventListener('pagehide', handlePageHide);
+        window.addEventListener('online', handleOnline);
+
         return () => {
-            Object.values(timers.current).forEach((timer) =>
-                window.clearTimeout(timer)
-            );
+            mounted.current = false;
+            window.removeEventListener('pagehide', handlePageHide);
+            window.removeEventListener('online', handleOnline);
+            void flushPending();
         };
-    }, []);
+    }, [flushPending]);
 
-    return { saveState, scheduleSave };
+    return { saveState, scheduleSave, flushPending };
 };
-

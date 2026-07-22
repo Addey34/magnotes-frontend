@@ -79,11 +79,14 @@ import {
     updatePostIt,
 } from '../services/boardApi';
 import ShareDialog from '../components/share/ShareDialog';
+import NotificationCenter from '../components/ui/NotificationCenter';
 import { PostIt, PostItStatus } from '../types/boardTypes';
 import { Box } from '../utils/connectionGeometry';
 import { buildMentionGraph } from '../utils/mentionGraph';
 import { useT } from '../i18n/LangContext';
 import { LanguageSwitch } from '../i18n/LanguageSwitch';
+import { useNotifications } from '../hooks/useNotifications';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import '../styles/BoardApp.css';
 
 const STACK_EXPAND_OFFSET_X = 34;
@@ -108,6 +111,32 @@ const BoardApp: React.FC<BoardAppProps> = ({
     onRequestSignup,
 }) => {
     const { t } = useT();
+    const isOnline = useOnlineStatus();
+    const { dismiss, notifications, notify } = useNotifications();
+    const notifyLoadError = useCallback(
+        () =>
+            notify(t('notification.loadFailed'), {
+                key: 'board-load-failed',
+                kind: 'error',
+            }),
+        [notify, t]
+    );
+    const notifySaveError = useCallback(
+        () =>
+            notify(t('notification.saveFailed'), {
+                key: 'board-save-failed',
+                kind: 'error',
+            }),
+        [notify, t]
+    );
+    const notifyActionError = useCallback(
+        () =>
+            notify(t('notification.actionFailed'), {
+                key: 'board-action-failed',
+                kind: 'error',
+            }),
+        [notify, t]
+    );
     const [draggingPostItId, setDraggingPostItId] = useState<string | null>(
         null
     );
@@ -171,7 +200,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
         setTabShareToken,
         reorderTabs,
         removeTab,
-    } = useTabs();
+    } = useTabs(notifyLoadError, notifyActionError);
     const {
         postIts,
         isLoadingPostIts,
@@ -190,8 +219,12 @@ const BoardApp: React.FC<BoardAppProps> = ({
         redo,
         canUndo,
         canRedo,
-    } = usePostIts(activeTabId);
-    const { stacks, addStack, toggleStack } = useStacks(activeTabId);
+    } = usePostIts(activeTabId, notifyLoadError, notifyActionError);
+    const { stacks, addStack, toggleStack } = useStacks(
+        activeTabId,
+        notifyLoadError,
+        notifyActionError
+    );
     const {
         links,
         addLink,
@@ -199,10 +232,13 @@ const BoardApp: React.FC<BoardAppProps> = ({
         removeLink,
         getLinksForCard,
         dropLinksForCard,
+        restoreLinksLocal,
         restoreLinks,
-    } = useConnections(activeTabId);
+    } = useConnections(activeTabId, notifyLoadError, notifyActionError);
     const { saveState, scheduleSave } = useAutosave(
-        useCallback(updatePostIt, [])
+        useCallback(updatePostIt, []),
+        500,
+        notifySaveError
     );
 
     const activeTab = tabs.find((tab) => tab._id === activeTabId);
@@ -267,6 +303,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
             closeBrandMenu();
         } catch (error) {
             console.error(error);
+            notifyActionError();
         } finally {
             setIsExporting(false);
         }
@@ -297,9 +334,14 @@ const BoardApp: React.FC<BoardAppProps> = ({
     // returned token into the tab cache so the dialog reflects it.
     const handleToggleShare = async (enabled: boolean) => {
         if (!activeTab) return null;
-        const token = await setBoardShare(activeTab._id, enabled);
-        setTabShareToken(activeTab._id, token);
-        return token;
+        try {
+            const token = await setBoardShare(activeTab._id, enabled);
+            setTabShareToken(activeTab._id, token);
+            return token;
+        } catch {
+            notifyActionError();
+            return activeTab.shareToken ?? null;
+        }
     };
 
     const openDeleteDialog = () => {
@@ -581,14 +623,24 @@ const BoardApp: React.FC<BoardAppProps> = ({
         }
         let cancelled = false;
         const timer = setTimeout(async () => {
-            const results = await searchPostIts(q);
-            if (!cancelled) setGlobalResults(results);
+            try {
+                const results = await searchPostIts(q);
+                if (!cancelled) setGlobalResults(results);
+            } catch {
+                if (!cancelled) {
+                    setGlobalResults([]);
+                    notify(t('notification.searchFailed'), {
+                        key: 'global-search-failed',
+                        kind: 'error',
+                    });
+                }
+            }
         }, 220);
         return () => {
             cancelled = true;
             clearTimeout(timer);
         };
-    }, [paletteQuery, commandPaletteOpen]);
+    }, [paletteQuery, commandPaletteOpen, notify, t]);
 
     useEffect(() => {
         if (view !== 'canvas' || !pendingFocusId || isLoading) return;
@@ -651,6 +703,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
         return removePostIt(postItId, {
             snapshot: () => getLinksForCard(postItId),
             dropLocal: () => dropLinksForCard(postItId),
+            restoreLocal: restoreLinksLocal,
             restore: restoreLinks,
         });
     };
@@ -1062,6 +1115,11 @@ const BoardApp: React.FC<BoardAppProps> = ({
                 demo ? 'has-demo-banner' : ''
             }`.trim()}
         >
+            <NotificationCenter
+                isOnline={isOnline}
+                notifications={notifications}
+                onDismiss={dismiss}
+            />
             {demo && (
                 <div className="demo-banner" role="status">
                     <span>

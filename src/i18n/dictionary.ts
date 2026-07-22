@@ -732,6 +732,33 @@ export const DICTIONARY = {
     'link.label.commit': { fr: 'Valider le libellé', en: 'Confirm label' },
     'link.delete': { fr: 'Supprimer le lien', en: 'Delete link' },
 
+    // --- notifications ------------------------------------------------------
+    'notification.aria': { fr: 'Notifications', en: 'Notifications' },
+    'notification.dismiss': {
+        fr: 'Fermer la notification',
+        en: 'Dismiss notification',
+    },
+    'notification.offline': {
+        fr: 'Vous êtes hors ligne. Gardez cette page ouverte puis réessayez au retour du réseau.',
+        en: 'You are offline. Keep this page open, then try again when the network returns.',
+    },
+    'notification.loadFailed': {
+        fr: 'Certaines données du tableau n’ont pas pu être chargées. Réessayez dans un instant.',
+        en: 'Some board data could not be loaded. Please try again in a moment.',
+    },
+    'notification.saveFailed': {
+        fr: 'La modification n’a pas pu être enregistrée. Vérifiez votre connexion.',
+        en: 'The change could not be saved. Check your connection.',
+    },
+    'notification.actionFailed': {
+        fr: 'L’action n’a pas pu aboutir. Veuillez réessayer.',
+        en: 'The action could not be completed. Please try again.',
+    },
+    'notification.searchFailed': {
+        fr: 'La recherche globale est momentanément indisponible.',
+        en: 'Global search is temporarily unavailable.',
+    },
+
     // --- language switch -----------------------------------------------------
     'lang.switch.aria': { fr: 'Choisir la langue', en: 'Choose language' },
     'lang.fr': { fr: 'FR', en: 'FR' },

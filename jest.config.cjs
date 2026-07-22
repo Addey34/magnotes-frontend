@@ -4,6 +4,9 @@ module.exports = {
     testEnvironment: 'node',
     roots: ['<rootDir>/src', '<rootDir>/tests'],
     testMatch: ['**/*.test.ts', '**/*.test.tsx'],
+    moduleNameMapper: {
+        '\\.(css)$': '<rootDir>/tests/styleMock.cjs',
+    },
     transform: {
         '^.+\\.(ts|tsx)$': [
             'ts-jest',

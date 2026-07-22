@@ -21,7 +21,10 @@ type TabCustomization = Partial<
 const normalizeTabs = (tabs: BoardTab[]) =>
     tabs.map((tab) => ({ ...tab, icon: tab.icon || DEFAULT_TAB_ICON }));
 
-export const useTabs = () => {
+export const useTabs = (
+    onLoadError?: () => void,
+    onMutationError?: () => void
+) => {
     const [tabs, setTabs] = useState<BoardTab[]>([]);
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
     const [isLoadingTabs, setIsLoadingTabs] = useState(false);
@@ -36,19 +39,27 @@ export const useTabs = () => {
                     ? currentTabId
                     : loadedTabs[0]?._id || null
             );
+        } catch {
+            onLoadError?.();
         } finally {
             setIsLoadingTabs(false);
         }
-    }, []);
+    }, [onLoadError]);
 
     const addTab = async (backgroundColor?: string) => {
         const color = TAB_COLORS[tabs.length % TAB_COLORS.length];
-        const tab = await createTabRequest(
-            `Page ${tabs.length + 1}`,
-            color,
-            DEFAULT_TAB_ICON,
-            backgroundColor
-        );
+        let tab: BoardTab;
+        try {
+            tab = await createTabRequest(
+                `Page ${tabs.length + 1}`,
+                color,
+                DEFAULT_TAB_ICON,
+                backgroundColor
+            );
+        } catch {
+            onMutationError?.();
+            return;
+        }
         setTabs((currentTabs) => [...currentTabs, tab]);
         setActiveTabId(tab._id);
     };
@@ -75,6 +86,7 @@ export const useTabs = () => {
             await updateTabRequest(tabId, updates);
         } catch {
             setTabs(previousTabs);
+            onMutationError?.();
         }
     };
 
@@ -105,6 +117,7 @@ export const useTabs = () => {
             await updateTabRequest(tabId, { name: normalizedName });
         } catch {
             setTabs(previousTabs);
+            onMutationError?.();
         }
     };
 
@@ -129,6 +142,7 @@ export const useTabs = () => {
             await reorderTabsRequest(orderedTabs.map((tab) => tab._id));
         } catch {
             setTabs(previousTabs);
+            onMutationError?.();
         }
     };
 
@@ -153,6 +167,7 @@ export const useTabs = () => {
         } catch {
             setTabs(previousTabs);
             setActiveTabId(activeTabId);
+            onMutationError?.();
             return false;
         }
     };

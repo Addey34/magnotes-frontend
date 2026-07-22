@@ -7,7 +7,11 @@ import {
 } from '../services/boardApi';
 import { CardLink, CardLinkKind } from '../types/boardTypes';
 
-export const useConnections = (activeTabId: string | null) => {
+export const useConnections = (
+    activeTabId: string | null,
+    onLoadError?: () => void,
+    onMutationError?: () => void
+) => {
     const [linksByTab, setLinksByTab] = useState<Record<string, CardLink[]>>(
         {}
     );
@@ -17,13 +21,20 @@ export const useConnections = (activeTabId: string | null) => {
         [activeTabId, linksByTab]
     );
 
-    const loadLinks = useCallback(async (tabId: string) => {
-        const loaded = await fetchConnections(tabId);
-        setLinksByTab((current) => ({
-            ...current,
-            [tabId]: loaded,
-        }));
-    }, []);
+    const loadLinks = useCallback(
+        async (tabId: string) => {
+            try {
+                const loaded = await fetchConnections(tabId);
+                setLinksByTab((current) => ({
+                    ...current,
+                    [tabId]: loaded,
+                }));
+            } catch {
+                onLoadError?.();
+            }
+        },
+        [onLoadError]
+    );
 
     const addLink = useCallback(
         async (
@@ -43,12 +54,18 @@ export const useConnections = (activeTabId: string | null) => {
             );
             if (duplicate) return;
 
-            const link = await createConnection({
-                tabId: activeTabId,
-                sourceId,
-                targetId,
-                kind,
-            });
+            let link: CardLink;
+            try {
+                link = await createConnection({
+                    tabId: activeTabId,
+                    sourceId,
+                    targetId,
+                    kind,
+                });
+            } catch {
+                onMutationError?.();
+                return;
+            }
             if (!link || !link._id) return;
 
             setLinksByTab((current) => ({
@@ -56,7 +73,7 @@ export const useConnections = (activeTabId: string | null) => {
                 [activeTabId]: [...(current[activeTabId] || []), link],
             }));
         },
-        [activeTabId, linksByTab]
+        [activeTabId, linksByTab, onMutationError]
     );
 
     const patchLinkLocal = useCallback(
@@ -75,22 +92,68 @@ export const useConnections = (activeTabId: string | null) => {
     const relabelLink = useCallback(
         async (linkId: string, label: string): Promise<void> => {
             const trimmed = label.trim().slice(0, 60);
+            const previous = activeTabId
+                ? (linksByTab[activeTabId] || []).find(
+                      (link) => link._id === linkId
+                  )
+                : undefined;
+            if (!previous) return;
             patchLinkLocal(linkId, { label: trimmed });
-            await updateConnection(linkId, { label: trimmed });
+            try {
+                await updateConnection(linkId, { label: trimmed });
+            } catch {
+                patchLinkLocal(linkId, { label: previous.label });
+                onMutationError?.();
+            }
         },
-        [patchLinkLocal]
+        [activeTabId, linksByTab, onMutationError, patchLinkLocal]
     );
 
     const removeLink = useCallback(
         async (linkId: string): Promise<void> => {
             if (!activeTabId) return;
+            const currentLinks = linksByTab[activeTabId] || [];
+            const removedIndex = currentLinks.findIndex(
+                (link) => link._id === linkId
+            );
+            const removed = currentLinks[removedIndex];
+            if (!removed) return;
             setLinksByTab((current) => ({
                 ...current,
                 [activeTabId]: (current[activeTabId] || []).filter(
                     (link) => link._id !== linkId
                 ),
             }));
-            await deleteConnection(linkId);
+            try {
+                await deleteConnection(linkId);
+            } catch {
+                setLinksByTab((current) => {
+                    const next = [...(current[activeTabId] || [])];
+                    if (!next.some((link) => link._id === linkId)) {
+                        next.splice(Math.min(removedIndex, next.length), 0, removed);
+                    }
+                    return { ...current, [activeTabId]: next };
+                });
+                onMutationError?.();
+            }
+        },
+        [activeTabId, linksByTab, onMutationError]
+    );
+
+    const restoreLinksLocal = useCallback(
+        (links: CardLink[]) => {
+            if (!activeTabId || links.length === 0) return;
+            setLinksByTab((current) => {
+                const existing = current[activeTabId] || [];
+                const existingIds = new Set(existing.map((link) => link._id));
+                return {
+                    ...current,
+                    [activeTabId]: [
+                        ...existing,
+                        ...links.filter((link) => !existingIds.has(link._id)),
+                    ],
+                };
+            });
         },
         [activeTabId]
     );
@@ -162,6 +225,7 @@ export const useConnections = (activeTabId: string | null) => {
         removeLink,
         getLinksForCard,
         dropLinksForCard,
+        restoreLinksLocal,
         restoreLinks,
     };
 };

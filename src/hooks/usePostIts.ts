@@ -23,15 +23,20 @@ export type { DropIntent } from './dropIntent';
 export interface CardDeleteLinkEffects {
     snapshot: () => CardLink[];
     dropLocal: () => void;
+    restoreLocal: (links: CardLink[]) => void;
     restore: (links: CardLink[]) => Promise<void>;
 }
 
-export const usePostIts = (activeTabId: string | null) => {
+export const usePostIts = (
+    activeTabId: string | null,
+    onLoadError?: () => void,
+    onMutationError?: () => void
+) => {
     const [postItsByTab, setPostItsByTab] = useState<Record<string, PostIt[]>>(
         {}
     );
     const [isLoadingPostIts, setIsLoadingPostIts] = useState(false);
-    const history = useHistory();
+    const history = useHistory(60, onMutationError);
 
     const postIts = useMemo(
         () => (activeTabId ? postItsByTab[activeTabId] || [] : []),
@@ -50,10 +55,12 @@ export const usePostIts = (activeTabId: string | null) => {
                 ...current,
                 [tabId]: loadedPostIts,
             }));
+        } catch {
+            onLoadError?.();
         } finally {
             setIsLoadingPostIts(false);
         }
-    }, []);
+    }, [onLoadError]);
 
     const addPostIt = async (
         options?: { x?: number; y?: number; color?: string; title?: string }
@@ -137,8 +144,23 @@ export const usePostIts = (activeTabId: string | null) => {
     };
 
     const savePostIt = async (postItId: string, updates: PostItUpdate) => {
+        const previous = activeTabId
+            ? (postItsByTab[activeTabId] || []).find(
+                  (postIt) => postIt._id === postItId
+              )
+            : undefined;
         patchPostItLocal(postItId, updates);
-        await updatePostIt(postItId, updates);
+        try {
+            await updatePostIt(postItId, updates);
+        } catch {
+            if (previous) {
+                patchPostItLocal(
+                    postItId,
+                    buildCardChange(previous, updates).before
+                );
+            }
+            onMutationError?.();
+        }
     };
 
     // Apply a batch of card patches (local + API) using either their prior
@@ -168,6 +190,7 @@ export const usePostIts = (activeTabId: string | null) => {
             effective.forEach((change) =>
                 patchPostItLocal(change.id, change.before)
             );
+            onMutationError?.();
             return;
         }
 
@@ -193,7 +216,12 @@ export const usePostIts = (activeTabId: string | null) => {
         }
 
         patchPostItLocal(postItId, { zIndex: nextZIndex });
-        await updatePostIt(postItId, { zIndex: nextZIndex });
+        try {
+            await updatePostIt(postItId, { zIndex: nextZIndex });
+        } catch {
+            patchPostItLocal(postItId, { zIndex: focusedCard.zIndex });
+            onMutationError?.();
+        }
     };
 
     const getDropIntent = (
@@ -390,14 +418,26 @@ export const usePostIts = (activeTabId: string | null) => {
                 : {}),
         }));
 
-        await updatePostIt(postItId, {
-            tabId: targetTabId,
-            stackId: null,
-            stackOrder: null,
-            x: movedPostIt.x,
-            y: movedPostIt.y,
-            zIndex: movedPostIt.zIndex,
-        });
+        try {
+            await updatePostIt(postItId, {
+                tabId: targetTabId,
+                stackId: null,
+                stackOrder: null,
+                x: movedPostIt.x,
+                y: movedPostIt.y,
+                zIndex: movedPostIt.zIndex,
+            });
+        } catch {
+            setPostItsByTab((current) => ({
+                ...current,
+                [activeTabId]: sourceCards,
+                ...(postItsByTab[targetTabId]
+                    ? { [targetTabId]: targetCards }
+                    : {}),
+            }));
+            onMutationError?.();
+            return;
+        }
         history.clear();
     };
 
@@ -433,7 +473,14 @@ export const usePostIts = (activeTabId: string | null) => {
             }));
 
         removeLocal();
-        await deletePostIt(postItId);
+        try {
+            await deletePostIt(postItId);
+        } catch {
+            restoreLocal();
+            linkEffects?.restoreLocal(relatedLinks);
+            onMutationError?.();
+            return;
+        }
 
         // The restore endpoint re-inserts with the original id, so deletion is
         // now reversible instead of a history barrier.
