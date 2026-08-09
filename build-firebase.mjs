@@ -1,15 +1,16 @@
 // Assembles the Firebase Hosting payload for MagNotes:
-//   /            -> landing/index.html   (static landing page)
+//   /            -> landing/**           (static landing: html, robots, sitemap, og-image)
 //   /app/**      -> dist                 (React app, Vite base '/app/')
 //
 // Run `pnpm run build` first (or `pnpm run build:firebase`, which chains both).
 // Output: ./firebase-dist, pointed to by firebase.json.
-import { rmSync, mkdirSync, cpSync, copyFileSync, existsSync } from 'node:fs';
+import { rmSync, mkdirSync, cpSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const clientDist = resolve(root, 'dist');
+const landing = resolve(root, 'landing');
 const out = resolve(root, 'firebase-dist');
 
 if (!existsSync(clientDist)) {
@@ -18,9 +19,12 @@ if (!existsSync(clientDist)) {
 }
 
 rmSync(out, { recursive: true, force: true });
-mkdirSync(resolve(out, 'app'), { recursive: true });
+mkdirSync(out, { recursive: true });
 
-copyFileSync(resolve(root, 'landing/index.html'), resolve(out, 'index.html'));
+// Everything in landing/ (index.html, robots.txt, sitemap.xml, og-image.png…)
+// is served at the site root.
+cpSync(landing, out, { recursive: true });
+// The React build is served under /app/.
 cpSync(clientDist, resolve(out, 'app'), { recursive: true });
 
 console.log('firebase-dist assembled at', out);

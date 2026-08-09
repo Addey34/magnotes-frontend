@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /$
+Allow: /index.html
+# The app itself is behind auth / not useful to crawlers.
+Disallow: /app/
+
+Sitemap: https://magnotes.adrianguichard.dev/sitemap.xml
