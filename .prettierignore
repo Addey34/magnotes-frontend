@@ -1,0 +1,11 @@
+# Build output
+dist
+firebase-dist
+node_modules
+
+# Generated / managed by tooling — never hand-format
+pnpm-lock.yaml
+pnpm-workspace.yaml
+
+# Firebase deploy cache
+.firebase

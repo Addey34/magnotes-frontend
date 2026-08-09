@@ -17,3 +17,21 @@ CLAUDE.md
 
 # Logs
 *.log
+
+# Playwright artifacts
+/test-results
+/playwright-report
+/blob-report
+# Local/operator files never published by the public frontend repo
+AGENTS.md
+CLAUDE.md
+.claude/
+.codex/
+.agents/
+docs/
+
+# All environment files are local; only templates may be committed
+.env
+.env.*
+!.env.example
+!.env.production.example
