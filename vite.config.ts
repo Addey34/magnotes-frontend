@@ -1,10 +1,10 @@
-import react from '@vitejs/plugin-react';
+﻿import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
 import { defineConfig, loadEnv } from 'vite';
 
 export default defineConfig(({ mode }) => {
     // Standalone repo: env files live next to this config (not in a monorepo root).
-    const env = loadEnv(mode, __dirname, '');
+    const env = loadEnv(mode, import.meta.dirname, '');
 
     return {
         // The app is served under /app/ in production; / serves the static
@@ -24,7 +24,7 @@ export default defineConfig(({ mode }) => {
         build: {
             rollupOptions: {
                 input: {
-                    main: resolve(__dirname, 'index.html'),
+                    main: resolve(import.meta.dirname, 'index.html'),
                 },
             },
         },

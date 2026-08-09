@@ -8,9 +8,6 @@ module.exports = {
         '\\.(css)$': '<rootDir>/tests/styleMock.cjs',
     },
     transform: {
-        '^.+\\.(ts|tsx)$': [
-            'ts-jest',
-            { tsconfig: { isolatedModules: true } },
-        ],
+        '^.+\\.(ts|tsx)$': ['ts-jest', { tsconfig: { isolatedModules: true } }],
     },
 };

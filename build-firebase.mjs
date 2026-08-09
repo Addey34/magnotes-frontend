@@ -2,7 +2,7 @@
 //   /            -> landing/index.html   (static landing page)
 //   /app/**      -> dist                 (React app, Vite base '/app/')
 //
-// Run `npm run build` first (or `npm run build:firebase`, which chains both).
+// Run `pnpm run build` first (or `pnpm run build:firebase`, which chains both).
 // Output: ./firebase-dist, pointed to by firebase.json.
 import { rmSync, mkdirSync, cpSync, copyFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
@@ -13,7 +13,7 @@ const clientDist = resolve(root, 'dist');
 const out = resolve(root, 'firebase-dist');
 
 if (!existsSync(clientDist)) {
-    console.error('dist is missing — run `npm run build` first.');
+    console.error('dist is missing — run `pnpm run build` first.');
     process.exit(1);
 }
 
