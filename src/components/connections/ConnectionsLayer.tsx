@@ -167,6 +167,7 @@ const ConnectionTools: React.FC<{
                 type="button"
                 onClick={commit}
                 title={t('link.label.commit')}
+                aria-label={t('link.label.commit')}
             >
                 <CheckIcon />
             </button>
@@ -175,10 +176,16 @@ const ConnectionTools: React.FC<{
                 className="is-danger"
                 onClick={() => onDelete(link._id)}
                 title={t('link.delete')}
+                aria-label={t('link.delete')}
             >
                 <TrashIcon />
             </button>
-            <button type="button" onClick={onClose} title={t('common.close')}>
+            <button
+                type="button"
+                onClick={onClose}
+                title={t('common.close')}
+                aria-label={t('common.close')}
+            >
                 <XMarkIcon />
             </button>
         </div>

@@ -68,7 +68,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({
                                 {columnCards.length}
                             </span>
                         </header>
-                        <div className="kanban-column-body">
+                        <div className="kanban-column-body app-scrollbar">
                             {columnCards.map((card) => (
                                 <KanbanCard
                                     key={card._id}
@@ -88,7 +88,7 @@ const KanbanCard: React.FC<{
     card: PostIt;
     onOpenCard: (id: string) => void;
 }> = ({ card, onOpenCard }) => {
-    const { t } = useT();
+    const { t, lang } = useT();
     const progress = checklistProgress(card.checklist || []);
     const priorityMeta = CARD_PRIORITIES.find((p) => p.id === card.priority);
     const overdue = card.dueDate
@@ -107,7 +107,10 @@ const KanbanCard: React.FC<{
             role="button"
             tabIndex={0}
             onKeyDown={(event) => {
-                if (event.key === 'Enter') onOpenCard(card._id);
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    onOpenCard(card._id);
+                }
             }}
         >
             <span className="kanban-card-title">
@@ -125,7 +128,7 @@ const KanbanCard: React.FC<{
                     )}
                     {card.dueDate && (
                         <span className={overdue ? 'is-overdue' : ''}>
-                            {formatDueDate(card.dueDate)}
+                            {formatDueDate(card.dueDate, lang)}
                         </span>
                     )}
                     {progress.total > 0 && (

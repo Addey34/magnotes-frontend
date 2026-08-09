@@ -1,6 +1,7 @@
 import {
     ArrowsPointingOutIcon,
     ArrowTopRightOnSquareIcon,
+    ArrowPathIcon,
     CheckCircleIcon,
     DocumentDuplicateIcon,
     LinkIcon,
@@ -8,6 +9,7 @@ import {
     PlusIcon,
     TrashIcon,
     XMarkIcon,
+    ArrowsUpDownIcon,
 } from '@heroicons/react/24/outline';
 import React, {
     useCallback,
@@ -46,27 +48,15 @@ import {
     SaveState,
 } from '../../types/boardTypes';
 import { CardMentionView } from '../../utils/mentionGraph';
+import { formatDueDate, isOverdue } from '../../utils/cardMeta';
 import { TranslationKey } from '../../i18n/dictionary';
 import { useT } from '../../i18n/LangContext';
 import { priorityKey, statusKey } from '../../i18n/labels';
 
 type ResizeCorner = 'nw' | 'ne' | 'sw' | 'se';
 type StylePanel = 'color' | 'text' | 'task' | 'media' | null;
-
-function isOverdue(dueDate: string, done: boolean): boolean {
-    if (done) return false;
-    const today = new Date().toISOString().slice(0, 10);
-    return dueDate < today;
-}
-
-function formatDueDate(dueDate: string): string {
-    const date = new Date(`${dueDate}T00:00:00`);
-    if (Number.isNaN(date.getTime())) return dueDate;
-    return date.toLocaleDateString(undefined, {
-        day: '2-digit',
-        month: 'short',
-    });
-}
+const DRAG_THRESHOLD = 5;
+const ROTATE_THRESHOLD = 3;
 
 interface PostItCardProps {
     postIt: PostIt;
@@ -78,6 +68,7 @@ interface PostItCardProps {
     linkingSourceId: string | null;
     mentionView?: CardMentionView;
     selected?: boolean;
+    isDropTarget?: boolean;
     onNavigateToCard: (cardId: string) => void;
     onLocalChange: (postItId: string, updates: PostItUpdate) => void;
     onAutosave: (postItId: string, updates: PostItUpdate) => void;
@@ -102,6 +93,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
     linkingSourceId,
     mentionView,
     selected,
+    isDropTarget,
     onNavigateToCard,
     onLocalChange,
     onAutosave,
@@ -115,9 +107,11 @@ const PostItCard: React.FC<PostItCardProps> = ({
     onStartLink,
     onLinkTarget,
 }) => {
-    const { t } = useT();
+    const { t, lang } = useT();
     const cardRef = useRef<HTMLElement | null>(null);
+    const suppressRotateClickRef = useRef(false);
     const [isDragging, setIsDragging] = useState(false);
+    const [isHovered, setIsHovered] = useState(false);
     const [stylePanel, setStylePanel] = useState<StylePanel>(null);
     const [newChecklistText, setNewChecklistText] = useState('');
     const [newTag, setNewTag] = useState('');
@@ -178,11 +172,20 @@ const PostItCard: React.FC<PostItCardProps> = ({
     }, [postIt._id, saveState, t]);
 
     const rotation = useMemo(() => {
+        if (
+            typeof postIt.rotation === 'number' &&
+            Number.isFinite(postIt.rotation)
+        ) {
+            return normalizeRotation(postIt.rotation);
+        }
+
+        // Keep the existing visual variation for cards created before the
+        // rotation field was persisted.
         const seed = postIt._id
             .split('')
             .reduce((sum, char) => sum + char.charCodeAt(0), 0);
         return (seed % 5) - 2;
-    }, [postIt._id]);
+    }, [postIt._id, postIt.rotation]);
 
     const intentClass =
         isDragging && dropIntent ? `has-${dropIntent.type}-intent` : '';
@@ -201,17 +204,19 @@ const PostItCard: React.FC<PostItCardProps> = ({
 
         // A modifier click builds a multi-selection instead of moving the card,
         // so it selects/deselects and stops before any drag begins.
-        const additive =
-            event.shiftKey || event.metaKey || event.ctrlKey;
+        const additive = event.shiftKey || event.metaKey || event.ctrlKey;
         onFocus(postIt._id, additive);
         if (additive) {
             event.preventDefault();
             return;
         }
 
+        // Block drag when clicking on interactive elements (inputs, buttons,
+        // the style popovers, resize handles) — those need their own events.
+        const target = event.target as HTMLElement;
         if (
-            (event.target as HTMLElement).closest(
-                'input, textarea, button, select, a, .resize-handle, .post-it-content-view'
+            target.closest(
+                'input, textarea, select, button, .post-it-style-popover, .resize-handle'
             )
         ) {
             return;
@@ -221,12 +226,25 @@ const PostItCard: React.FC<PostItCardProps> = ({
         const startY = event.clientY;
         const initialX = postIt.x;
         const initialY = postIt.y;
+        let didDrag = false;
 
-        setIsDragging(true);
-        onDragStateChange(postIt._id);
+        // A click stays a click; dragging begins only after a small movement
+        // threshold. This prevents accidental moves and text selection.
+        event.preventDefault();
         event.currentTarget.setPointerCapture(event.pointerId);
 
         const handlePointerMove = (moveEvent: PointerEvent) => {
+            const distance = Math.hypot(
+                moveEvent.clientX - startX,
+                moveEvent.clientY - startY
+            );
+            if (!didDrag && distance < DRAG_THRESHOLD) return;
+            if (!didDrag) {
+                didDrag = true;
+                moveEvent.preventDefault();
+                setIsDragging(true);
+                onDragStateChange(postIt._id);
+            }
             onLocalChange(postIt._id, {
                 x: initialX + (moveEvent.clientX - startX) / zoom,
                 y: initialY + (moveEvent.clientY - startY) / zoom,
@@ -238,15 +256,117 @@ const PostItCard: React.FC<PostItCardProps> = ({
             onDragStateChange(null);
             window.removeEventListener('pointermove', handlePointerMove);
             window.removeEventListener('pointerup', handlePointerUp);
-            onMove(
-                postIt._id,
-                initialX + (upEvent.clientX - startX) / zoom,
-                initialY + (upEvent.clientY - startY) / zoom
-            );
+            window.removeEventListener('pointercancel', handlePointerCancel);
+            if (didDrag) {
+                onMove(
+                    postIt._id,
+                    initialX + (upEvent.clientX - startX) / zoom,
+                    initialY + (upEvent.clientY - startY) / zoom
+                );
+            }
+        };
+
+        const handlePointerCancel = () => {
+            setIsDragging(false);
+            onDragStateChange(null);
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointerup', handlePointerUp);
+            window.removeEventListener('pointercancel', handlePointerCancel);
+            if (didDrag) {
+                onLocalChange(postIt._id, { x: initialX, y: initialY });
+            }
         };
 
         window.addEventListener('pointermove', handlePointerMove);
         window.addEventListener('pointerup', handlePointerUp);
+        window.addEventListener('pointercancel', handlePointerCancel);
+    };
+
+    const commitRotation = (value: number): void => {
+        const updates: PostItUpdate = {
+            rotation: normalizeRotation(value),
+        };
+        onLocalChange(postIt._id, updates);
+        onAutosave(postIt._id, updates);
+    };
+
+    const handleRotateStart = (
+        event: React.PointerEvent<HTMLButtonElement>
+    ): void => {
+        event.preventDefault();
+        event.stopPropagation();
+        onFocus(postIt._id);
+        suppressRotateClickRef.current = false;
+
+        const card = cardRef.current;
+        if (!card) return;
+
+        const rect = card.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const startAngle =
+            (Math.atan2(event.clientY - centerY, event.clientX - centerX) *
+                180) /
+            Math.PI;
+        const initialRotation = rotation;
+        let didRotate = false;
+
+        const getRotateUpdates = (
+            clientX: number,
+            clientY: number
+        ): PostItUpdate => {
+            const pointerAngle =
+                (Math.atan2(clientY - centerY, clientX - centerX) * 180) /
+                Math.PI;
+            const delta = normalizeRotation(pointerAngle - startAngle);
+            return {
+                rotation: normalizeRotation(initialRotation + delta),
+            };
+        };
+
+        const handlePointerMove = (moveEvent: PointerEvent): void => {
+            const updates = getRotateUpdates(
+                moveEvent.clientX,
+                moveEvent.clientY
+            );
+            const nextRotation = updates.rotation ?? initialRotation;
+            const delta = Math.abs(
+                normalizeRotation(nextRotation - initialRotation)
+            );
+            if (!didRotate && delta < ROTATE_THRESHOLD) return;
+
+            didRotate = true;
+            suppressRotateClickRef.current = true;
+            moveEvent.preventDefault();
+            onLocalChange(postIt._id, updates);
+        };
+
+        const cleanup = (): void => {
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointerup', handlePointerUp);
+            window.removeEventListener('pointercancel', handlePointerCancel);
+        };
+
+        const handlePointerUp = (upEvent: PointerEvent): void => {
+            cleanup();
+            if (!didRotate) return;
+
+            const updates = getRotateUpdates(upEvent.clientX, upEvent.clientY);
+            onLocalChange(postIt._id, updates);
+            onAutosave(postIt._id, updates);
+        };
+
+        const handlePointerCancel = (): void => {
+            cleanup();
+            if (didRotate) {
+                onLocalChange(postIt._id, { rotation: initialRotation });
+            }
+            suppressRotateClickRef.current = false;
+        };
+
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerup', handlePointerUp);
+        window.addEventListener('pointercancel', handlePointerCancel);
     };
 
     const handleResizeStart = (
@@ -311,13 +431,27 @@ const PostItCard: React.FC<PostItCardProps> = ({
         const handlePointerUp = (upEvent: PointerEvent) => {
             window.removeEventListener('pointermove', handlePointerMove);
             window.removeEventListener('pointerup', handlePointerUp);
+            window.removeEventListener('pointercancel', handlePointerCancel);
             const updates = getResizeUpdates(upEvent.clientX, upEvent.clientY);
             onLocalChange(postIt._id, updates);
             onAutosave(postIt._id, updates);
         };
 
+        const handlePointerCancel = () => {
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointerup', handlePointerUp);
+            window.removeEventListener('pointercancel', handlePointerCancel);
+            onLocalChange(postIt._id, {
+                x: initialX,
+                y: initialY,
+                width: initialWidth,
+                height: initialHeight,
+            });
+        };
+
         window.addEventListener('pointermove', handlePointerMove);
         window.addEventListener('pointerup', handlePointerUp);
+        window.addEventListener('pointercancel', handlePointerCancel);
     };
 
     const updateText = (field: 'title' | 'content', value: string): void => {
@@ -433,7 +567,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
     return (
         <article
             ref={cardRef}
-            className={`post-it-card finish-${postIt.finish || 'flat'} ${isDragging ? 'is-dragging' : ''} ${stylePanel ? 'has-open-style-panel' : ''} ${intentClass} ${isLinkSource ? 'is-link-source' : ''} ${isLinkTargetCandidate ? 'is-link-target' : ''} ${selected ? 'is-selected' : ''}`}
+            className={`post-it-card finish-${postIt.finish || 'flat'} ${isDragging ? 'is-dragging' : ''} ${isHovered ? 'is-hovered' : ''} ${stylePanel ? 'has-open-style-panel' : ''} ${intentClass} ${isLinkSource ? 'is-link-source' : ''} ${isLinkTargetCandidate ? 'is-link-target' : ''} ${selected ? 'is-selected' : ''} ${isDropTarget ? 'is-drop-target' : ''}`}
             style={{
                 backgroundColor: postIt.color,
                 transform: `translate(${postIt.x}px, ${postIt.y}px) rotate(${rotation}deg)`,
@@ -442,6 +576,8 @@ const PostItCard: React.FC<PostItCardProps> = ({
                 zIndex: postIt.zIndex,
             }}
             onPointerDown={handlePointerDown}
+            onPointerEnter={() => setIsHovered(true)}
+            onPointerLeave={() => setIsHovered(false)}
             onDrop={handleDrop}
             onDragOver={(event) => {
                 if (event.dataTransfer?.types?.includes('Files')) {
@@ -458,6 +594,52 @@ const PostItCard: React.FC<PostItCardProps> = ({
 
             <div className="post-it-surface-glow" />
 
+            {/* Combined drag + rotate handle — drag to move, rotate gesture
+                on pointer-hold offset from center, click to step +15°. */}
+            <button
+                type="button"
+                className="post-it-action-handle post-it-drag-handle"
+                title={`${t('card.tool.move')} · ${t('card.tool.rotate')}`}
+                aria-label={`${t('card.tool.move')} / ${t('card.tool.rotate')}`}
+                aria-keyshortcuts="ArrowLeft ArrowRight"
+                style={{
+                    backgroundColor: postIt.color,
+                    color: postIt.textColor,
+                }}
+                onPointerDown={handleRotateStart}
+                onClick={() => {
+                    if (suppressRotateClickRef.current) {
+                        suppressRotateClickRef.current = false;
+                        return;
+                    }
+                    commitRotation(rotation + 15);
+                }}
+                onKeyDown={(event) => {
+                    if (
+                        event.key === 'ArrowLeft' ||
+                        event.key === 'ArrowDown'
+                    ) {
+                        event.preventDefault();
+                        commitRotation(rotation - 15);
+                    } else if (
+                        event.key === 'ArrowRight' ||
+                        event.key === 'ArrowUp'
+                    ) {
+                        event.preventDefault();
+                        commitRotation(rotation + 15);
+                    }
+                }}
+            >
+                <ArrowsUpDownIcon
+                    aria-hidden="true"
+                    className="handle-icon-move"
+                />
+                <ArrowPathIcon
+                    aria-hidden="true"
+                    className="handle-icon-rotate"
+                />
+            </button>
+
             <div className="post-it-hover-tools">
                 <button
                     className="card-color-trigger"
@@ -468,6 +650,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                         )
                     }
                     title={t('card.tool.color')}
+                    aria-label={t('card.tool.color')}
                     aria-expanded={stylePanel === 'color'}
                     style={{ backgroundColor: postIt.color }}
                 />
@@ -480,6 +663,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                         )
                     }
                     title={t('card.tool.text')}
+                    aria-label={t('card.tool.text')}
                     aria-expanded={stylePanel === 'text'}
                 >
                     Aa
@@ -493,6 +677,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                         )
                     }
                     title={t('card.tool.task')}
+                    aria-label={t('card.tool.task')}
                     aria-expanded={stylePanel === 'task'}
                 >
                     <CheckCircleIcon />
@@ -515,7 +700,8 @@ const PostItCard: React.FC<PostItCardProps> = ({
                     className={`icon-button ${stylePanel === 'media' ? 'is-active' : ''}`}
                     onClick={() => {
                         setMediaDraft(
-                            postIt.mediaUrl && !postIt.mediaUrl.startsWith('data:')
+                            postIt.mediaUrl &&
+                                !postIt.mediaUrl.startsWith('data:')
                                 ? postIt.mediaUrl
                                 : ''
                         );
@@ -525,6 +711,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                         );
                     }}
                     title={t('card.tool.image')}
+                    aria-label={t('card.tool.image')}
                     aria-expanded={stylePanel === 'media'}
                 >
                     <PhotoIcon />
@@ -534,6 +721,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                     className="icon-button"
                     onClick={() => setDetailOpen(true)}
                     title={t('card.tool.expand')}
+                    aria-label={t('card.tool.expand')}
                 >
                     <ArrowsPointingOutIcon />
                 </button>
@@ -542,6 +730,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                     className="icon-button"
                     onClick={() => onDuplicate(postIt._id)}
                     title={t('card.tool.duplicate')}
+                    aria-label={t('card.tool.duplicate')}
                 >
                     <DocumentDuplicateIcon />
                 </button>
@@ -550,6 +739,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                     className="icon-button danger"
                     onClick={() => onDelete(postIt._id)}
                     title={t('card.tool.delete')}
+                    aria-label={t('card.tool.delete')}
                 >
                     <TrashIcon />
                 </button>
@@ -774,7 +964,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
 
             {stylePanel === 'task' && (
                 <div
-                    className="post-it-style-popover task-popover"
+                    className="post-it-style-popover task-popover app-scrollbar"
                     onPointerDown={(event) => event.stopPropagation()}
                 >
                     <div className="task-field">
@@ -881,7 +1071,10 @@ const PostItCard: React.FC<PostItCardProps> = ({
                         </span>
                         <div className="task-checklist-editor">
                             {checklist.map((item) => (
-                                <div key={item.id} className="task-checklist-row">
+                                <div
+                                    key={item.id}
+                                    className="task-checklist-row"
+                                >
                                     <input
                                         type="checkbox"
                                         checked={item.done}
@@ -997,7 +1190,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                 />
             ) : (
                 <div
-                    className="post-it-content post-it-content-view markdown-body"
+                    className="post-it-content post-it-content-view markdown-body app-scrollbar"
                     onClick={() => {
                         onFocus(postIt._id);
                         setIsEditingContent(true);
@@ -1056,7 +1249,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                         <span
                             className={`post-it-badge due-badge ${overdue ? 'is-overdue' : ''}`}
                         >
-                            {formatDueDate(postIt.dueDate)}
+                            {formatDueDate(postIt.dueDate, lang)}
                         </span>
                     )}
                     {progress.total > 0 && (
@@ -1158,6 +1351,11 @@ const PostItCard: React.FC<PostItCardProps> = ({
         </article>
     );
 };
+
+function normalizeRotation(value: number): number {
+    const normalized = ((((value + 180) % 360) + 360) % 360) - 180;
+    return Math.round(normalized * 10) / 10;
+}
 
 function clamp(value: number, min: number, max: number): number {
     return Math.min(max, Math.max(min, Math.round(value)));

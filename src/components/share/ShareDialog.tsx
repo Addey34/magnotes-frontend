@@ -1,7 +1,8 @@
 import { LinkIcon, XMarkIcon } from '@heroicons/react/24/outline';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { BoardTab } from '../../types/boardTypes';
 import { useT } from '../../i18n/LangContext';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface ShareDialogProps {
     tab: BoardTab;
@@ -24,6 +25,9 @@ const ShareDialog: React.FC<ShareDialogProps> = ({
     const [token, setToken] = useState<string | null>(tab.shareToken ?? null);
     const [busy, setBusy] = useState(false);
     const [copied, setCopied] = useState(false);
+    const dialogRef = useRef<HTMLDivElement | null>(null);
+
+    useFocusTrap(true, dialogRef);
 
     useEffect(() => {
         const onKey = (event: KeyboardEvent) => {
@@ -63,6 +67,7 @@ const ShareDialog: React.FC<ShareDialogProps> = ({
         >
             <div
                 className="share-dialog"
+                ref={dialogRef}
                 role="dialog"
                 aria-modal="true"
                 aria-label={t('share.aria')}

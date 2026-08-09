@@ -1,8 +1,5 @@
 import { DEFAULT_POST_IT } from '../constants/boardDefaults';
-import {
-    BoardTemplate,
-    BoardTemplateCard,
-} from '../constants/boardTemplates';
+import { BoardTemplate, BoardTemplateCard } from '../constants/boardTemplates';
 import { PostIt } from '../types/boardTypes';
 
 const TEMPLATE_POSITION_OFFSET = 48;
@@ -75,6 +72,7 @@ export function buildTemplateCards(
         y: card.y + offsetY,
         width: DEFAULT_POST_IT.width,
         height: DEFAULT_POST_IT.height,
+        rotation: DEFAULT_POST_IT.rotation,
         ...buildTaskFields(card),
     }));
 }

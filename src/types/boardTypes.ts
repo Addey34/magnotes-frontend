@@ -48,6 +48,7 @@ export interface PostIt {
     finish?: CardFinish;
     x: number;
     y: number;
+    rotation?: number;
     width: number;
     height: number;
     zIndex: number;
@@ -76,6 +77,7 @@ export type PostItUpdate = Partial<
         | 'finish'
         | 'x'
         | 'y'
+        | 'rotation'
         | 'width'
         | 'height'
         | 'zIndex'

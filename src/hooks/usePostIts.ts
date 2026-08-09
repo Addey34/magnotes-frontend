@@ -8,13 +8,23 @@ import {
     updatePostIt,
 } from '../services/boardApi';
 import { DEFAULT_POST_IT } from '../constants/boardDefaults';
-import { CardLink, PostIt, PostItStack, PostItUpdate } from '../types/boardTypes';
+import {
+    CardLink,
+    PostIt,
+    PostItStack,
+    PostItUpdate,
+} from '../types/boardTypes';
 import { snapToGrid } from './useDragGrid';
 import { computeDropIntent, DropIntent } from './dropIntent';
 import { buildCardChange, CardChange, isNoOpChange } from './historyCommands';
 import { useHistory } from './useHistory';
-import { bringCardToFront, sendCardToBack, StackOrderChange } from './stackOrdering';
+import {
+    bringCardToFront,
+    sendCardToBack,
+    StackOrderChange,
+} from './stackOrdering';
 import { TemplateCardPayload } from '../utils/boardTemplate';
+import { findFreePostItPosition } from '../utils/postItPlacement';
 
 export type { DropIntent } from './dropIntent';
 
@@ -35,7 +45,10 @@ export const usePostIts = (
     const [postItsByTab, setPostItsByTab] = useState<Record<string, PostIt[]>>(
         {}
     );
-    const [isLoadingPostIts, setIsLoadingPostIts] = useState(false);
+    const [loadedTabs, setLoadedTabs] = useState<Set<string>>(() => new Set());
+    const [loadingTabs, setLoadingTabs] = useState<Set<string>>(
+        () => new Set()
+    );
     const history = useHistory(60, onMutationError);
 
     const postIts = useMemo(
@@ -47,33 +60,60 @@ export const usePostIts = (
         return cards.reduce((max, card) => Math.max(max, card.zIndex), 0) + 1;
     };
 
-    const loadPostIts = useCallback(async (tabId: string) => {
-        setIsLoadingPostIts(true);
-        try {
-            const loadedPostIts = await fetchPostIts(tabId);
-            setPostItsByTab((current) => ({
-                ...current,
-                [tabId]: loadedPostIts,
-            }));
-        } catch {
-            onLoadError?.();
-        } finally {
-            setIsLoadingPostIts(false);
-        }
-    }, [onLoadError]);
+    const loadPostIts = useCallback(
+        async (tabId: string) => {
+            setLoadingTabs((current) => new Set(current).add(tabId));
+            try {
+                const loadedPostIts = await fetchPostIts(tabId);
+                setPostItsByTab((current) => ({
+                    ...current,
+                    [tabId]: loadedPostIts,
+                }));
+            } catch {
+                onLoadError?.();
+            } finally {
+                setLoadedTabs((current) => {
+                    const next = new Set(current);
+                    next.add(tabId);
+                    return next;
+                });
+                setLoadingTabs((current) => {
+                    const next = new Set(current);
+                    next.delete(tabId);
+                    return next;
+                });
+            }
+        },
+        [onLoadError]
+    );
 
-    const addPostIt = async (
-        options?: { x?: number; y?: number; color?: string; title?: string }
-    ) => {
+    const addPostIt = async (options?: {
+        x?: number;
+        y?: number;
+        color?: string;
+        title?: string;
+    }) => {
         if (!activeTabId) return;
+
+        const position = findFreePostItPosition(
+            {
+                x: options?.x ?? 48 + postIts.length * 24,
+                y: options?.y ?? 48 + postIts.length * 24,
+            },
+            postIts,
+            {
+                width: DEFAULT_POST_IT.width,
+                height: DEFAULT_POST_IT.height,
+            }
+        );
 
         const postIt = await createPostIt({
             tabId: activeTabId,
             ...DEFAULT_POST_IT,
             ...(options?.color ? { color: options.color } : {}),
             ...(options?.title ? { title: options.title } : {}),
-            x: options?.x ?? 48 + postIts.length * 24,
-            y: options?.y ?? 48 + postIts.length * 24,
+            x: position.x,
+            y: position.y,
         });
 
         setPostItsByTab((current) => ({
@@ -179,7 +219,9 @@ export const usePostIts = (
         const effective = changes.filter((change) => !isNoOpChange(change));
         if (effective.length === 0) return;
 
-        effective.forEach((change) => patchPostItLocal(change.id, change.after));
+        effective.forEach((change) =>
+            patchPostItLocal(change.id, change.after)
+        );
 
         try {
             await Promise.all(
@@ -208,12 +250,19 @@ export const usePostIts = (
         if (!activeTabId) return;
 
         const currentCards = postItsByTab[activeTabId] || [];
-        const focusedCard = currentCards.find((postIt) => postIt._id === postItId);
+        const focusedCard = currentCards.find(
+            (postIt) => postIt._id === postItId
+        );
+        if (!focusedCard) return;
+
         const nextZIndex = getNextZIndex(currentCards);
 
-        if (!focusedCard || focusedCard.zIndex === nextZIndex - 1) {
-            return;
-        }
+        // For stacked cards: always re-focus because stackOrder offsets mean
+        // the raw zIndex doesn't reflect visual layering within the spread.
+        // For free cards: skip if already at the top to avoid a no-op API call.
+        const alreadyOnTop =
+            !focusedCard.stackId && focusedCard.zIndex === nextZIndex - 1;
+        if (alreadyOnTop) return;
 
         patchPostItLocal(postItId, { zIndex: nextZIndex });
         try {
@@ -263,21 +312,28 @@ export const usePostIts = (
         const intent = getDropIntent(postItId, finalX, finalY);
 
         if (intent?.type === 'stack') {
-            const targetCard = currentCards.find((card) => card._id === intent.targetId);
+            const targetCard = currentCards.find(
+                (card) => card._id === intent.targetId
+            );
             if (!targetCard) return;
 
             const existingStack = stacks.find(
                 (stack) => stack._id === targetCard.stackId
             );
             const stack =
-                existingStack || (await createStackAt(targetCard.x, targetCard.y));
+                existingStack ||
+                (await createStackAt(targetCard.x, targetCard.y));
 
             if (!stack) return;
 
             const stackedCards = currentCards.filter(
                 (card) => card.stackId === stack._id
             );
-            const nextStackOrder = stackedCards.length + 1;
+            // A new stack is created from the target card, which has not been
+            // assigned the fresh stack id in local state yet. Count it
+            // explicitly so the moved card becomes the second item instead of
+            // receiving the same order as the target.
+            const nextStackOrder = existingStack ? stackedCards.length + 1 : 2;
 
             if (!existingStack) {
                 // A brand new stack was created to hold these cards. Stack
@@ -358,7 +414,10 @@ export const usePostIts = (
     // stackOrder changes; we apply them as one undoable batch.
     const reorderInStack = async (
         postItId: string,
-        reorder: (cards: { _id: string; stackOrder?: number | null }[], id: string) => StackOrderChange[]
+        reorder: (
+            cards: { _id: string; stackOrder?: number | null }[],
+            id: string
+        ) => StackOrderChange[]
     ) => {
         if (!activeTabId) return;
 
@@ -374,7 +433,9 @@ export const usePostIts = (
 
         const cardChanges = changes
             .map((change) => {
-                const target = stackCards.find((item) => item._id === change.id);
+                const target = stackCards.find(
+                    (item) => item._id === change.id
+                );
                 return target
                     ? buildCardChange(target, { stackOrder: change.stackOrder })
                     : null;
@@ -511,10 +572,14 @@ export const usePostIts = (
     };
 
     useEffect(() => {
-        if (activeTabId && !postItsByTab[activeTabId]) {
+        if (
+            activeTabId &&
+            !loadedTabs.has(activeTabId) &&
+            !loadingTabs.has(activeTabId)
+        ) {
             loadPostIts(activeTabId);
         }
-    }, [activeTabId, loadPostIts, postItsByTab]);
+    }, [activeTabId, loadPostIts, loadedTabs, loadingTabs]);
 
     // Undo history is scoped to the active board; reset it when switching tabs
     // so entries never target cards from another board.
@@ -524,7 +589,7 @@ export const usePostIts = (
 
     return {
         postIts,
-        isLoadingPostIts,
+        isLoadingPostIts: activeTabId ? loadingTabs.has(activeTabId) : false,
         addPostIt,
         addTemplateCards,
         patchPostItLocal,

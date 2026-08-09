@@ -47,6 +47,24 @@ describe('useStacks rollbacks', () => {
         expect(onMutationError).toHaveBeenCalledTimes(1);
     });
 
+    it('snaps a moved stack and restores its position when saving fails', async () => {
+        mockedUpdate.mockRejectedValue(new Error('network'));
+        const onMutationError = jest.fn();
+        const { result } = renderHook(() =>
+            useStacks('tab-1', jest.fn(), onMutationError)
+        );
+        await waitFor(() => expect(result.current.stacks).toHaveLength(1));
+
+        await act(async () => result.current.settleStack('stack-1', 37, 53));
+
+        expect(mockedUpdate).toHaveBeenCalledWith('stack-1', {
+            x: 48,
+            y: 48,
+        });
+        expect(result.current.stacks[0]).toMatchObject({ x: 24, y: 48 });
+        expect(onMutationError).toHaveBeenCalledTimes(1);
+    });
+
     it('re-inserts a removed stack when deletion fails', async () => {
         mockedDelete.mockRejectedValue(new Error('network'));
         const onMutationError = jest.fn();
@@ -59,5 +77,17 @@ describe('useStacks rollbacks', () => {
 
         expect(result.current.stacks).toEqual([stack]);
         expect(onMutationError).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not retry a failed initial load on every render', async () => {
+        mockedFetch.mockRejectedValue(new Error('offline'));
+        const onLoadError = jest.fn();
+        const { result } = renderHook(() =>
+            useStacks('tab-1', onLoadError, jest.fn())
+        );
+
+        await waitFor(() => expect(onLoadError).toHaveBeenCalledTimes(1));
+        expect(mockedFetch).toHaveBeenCalledTimes(1);
+        expect(result.current.isLoadingStacks).toBe(false);
     });
 });

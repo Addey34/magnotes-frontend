@@ -86,7 +86,7 @@ const TimelineView: React.FC<TimelineViewProps> = ({ cards, onOpenCard }) => {
                         <strong>{t('view.timeline.overdue')}</strong>
                         <span>{groups.overdue.length}</span>
                     </header>
-                    <div className="timeline-column-body">
+                    <div className="timeline-column-body app-scrollbar">
                         {groups.overdue.map((card) => (
                             <TimelineCardChip
                                 key={card._id}
@@ -106,7 +106,7 @@ const TimelineView: React.FC<TimelineViewProps> = ({ cards, onOpenCard }) => {
                             <strong>{heading.label}</strong>
                             <span>{heading.sub}</span>
                         </header>
-                        <div className="timeline-column-body">
+                        <div className="timeline-column-body app-scrollbar">
                             {column.cards.map((card) => (
                                 <TimelineCardChip
                                     key={card._id}
@@ -125,7 +125,7 @@ const TimelineView: React.FC<TimelineViewProps> = ({ cards, onOpenCard }) => {
                         <strong>{t('view.timeline.noDue')}</strong>
                         <span>{groups.undated.length}</span>
                     </header>
-                    <div className="timeline-column-body">
+                    <div className="timeline-column-body app-scrollbar">
                         {groups.undated.map((card) => (
                             <TimelineCardChip
                                 key={card._id}

@@ -171,9 +171,7 @@ export function buildImportedCards(
             width: DEFAULT_POST_IT.width,
             height: DEFAULT_POST_IT.height,
             ...(card.status !== undefined ? { status: card.status } : {}),
-            ...(card.checklist.length > 0
-                ? { checklist: card.checklist }
-                : {}),
+            ...(card.checklist.length > 0 ? { checklist: card.checklist } : {}),
             ...(card.tags.length > 0 ? { tags: card.tags } : {}),
             ...(card.dueDate !== undefined ? { dueDate: card.dueDate } : {}),
         };

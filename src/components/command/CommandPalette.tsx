@@ -90,7 +90,9 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
 
     // Keep the active row valid as the result set shrinks, and scroll it in view.
     useEffect(() => {
-        setActiveIndex((index) => Math.min(index, Math.max(0, items.length - 1)));
+        setActiveIndex((index) =>
+            Math.min(index, Math.max(0, items.length - 1))
+        );
     }, [items.length]);
 
     useEffect(() => {
@@ -171,7 +173,10 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                     <kbd>{t('palette.esc')}</kbd>
                 </label>
 
-                <div className="command-palette-list" ref={listRef}>
+                <div
+                    className="command-palette-list app-scrollbar"
+                    ref={listRef}
+                >
                     {items.length === 0 ? (
                         <p className="command-palette-empty">
                             {t('palette.empty')}

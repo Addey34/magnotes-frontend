@@ -31,17 +31,35 @@ describe('clampZoom', () => {
 
 describe('screenToBoard', () => {
     it('subtracts rect origin and offset then divides by zoom', () => {
-        const point = screenToBoard(150, 80, rect(100, 50, 800, 600), { x: 0, y: 0 }, 1);
+        const point = screenToBoard(
+            150,
+            80,
+            rect(100, 50, 800, 600),
+            { x: 0, y: 0 },
+            1
+        );
         expect(point).toEqual({ x: 50, y: 30 });
     });
 
     it('accounts for zoom and offset', () => {
-        const point = screenToBoard(150, 80, rect(100, 50, 800, 600), { x: 10, y: -20 }, 2);
+        const point = screenToBoard(
+            150,
+            80,
+            rect(100, 50, 800, 600),
+            { x: 10, y: -20 },
+            2
+        );
         expect(point).toEqual({ x: 20, y: 25 });
     });
 
     it('handles negative board coordinates (bidirectional canvas)', () => {
-        const point = screenToBoard(0, 0, rect(0, 0, 800, 600), { x: 200, y: 120 }, 1);
+        const point = screenToBoard(
+            0,
+            0,
+            rect(0, 0, 800, 600),
+            { x: 200, y: 120 },
+            1
+        );
         expect(point).toEqual({ x: -200, y: -120 });
     });
 });
@@ -55,7 +73,13 @@ describe('zoomAroundPoint', () => {
 
         const boardBefore = screenToBoard(cursorX, cursorY, r, offset, 1);
         const next = zoomAroundPoint(2, cursorX, cursorY, r, offset, 1);
-        const boardAfter = screenToBoard(cursorX, cursorY, r, next.offset, next.zoom);
+        const boardAfter = screenToBoard(
+            cursorX,
+            cursorY,
+            r,
+            next.offset,
+            next.zoom
+        );
 
         expect(next.zoom).toBe(2);
         expect(boardAfter.x).toBeCloseTo(boardBefore.x);

@@ -8,7 +8,9 @@
     background: none;
     border: none;
     cursor: pointer;
-    transition: var(--transition), transform 0.1s ease-in-out;
+    transition:
+        var(--transition),
+        transform 0.1s ease-in-out;
 }
 
 .task-icon-button.primary {

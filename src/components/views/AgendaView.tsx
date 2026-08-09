@@ -2,7 +2,11 @@ import React, { useMemo } from 'react';
 import { CARD_PRIORITIES, CARD_STATUSES } from '../../constants/boardDefaults';
 import { PostIt, PostItStatus } from '../../types/boardTypes';
 import { checklistProgress } from '../../utils/checklist';
-import { AgendaBucket, agendaBucket, formatDueDate } from '../../utils/cardMeta';
+import {
+    AgendaBucket,
+    agendaBucket,
+    formatDueDate,
+} from '../../utils/cardMeta';
 import { TranslationKey } from '../../i18n/dictionary';
 import { useT } from '../../i18n/LangContext';
 import { priorityKey, statusKey } from '../../i18n/labels';
@@ -54,14 +58,14 @@ const AgendaView: React.FC<AgendaViewProps> = ({
 
     if (visibleBuckets.length === 0) {
         return (
-            <div className="board-agenda is-empty">
+            <div className="board-agenda app-scrollbar is-empty">
                 <p>{t('view.agenda.empty')}</p>
             </div>
         );
     }
 
     return (
-        <div className="board-agenda">
+        <div className="board-agenda app-scrollbar">
             {visibleBuckets.map((bucket) => (
                 <section
                     key={bucket.id}
@@ -92,7 +96,7 @@ const AgendaRow: React.FC<{
     onStatusChange: (id: string, status: PostItStatus | null) => void;
     onOpenCard: (id: string) => void;
 }> = ({ card, onStatusChange, onOpenCard }) => {
-    const { t } = useT();
+    const { t, lang } = useT();
     const progress = checklistProgress(card.checklist || []);
     const priorityMeta = CARD_PRIORITIES.find((p) => p.id === card.priority);
 
@@ -127,7 +131,7 @@ const AgendaRow: React.FC<{
                 ))}
                 {card.dueDate && (
                     <span className="agenda-due">
-                        {formatDueDate(card.dueDate)}
+                        {formatDueDate(card.dueDate, lang)}
                     </span>
                 )}
                 <select

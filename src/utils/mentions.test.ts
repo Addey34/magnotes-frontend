@@ -1,8 +1,4 @@
-import {
-    buildBacklinkIndex,
-    parseMentions,
-    resolveMentions,
-} from './mentions';
+import { buildBacklinkIndex, parseMentions, resolveMentions } from './mentions';
 
 describe('parseMentions', () => {
     it('extracts, trims, and de-duplicates multiple mentions', () => {

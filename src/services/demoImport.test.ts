@@ -147,9 +147,9 @@ describe('importSnapshot', () => {
             (patch) =>
                 (patch.updates as { stackId?: string }).stackId !== undefined
         );
-        expect(
-            (stackPatch?.updates as { stackId?: string }).stackId
-        ).toMatch(/^srvStack-/);
+        expect((stackPatch?.updates as { stackId?: string }).stackId).toMatch(
+            /^srvStack-/
+        );
     });
 
     it('skips connections whose endpoints did not import', async () => {

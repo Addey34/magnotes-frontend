@@ -3,6 +3,11 @@
  * and Agenda views. No React/DOM, so they are unit tested — see cardMeta.test.ts.
  */
 
+import { Lang } from '../i18n/i18n';
+
+/** BCP-47 locale for date formatting, derived from the app language. */
+const DATE_LOCALE: Record<Lang, string> = { fr: 'fr-FR', en: 'en-US' };
+
 /** Today as an ISO calendar day (YYYY-MM-DD), local time. */
 export function todayIso(now: Date = new Date()): string {
     const offsetMs = now.getTimezoneOffset() * 60 * 1000;
@@ -19,11 +24,15 @@ export function isOverdue(
     return dueDate < todayIso(now);
 }
 
-/** Short human label for a due date (e.g. "20 juil."). */
-export function formatDueDate(dueDate: string): string {
+/**
+ * Short human label for a due date (e.g. "20 juil." in FR, "Jul 20" in EN).
+ * Formats with the app language rather than the system locale so the label
+ * matches the rest of the UI. Falls back to English if `lang` is omitted.
+ */
+export function formatDueDate(dueDate: string, lang: Lang = 'en'): string {
     const date = new Date(`${dueDate}T00:00:00`);
     if (Number.isNaN(date.getTime())) return dueDate;
-    return date.toLocaleDateString(undefined, {
+    return date.toLocaleDateString(DATE_LOCALE[lang], {
         day: '2-digit',
         month: 'short',
     });

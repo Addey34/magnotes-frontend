@@ -39,9 +39,7 @@ export function buildTimeline<T extends TimelineCard>(
         }
     }
 
-    overdue.sort((a, b) =>
-        String(a.dueDate).localeCompare(String(b.dueDate))
-    );
+    overdue.sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)));
 
     const dated = [...byDate.entries()]
         .sort((a, b) => a[0].localeCompare(b[0]))

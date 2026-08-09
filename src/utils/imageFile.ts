@@ -21,8 +21,7 @@ export function readImageFile(file: File): Promise<ReadImageResult> {
     }
     return new Promise((resolve) => {
         const reader = new FileReader();
-        reader.onload = () =>
-            resolve({ dataUrl: String(reader.result || '') });
+        reader.onload = () => resolve({ dataUrl: String(reader.result || '') });
         reader.onerror = () => resolve({ error: 'read-failed' });
         reader.readAsDataURL(file);
     });

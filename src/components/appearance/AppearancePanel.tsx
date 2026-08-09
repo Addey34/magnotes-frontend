@@ -75,9 +75,7 @@ const AppearancePanel: React.FC<AppearancePanelProps> = ({
             </div>
 
             <div className="appearance-section">
-                <p className="appearance-title">
-                    {t('appearance.background')}
-                </p>
+                <p className="appearance-title">{t('appearance.background')}</p>
                 <div className="appearance-custom">
                     <label
                         className="appearance-custom-swatch"

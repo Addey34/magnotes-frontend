@@ -14,8 +14,7 @@ export interface KeyboardShortcutCallbacks {
     onEscape?: () => void;
 }
 
-export interface UseKeyboardShortcutsOptions
-    extends KeyboardShortcutCallbacks {
+export interface UseKeyboardShortcutsOptions extends KeyboardShortcutCallbacks {
     enabled?: boolean;
 }
 
@@ -75,11 +74,7 @@ export const useKeyboardShortcuts = ({
                 callback = onUndo;
             } else if (!editable && modifier && key === 'y') {
                 callback = onRedo;
-            } else if (
-                !editable &&
-                modifier &&
-                (key === '+' || key === '=')
-            ) {
+            } else if (!editable && modifier && (key === '+' || key === '=')) {
                 callback = onZoomIn;
             } else if (!editable && modifier && key === '-') {
                 callback = onZoomOut;

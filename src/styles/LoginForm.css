@@ -1,4 +1,4 @@
-.auth-page {
+﻿.auth-page {
     background: #0d0f1d;
     color: #f4f5fb;
     display: grid;
@@ -16,7 +16,11 @@
 }
 
 .auth-grid {
-    background-image: radial-gradient(circle, rgba(118, 126, 165, 0.2) 0.8px, transparent 0.9px);
+    background-image: radial-gradient(
+        circle,
+        rgba(118, 126, 165, 0.2) 0.8px,
+        transparent 0.9px
+    );
     background-size: 28px 28px;
     inset: 0;
     pointer-events: none;
@@ -81,7 +85,7 @@
 
 .auth-logo-mark {
     align-items: center;
-    background: #806df5;
+    background: #6253d1;
     border-radius: 8px;
     box-shadow: 0 8px 20px rgba(108, 83, 238, 0.25);
     color: #fff;
@@ -110,15 +114,18 @@
 }
 
 .auth-brand > div > span {
-    color: #747a98;
+    color: #8289aa;
     font-size: 9px;
     line-height: 1;
 }
 
 .auth-hero-copy {
-    margin-top: auto;
+    align-self: center;
+    margin: auto;
     max-width: 390px;
     padding-bottom: 14px;
+    text-align: center;
+    width: 100%;
 }
 
 .auth-eyebrow,
@@ -136,6 +143,7 @@
     font-weight: 790;
     line-height: 1.06;
     margin: 10px 0 14px;
+    margin-inline: auto;
     max-width: 380px;
 }
 
@@ -148,6 +156,7 @@
     font-size: 13px;
     line-height: 1.55;
     margin: 0;
+    margin-inline: auto;
     max-width: 340px;
 }
 
@@ -217,7 +226,10 @@
     gap: 9px;
     height: 42px;
     padding: 0 11px;
-    transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+    transition:
+        background 140ms ease,
+        border-color 140ms ease,
+        box-shadow 140ms ease;
 }
 
 .auth-input-wrap:hover {
@@ -297,7 +309,7 @@
 
 .auth-submit {
     align-items: center;
-    background: #806df5;
+    background: #6253d1;
     border: 0;
     border-radius: 7px;
     color: #fff;
@@ -310,12 +322,14 @@
     justify-content: space-between;
     margin-top: 2px;
     padding: 0 13px 0 16px;
-    transition: background 140ms ease, transform 140ms ease;
+    transition:
+        background 140ms ease,
+        transform 140ms ease;
     width: 100%;
 }
 
 .auth-submit:hover:not(:disabled) {
-    background: #8e7df8;
+    background: #7060df;
 }
 
 .auth-submit:active:not(:disabled) {
@@ -350,7 +364,7 @@
 }
 
 .auth-switch {
-    color: #747a98;
+    color: #8289aa;
     display: flex;
     flex-wrap: wrap;
     font-size: 11px;

@@ -3,6 +3,7 @@ import React, { useEffect, useRef } from 'react';
 import { PostIt } from '../../types/boardTypes';
 import { renderMarkdown } from '../../utils/markdownRender';
 import { useT } from '../../i18n/LangContext';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 const TITLE_MAX = 80;
 const CONTENT_MAX = 2000;
@@ -23,6 +24,9 @@ const CardDetailModal: React.FC<CardDetailModalProps> = ({
 }) => {
     const { t } = useT();
     const contentRef = useRef<HTMLTextAreaElement | null>(null);
+    const dialogRef = useRef<HTMLDivElement | null>(null);
+
+    useFocusTrap(true, dialogRef, contentRef);
 
     useEffect(() => {
         const onKey = (event: KeyboardEvent) => {
@@ -45,6 +49,7 @@ const CardDetailModal: React.FC<CardDetailModalProps> = ({
         >
             <div
                 className="card-detail"
+                ref={dialogRef}
                 role="dialog"
                 aria-modal="true"
                 aria-label={t('card.detail.aria')}
@@ -92,7 +97,7 @@ const CardDetailModal: React.FC<CardDetailModalProps> = ({
                         <span className="card-detail-pane-label">
                             {t('card.detail.preview')}
                         </span>
-                        <div className="card-detail-preview markdown-body">
+                        <div className="card-detail-preview markdown-body app-scrollbar">
                             {postIt.content.trim() ? (
                                 renderMarkdown(postIt.content)
                             ) : (

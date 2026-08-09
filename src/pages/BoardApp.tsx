@@ -6,6 +6,7 @@ import {
     ArrowUturnLeftIcon,
     ArrowUturnRightIcon,
     CheckIcon,
+    ChevronDoubleLeftIcon,
     CommandLineIcon,
     Cog6ToothIcon,
     FunnelIcon,
@@ -32,6 +33,7 @@ import React, {
     useRef,
     useState,
 } from 'react';
+import { createPortal } from 'react-dom';
 import AppearancePanel from '../components/appearance/AppearancePanel';
 import BoardMinimap from '../components/minimap/BoardMinimap';
 import CommandPalette, {
@@ -66,6 +68,7 @@ import { useAutosave } from '../hooks/useAutosave';
 import { BoardBounds, useBoardViewport } from '../hooks/useBoardViewport';
 import { computeVisibleBounds, isRectVisible } from '../hooks/viewportCulling';
 import { useDismiss } from '../hooks/useDismiss';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import { useConnections } from '../hooks/useConnections';
 import { usePostIts } from '../hooks/usePostIts';
 import { useStacks } from '../hooks/useStacks';
@@ -140,8 +143,10 @@ const BoardApp: React.FC<BoardAppProps> = ({
     const [draggingPostItId, setDraggingPostItId] = useState<string | null>(
         null
     );
+    const [draggingStackId, setDraggingStackId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [colorFilter, setColorFilter] = useState<string | null>(null);
+    const [colorFilterOpen, setColorFilterOpen] = useState(false);
     const [view, setView] = useState<
         'canvas' | 'kanban' | 'agenda' | 'timeline'
     >('canvas');
@@ -149,11 +154,14 @@ const BoardApp: React.FC<BoardAppProps> = ({
     const [linkingSourceId, setLinkingSourceId] = useState<string | null>(null);
     const [selectedLinkId, setSelectedLinkId] = useState<string | null>(null);
     // Multi-selection of cards (for bulk keyboard actions: delete, duplicate).
-    // Dragging still moves a single card — the drop-intent engine is untouched.
+    // Dragging still moves a single card â€” the drop-intent engine is untouched.
     const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(
         () => new Set()
     );
     const [brandMenuOpen, setBrandMenuOpen] = useState(false);
+    const [sidebarExpanded, setSidebarExpanded] = useState(false);
+    const [sidebarHovered, setSidebarHovered] = useState(false);
+    const sidebarHoverTimerRef = useRef<number | null>(null);
     const [shareDialogOpen, setShareDialogOpen] = useState(false);
     const [appearanceOpen, setAppearanceOpen] = useState(false);
     const appearanceRef = useRef<HTMLDivElement | null>(null);
@@ -166,9 +174,38 @@ const BoardApp: React.FC<BoardAppProps> = ({
     const [deletePassword, setDeletePassword] = useState('');
     const [deleteError, setDeleteError] = useState('');
     const [isDeleting, setIsDeleting] = useState(false);
+    const deleteDialogRef = useRef<HTMLDivElement | null>(null);
     const [isRenamingTitle, setIsRenamingTitle] = useState(false);
     const [titleDraft, setTitleDraft] = useState('');
     const brandRef = useRef<HTMLDivElement | null>(null);
+    const [brandPortalTarget, setBrandPortalTarget] =
+        useState<HTMLDivElement | null>(null);
+    const brandPortalRef = useCallback((node: HTMLDivElement | null) => {
+        setBrandPortalTarget(node);
+    }, []);
+    const scheduleSidebarHover = useCallback((next: boolean) => {
+        if (sidebarHoverTimerRef.current !== null) {
+            window.clearTimeout(sidebarHoverTimerRef.current);
+            sidebarHoverTimerRef.current = null;
+        }
+        // Opening: small delay so brushing past doesn't open it.
+        // Closing: longer delay so crossing the gap to a popover doesn't close it.
+        sidebarHoverTimerRef.current = window.setTimeout(
+            () => {
+                setSidebarHovered(next);
+                sidebarHoverTimerRef.current = null;
+            },
+            next ? 80 : 340
+        );
+    }, []);
+    useEffect(
+        () => () => {
+            if (sidebarHoverTimerRef.current !== null) {
+                window.clearTimeout(sidebarHoverTimerRef.current);
+            }
+        },
+        []
+    );
     const [theme, setTheme] = useState<'theme-dark' | 'theme-light'>(() =>
         localStorage.getItem('magnotes-theme') === 'theme-light'
             ? 'theme-light'
@@ -220,13 +257,17 @@ const BoardApp: React.FC<BoardAppProps> = ({
         canUndo,
         canRedo,
     } = usePostIts(activeTabId, notifyLoadError, notifyActionError);
-    const { stacks, addStack, toggleStack } = useStacks(
-        activeTabId,
-        notifyLoadError,
-        notifyActionError
-    );
+    const {
+        stacks,
+        isLoadingStacks,
+        addStack,
+        patchStackLocal,
+        settleStack,
+        toggleStack,
+    } = useStacks(activeTabId, notifyLoadError, notifyActionError);
     const {
         links,
+        isLoadingConnections,
         addLink,
         relabelLink,
         removeLink,
@@ -249,7 +290,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
     // A custom background overrides the board theme's canvas; when absent, the
     // theme's CSS (or the app light/dark default) drives --canvas-bg instead.
     // Older boards were seeded with the internal default canvas colour frozen
-    // into `backgroundColor`, which silently overrode every ambiance — treat
+    // into `backgroundColor`, which silently overrode every ambiance â€” treat
     // those exact legacy values as "no custom background" so themes work again.
     const rawBackground = activeTab?.backgroundColor;
     const customBackground =
@@ -263,7 +304,57 @@ const BoardApp: React.FC<BoardAppProps> = ({
     useDismiss(brandMenuOpen, brandRef, closeBrandMenu);
     const closeAppearance = useCallback(() => setAppearanceOpen(false), []);
     useDismiss(appearanceOpen, appearanceRef, closeAppearance);
-    const isLoading = isLoadingTabs || isLoadingPostIts;
+    useFocusTrap(deleteDialogOpen, deleteDialogRef);
+    const isLoading =
+        isLoadingTabs ||
+        isLoadingPostIts ||
+        isLoadingStacks ||
+        isLoadingConnections;
+    const sidebarOpen = sidebarExpanded || sidebarHovered;
+    const syncStatusClass = !isOnline
+        ? 'offline'
+        : demo
+          ? 'local'
+          : saveState.status;
+    const syncLabel = !isOnline
+        ? t('app.sync.offline')
+        : demo
+          ? t('app.sync.local')
+          : saveState.status === 'saving'
+            ? t('app.sync.saving')
+            : saveState.status === 'error'
+              ? t('app.sync.error')
+              : t('app.sync.saved');
+    const viewOrder = ['canvas', 'kanban', 'agenda', 'timeline'] as const;
+    const handleViewTabKeyDown = (
+        event: React.KeyboardEvent<HTMLButtonElement>,
+        currentView: (typeof viewOrder)[number]
+    ) => {
+        const currentIndex = viewOrder.indexOf(currentView);
+        let nextIndex = currentIndex;
+        if (event.key === 'ArrowRight') {
+            nextIndex = (currentIndex + 1) % viewOrder.length;
+        } else if (event.key === 'ArrowLeft') {
+            nextIndex =
+                (currentIndex - 1 + viewOrder.length) % viewOrder.length;
+        } else if (event.key === 'Home') {
+            nextIndex = 0;
+        } else if (event.key === 'End') {
+            nextIndex = viewOrder.length - 1;
+        } else {
+            return;
+        }
+        event.preventDefault();
+        const nextView = viewOrder[nextIndex];
+        setView(nextView);
+        requestAnimationFrame(() => {
+            document
+                .querySelector<HTMLButtonElement>(
+                    `[data-view-tab="${nextView}"]`
+                )
+                ?.focus();
+        });
+    };
     const normalizedSearch = searchTerm.trim().toLowerCase();
     const draggingDropIntent = draggingPostItId
         ? getDropIntent(draggingPostItId)
@@ -420,11 +511,25 @@ const BoardApp: React.FC<BoardAppProps> = ({
                     );
                     if (!stack || stack.collapsed) return postIt;
                     const order = Math.max(0, (postIt.stackOrder || 1) - 1);
+                    // The focused card (highest raw zIndex in the stack)
+                    // must visually sit on top regardless of its stackOrder
+                    // position — override its z-index offset to be strictly
+                    // above all siblings.
+                    const stackSiblings = postIts.filter(
+                        (c) => c.stackId === postIt.stackId
+                    );
+                    const maxSiblingZ = stackSiblings.reduce(
+                        (max, c) => Math.max(max, c.zIndex),
+                        0
+                    );
+                    const isFocusedInStack = postIt.zIndex === maxSiblingZ;
                     return {
                         ...postIt,
                         x: stack.x + order * STACK_EXPAND_OFFSET_X,
                         y: stack.y + 190 + order * STACK_EXPAND_OFFSET_Y,
-                        zIndex: postIt.zIndex + order,
+                        zIndex: isFocusedInStack
+                            ? maxSiblingZ + stackSiblings.length
+                            : postIt.zIndex + order,
                     };
                 }),
         [cardMatchesFilters, postIts, stacks]
@@ -442,7 +547,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
         [cardMatchesFilters, postIts, stacks]
     );
 
-    // Board-space boxes of the laid-out cards, keyed by id — drives the
+    // Board-space boxes of the laid-out cards, keyed by id â€” drives the
     // connection arrows (uses filtered/stack-resolved positions, not culling,
     // so a link stays drawn even when one endpoint scrolls off-screen).
     const cardBoxes = useMemo(() => {
@@ -524,19 +629,21 @@ const BoardApp: React.FC<BoardAppProps> = ({
     const visibleStacks = useMemo(
         () =>
             viewBounds
-                ? matchedStacks.filter((stack) =>
-                      isRectVisible(
-                          {
-                              x: stack.x,
-                              y: stack.y,
-                              width: STACK_CULL_WIDTH,
-                              height: STACK_CULL_HEIGHT,
-                          },
-                          viewBounds
-                      )
+                ? matchedStacks.filter(
+                      (stack) =>
+                          stack._id === draggingStackId ||
+                          isRectVisible(
+                              {
+                                  x: stack.x,
+                                  y: stack.y,
+                                  width: STACK_CULL_WIDTH,
+                                  height: STACK_CULL_HEIGHT,
+                              },
+                              viewBounds
+                          )
                   )
                 : matchedStacks,
-        [matchedStacks, viewBounds]
+        [draggingStackId, matchedStacks, viewBounds]
     );
 
     const contentBounds = useMemo<BoardBounds | null>(() => {
@@ -697,6 +804,10 @@ const BoardApp: React.FC<BoardAppProps> = ({
         await settlePostIt(postItId, x, y, stacks, addStack);
     };
 
+    const handleMoveStack = async (stackId: string, x: number, y: number) => {
+        await settleStack(stackId, x, y);
+    };
+
     // Delete a card and, undoably, its connections: snapshot the touching links
     // before deletion, drop them from the local cache, and re-create them on undo.
     const handleDeleteCard = (postItId: string) => {
@@ -847,7 +958,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
                     );
                 }
             } catch {
-                // Not valid JSON — fall through to the Markdown parser below.
+                // Not valid JSON â€” fall through to the Markdown parser below.
             }
         }
         if (cards.length === 0) {
@@ -908,7 +1019,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
             id: 'new-card',
             label: t('app.cmd.newCard'),
             description: t('app.cmd.newCard.desc'),
-            keywords: ['créer', 'carte', 'note', 'add', 'new', 'sticky'],
+            keywords: ['crÃ©er', 'carte', 'note', 'add', 'new', 'sticky'],
             group: t('app.group.actions'),
             hint: 'N',
             run: () => createPostItInView(),
@@ -935,16 +1046,27 @@ const BoardApp: React.FC<BoardAppProps> = ({
             id: 'redo',
             label: t('app.cmd.redo'),
             description: t('app.cmd.redo.desc'),
-            keywords: ['redo', 'rétablir'],
+            keywords: ['redo', 'rÃ©tablir'],
             group: t('app.group.actions'),
             hint: 'Ctrl+Maj+Z',
             run: () => redo(),
         },
         {
             id: 'toggle-theme',
-            label: theme === 'theme-dark' ? t('app.theme.light') : t('app.theme.dark'),
+            label:
+                theme === 'theme-dark'
+                    ? t('app.theme.light')
+                    : t('app.theme.dark'),
             description: t('app.cmd.theme.desc'),
-            keywords: ['thème', 'theme', 'sombre', 'clair', 'apparence', 'dark', 'light'],
+            keywords: [
+                'thÃ¨me',
+                'theme',
+                'sombre',
+                'clair',
+                'apparence',
+                'dark',
+                'light',
+            ],
             group: t('app.group.actions'),
             run: () =>
                 setTheme((current) =>
@@ -955,7 +1077,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
             id: 'export-markdown',
             label: t('app.cmd.exportMd'),
             description: t('app.cmd.exportMd.desc'),
-            keywords: ['markdown', 'md', 'télécharger', 'export', 'fichier'],
+            keywords: ['markdown', 'md', 'tÃ©lÃ©charger', 'export', 'fichier'],
             group: t('app.group.actions'),
             run: handleExportMarkdown,
         },
@@ -963,14 +1085,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
             id: 'import-file',
             label: t('app.cmd.import'),
             description: t('app.cmd.import.desc'),
-            keywords: [
-                'markdown',
-                'md',
-                'trello',
-                'json',
-                'import',
-                'fichier',
-            ],
+            keywords: ['markdown', 'md', 'trello', 'json', 'import', 'fichier'],
             group: t('app.group.actions'),
             run: openImportDialog,
         },
@@ -998,7 +1113,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
                       description: t('app.cmd.exportData.desc'),
                       keywords: [
                           'json',
-                          'télécharger',
+                          'tÃ©lÃ©charger',
                           'sauvegarde',
                           'backup',
                           'export',
@@ -1027,7 +1142,13 @@ const BoardApp: React.FC<BoardAppProps> = ({
             id: 'view-agenda',
             label: t('app.cmd.viewAgenda'),
             description: t('app.cmd.viewAgenda.desc'),
-            keywords: ['calendrier', 'échéance', 'dates', 'agenda', 'calendar'],
+            keywords: [
+                'calendrier',
+                'Ã©chÃ©ance',
+                'dates',
+                'agenda',
+                'calendar',
+            ],
             group: t('app.group.views'),
             run: () => setView('agenda'),
         },
@@ -1035,7 +1156,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
             id: 'view-timeline',
             label: t('app.cmd.viewTimeline'),
             description: t('app.cmd.viewTimeline.desc'),
-            keywords: ['timeline', 'frise', 'échéances', 'planning'],
+            keywords: ['timeline', 'frise', 'Ã©chÃ©ances', 'planning'],
             group: t('app.group.views'),
             run: () => setView('timeline'),
         },
@@ -1043,7 +1164,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
             id: `template-${template.id}`,
             label: t('app.cmd.template', { label: template.label }),
             description: t('app.cmd.template.desc'),
-            keywords: ['modèle', 'template', ...template.label.split(' ')],
+            keywords: ['modÃ¨le', 'template', ...template.label.split(' ')],
             group: t('app.group.templates'),
             hint: t('app.cmd.hint.insert'),
             run: () => applyTemplate(template.id),
@@ -1094,7 +1215,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
     );
 
     // Cross-board matches for the palette. The active board's cards are already
-    // offered as "Aller à" commands, so they are excluded here.
+    // offered as "Aller Ã " commands, so they are excluded here.
     const globalSearchCommands = useMemo<PaletteCommand[]>(
         () =>
             globalResults
@@ -1112,8 +1233,8 @@ const BoardApp: React.FC<BoardAppProps> = ({
     return (
         <main
             className={`board-app ${theme} ${activeBoardThemeClass} ${
-                demo ? 'has-demo-banner' : ''
-            }`.trim()}
+                sidebarOpen ? 'is-sidebar-expanded' : ''
+            } ${demo ? 'has-demo-banner' : ''}`.trim()}
         >
             <NotificationCenter
                 isOnline={isOnline}
@@ -1135,152 +1256,212 @@ const BoardApp: React.FC<BoardAppProps> = ({
                     </button>
                 </div>
             )}
-            <aside className="board-sidebar">
-                <div className="board-brand" ref={brandRef}>
-                    <button
-                        className="board-brand-button"
-                        type="button"
-                        onClick={() => setBrandMenuOpen((current) => !current)}
-                        aria-expanded={brandMenuOpen}
-                        title={t('app.brand.menuTitle')}
-                    >
-                        <span className="board-brand-mark">
-                            <Squares2X2Icon />
-                        </span>
-                        <span className="board-brand-copy">
-                            <strong>MagNotes</strong>
-                            <span>{t('app.brand.subtitle')}</span>
-                        </span>
-                    </button>
-                    {brandMenuOpen && (
-                        <div className="board-brand-menu" role="menu">
-                            <div className="board-brand-menu-about">
-                                <InformationCircleIcon />
-                                <span>
+            <aside
+                className="board-sidebar"
+                onPointerEnter={() => scheduleSidebarHover(true)}
+                onPointerLeave={() => scheduleSidebarHover(false)}
+            >
+                {brandPortalTarget &&
+                    createPortal(
+                        <div
+                            className="board-brand"
+                            ref={brandRef}
+                            onPointerEnter={(event) => {
+                                // Stop the sidebar's own onPointerEnter from
+                                // firing again (the brand slot is inside it),
+                                // but don't schedule a close — the mouse is
+                                // still inside the sidebar area.
+                                event.stopPropagation();
+                            }}
+                        >
+                            <button
+                                className="board-brand-button"
+                                type="button"
+                                onClick={() => {
+                                    setBrandMenuOpen((current) => !current);
+                                }}
+                                aria-expanded={brandMenuOpen}
+                                title={t('app.brand.menuTitle')}
+                            >
+                                <span className="board-brand-mark">
+                                    <Squares2X2Icon />
+                                </span>
+                                <span className="board-brand-copy">
                                     <strong>MagNotes</strong>
-                                    <small>{t('app.brand.about')}</small>
-                                </span>
-                            </div>
-                            <button
-                                type="button"
-                                role="menuitem"
-                                onClick={() => {
-                                    setTheme((current) =>
-                                        current === 'theme-dark'
-                                            ? 'theme-light'
-                                            : 'theme-dark'
-                                    );
-                                    closeBrandMenu();
-                                }}
-                            >
-                                <Cog6ToothIcon />
-                                <span>
-                                    {t('app.menu.preferences')}
-                                    <small>{t('app.menu.preferences.sub')}</small>
+                                    <span>{t('app.brand.subtitle')}</span>
                                 </span>
                             </button>
-                            <button
-                                type="button"
-                                role="menuitem"
-                                onClick={() => {
-                                    handleExportMarkdown();
-                                    closeBrandMenu();
-                                }}
-                                disabled={!activeTab}
-                            >
-                                <ArrowDownTrayIcon />
-                                <span>
-                                    {t('app.menu.exportMd')}
-                                    <small>{t('app.menu.exportMd.sub')}</small>
-                                </span>
-                            </button>
-                            <button
-                                type="button"
-                                role="menuitem"
-                                onClick={openImportDialog}
-                                disabled={!activeTab}
-                            >
-                                <ArrowUpTrayIcon />
-                                <span>
-                                    {t('app.menu.import')}
-                                    <small>{t('app.menu.import.sub')}</small>
-                                </span>
-                            </button>
-                            {!demo && (
-                                <>
+                            {brandMenuOpen && (
+                                <div className="board-brand-menu" role="menu">
+                                    <div className="board-brand-menu-about">
+                                        <InformationCircleIcon />
+                                        <span>
+                                            <strong>MagNotes</strong>
+                                            <small>
+                                                {t('app.brand.about')}
+                                            </small>
+                                        </span>
+                                    </div>
+                                    <div className="board-brand-menu-lang">
+                                        <span>{t('app.menu.language')}</span>
+                                        <LanguageSwitch />
+                                    </div>
                                     <button
                                         type="button"
                                         role="menuitem"
-                                        onClick={handleExportData}
-                                        disabled={isExporting}
+                                        onClick={() => {
+                                            setTheme((current) =>
+                                                current === 'theme-dark'
+                                                    ? 'theme-light'
+                                                    : 'theme-dark'
+                                            );
+                                            closeBrandMenu();
+                                        }}
+                                    >
+                                        <Cog6ToothIcon />
+                                        <span>
+                                            {t('app.menu.preferences')}
+                                            <small>
+                                                {t('app.menu.preferences.sub')}
+                                            </small>
+                                        </span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        role="menuitem"
+                                        onClick={() => {
+                                            handleExportMarkdown();
+                                            closeBrandMenu();
+                                        }}
+                                        disabled={!activeTab}
                                     >
                                         <ArrowDownTrayIcon />
                                         <span>
-                                            {isExporting
-                                                ? t('app.menu.exportData.loading')
-                                                : t('app.menu.exportData')}
+                                            {t('app.menu.exportMd')}
                                             <small>
-                                                {t('app.menu.exportData.sub')}
+                                                {t('app.menu.exportMd.sub')}
                                             </small>
                                         </span>
                                     </button>
                                     <button
                                         type="button"
                                         role="menuitem"
-                                        onClick={openShareDialog}
+                                        onClick={openImportDialog}
                                         disabled={!activeTab}
                                     >
-                                        <ShareIcon />
+                                        <ArrowUpTrayIcon />
                                         <span>
-                                            {t('app.menu.share')}
+                                            {t('app.menu.import')}
                                             <small>
-                                                {activeTab?.shareToken
-                                                    ? t('app.menu.share.active')
-                                                    : t(
-                                                          'app.menu.share.inactive'
-                                                      )}
+                                                {t('app.menu.import.sub')}
                                             </small>
                                         </span>
                                     </button>
+                                    {!demo && (
+                                        <>
+                                            <button
+                                                type="button"
+                                                role="menuitem"
+                                                onClick={handleExportData}
+                                                disabled={isExporting}
+                                            >
+                                                <ArrowDownTrayIcon />
+                                                <span>
+                                                    {isExporting
+                                                        ? t(
+                                                              'app.menu.exportData.loading'
+                                                          )
+                                                        : t(
+                                                              'app.menu.exportData'
+                                                          )}
+                                                    <small>
+                                                        {t(
+                                                            'app.menu.exportData.sub'
+                                                        )}
+                                                    </small>
+                                                </span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                role="menuitem"
+                                                onClick={openShareDialog}
+                                                disabled={!activeTab}
+                                            >
+                                                <ShareIcon />
+                                                <span>
+                                                    {t('app.menu.share')}
+                                                    <small>
+                                                        {activeTab?.shareToken
+                                                            ? t(
+                                                                  'app.menu.share.active'
+                                                              )
+                                                            : t(
+                                                                  'app.menu.share.inactive'
+                                                              )}
+                                                    </small>
+                                                </span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                role="menuitem"
+                                                className="is-danger"
+                                                onClick={openDeleteDialog}
+                                            >
+                                                <TrashIcon />
+                                                <span>
+                                                    {t(
+                                                        'app.menu.deleteAccount'
+                                                    )}
+                                                    <small>
+                                                        {t(
+                                                            'app.menu.deleteAccount.sub'
+                                                        )}
+                                                    </small>
+                                                </span>
+                                            </button>
+                                        </>
+                                    )}
+                                    {demo && (
+                                        <button
+                                            type="button"
+                                            role="menuitem"
+                                            onClick={() => {
+                                                closeBrandMenu();
+                                                onRequestSignup?.();
+                                            }}
+                                        >
+                                            <ArrowRightOnRectangleIcon />
+                                            <span>
+                                                {t('app.menu.createAccount')}
+                                                <small>
+                                                    {t(
+                                                        'app.menu.createAccount.sub'
+                                                    )}
+                                                </small>
+                                            </span>
+                                        </button>
+                                    )}
                                     <button
                                         type="button"
                                         role="menuitem"
-                                        className="is-danger"
-                                        onClick={openDeleteDialog}
+                                        onClick={() => {
+                                            setSidebarExpanded(false);
+                                            closeBrandMenu();
+                                        }}
                                     >
-                                        <TrashIcon />
+                                        <ChevronDoubleLeftIcon />
                                         <span>
-                                            {t('app.menu.deleteAccount')}
+                                            {t('app.sidebar.collapse')}
                                             <small>
-                                                {t(
-                                                    'app.menu.deleteAccount.sub'
-                                                )}
+                                                {t('app.sidebar.collapse.sub')}
                                             </small>
                                         </span>
                                     </button>
-                                </>
+                                </div>
                             )}
-                            {demo && (
-                                <button
-                                    type="button"
-                                    role="menuitem"
-                                    onClick={() => {
-                                        closeBrandMenu();
-                                        onRequestSignup?.();
-                                    }}
-                                >
-                                    <ArrowRightOnRectangleIcon />
-                                    <span>
-                                        {t('app.menu.createAccount')}
-                                        <small>
-                                            {t('app.menu.createAccount.sub')}
-                                        </small>
-                                    </span>
-                                </button>
-                            )}
-                        </div>
+                        </div>,
+                        brandPortalTarget
                     )}
-                </div>
 
                 <BoardTabs
                     tabs={tabs}
@@ -1294,7 +1475,6 @@ const BoardApp: React.FC<BoardAppProps> = ({
                 />
 
                 <div className="board-sidebar-footer">
-                    <LanguageSwitch className="lang-switch--sidebar" />
                     <button
                         className="sidebar-command"
                         type="button"
@@ -1328,14 +1508,19 @@ const BoardApp: React.FC<BoardAppProps> = ({
                     >
                         <ArrowRightOnRectangleIcon />
                         <span>
-                            {demo ? t('app.menu.createAccount') : t('app.logout')}
+                            {demo
+                                ? t('app.menu.createAccount')
+                                : t('app.logout')}
                         </span>
                     </button>
                 </div>
             </aside>
 
             <section className="board-workspace">
-                <header className="board-topbar">
+                <header
+                    className={`board-topbar ${appearanceOpen || colorFilterOpen ? 'is-overlay-open' : ''}`}
+                >
+                    <div className="board-brand-slot" ref={brandPortalRef} />
                     <div className="board-title-group">
                         <span
                             className="board-title-dot"
@@ -1385,28 +1570,41 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                         onClick={startTitleRename}
                                         title={t('app.rename.title')}
                                     >
-                                        {activeTab?.name || t('app.board.default')}
+                                        {activeTab?.name ||
+                                            t('app.board.default')}
                                     </button>
                                 </h1>
                             )}
                             <p className="board-subtitle">
                                 {postIts.length} {t('app.unit.note')}
-                                {postIts.length > 1 ? t('app.plural') : ''} /{' '}
-                                {stacks.length} {t('app.unit.stack')}
+                                {postIts.length > 1
+                                    ? t('app.plural')
+                                    : ''} / {stacks.length}{' '}
+                                {t('app.unit.stack')}
                                 {stacks.length > 1 ? t('app.plural') : ''}
                             </p>
                         </div>
                     </div>
 
                     <div className="board-topbar-tools">
-                        <div className="board-view-switch" role="tablist">
+                        <div
+                            className="board-view-switch"
+                            role="tablist"
+                            aria-label={t('app.view.switcher')}
+                        >
                             <button
                                 type="button"
                                 role="tab"
+                                data-view-tab="canvas"
                                 aria-selected={view === 'canvas'}
+                                tabIndex={view === 'canvas' ? 0 : -1}
                                 className={view === 'canvas' ? 'is-active' : ''}
                                 onClick={() => setView('canvas')}
+                                onKeyDown={(event) =>
+                                    handleViewTabKeyDown(event, 'canvas')
+                                }
                                 title={t('app.view.canvas.title')}
+                                aria-label={t('app.view.canvas.title')}
                             >
                                 <Squares2X2Icon />
                                 <span>{t('app.view.canvas')}</span>
@@ -1414,10 +1612,16 @@ const BoardApp: React.FC<BoardAppProps> = ({
                             <button
                                 type="button"
                                 role="tab"
+                                data-view-tab="kanban"
                                 aria-selected={view === 'kanban'}
+                                tabIndex={view === 'kanban' ? 0 : -1}
                                 className={view === 'kanban' ? 'is-active' : ''}
                                 onClick={() => setView('kanban')}
+                                onKeyDown={(event) =>
+                                    handleViewTabKeyDown(event, 'kanban')
+                                }
                                 title={t('app.view.kanban.title')}
+                                aria-label={t('app.view.kanban.title')}
                             >
                                 <ViewColumnsIcon />
                                 <span>{t('app.view.kanban')}</span>
@@ -1425,10 +1629,16 @@ const BoardApp: React.FC<BoardAppProps> = ({
                             <button
                                 type="button"
                                 role="tab"
+                                data-view-tab="agenda"
                                 aria-selected={view === 'agenda'}
+                                tabIndex={view === 'agenda' ? 0 : -1}
                                 className={view === 'agenda' ? 'is-active' : ''}
                                 onClick={() => setView('agenda')}
+                                onKeyDown={(event) =>
+                                    handleViewTabKeyDown(event, 'agenda')
+                                }
                                 title={t('app.view.agenda.title')}
+                                aria-label={t('app.view.agenda.title')}
                             >
                                 <CalendarDaysIcon />
                                 <span>{t('app.view.agenda')}</span>
@@ -1436,12 +1646,18 @@ const BoardApp: React.FC<BoardAppProps> = ({
                             <button
                                 type="button"
                                 role="tab"
+                                data-view-tab="timeline"
                                 aria-selected={view === 'timeline'}
+                                tabIndex={view === 'timeline' ? 0 : -1}
                                 className={
                                     view === 'timeline' ? 'is-active' : ''
                                 }
                                 onClick={() => setView('timeline')}
+                                onKeyDown={(event) =>
+                                    handleViewTabKeyDown(event, 'timeline')
+                                }
                                 title={t('app.view.timeline.title')}
+                                aria-label={t('app.view.timeline.title')}
                             >
                                 <ClockIcon />
                                 <span>{t('app.view.timeline')}</span>
@@ -1451,6 +1667,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
                         <label className="board-search">
                             <MagnifyingGlassIcon />
                             <input
+                                aria-label={t('app.search.placeholder')}
                                 value={searchTerm}
                                 onChange={(event) =>
                                     setSearchTerm(event.target.value)
@@ -1463,6 +1680,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                     type="button"
                                     onClick={() => setSearchTerm('')}
                                     title={t('app.search.clear')}
+                                    aria-label={t('app.search.clear')}
                                 >
                                     <XMarkIcon />
                                 </button>
@@ -1470,7 +1688,12 @@ const BoardApp: React.FC<BoardAppProps> = ({
                         </label>
 
                         {usedColors.length > 0 && (
-                            <details className="board-color-filter">
+                            <details
+                                className="board-color-filter"
+                                onToggle={(event) =>
+                                    setColorFilterOpen(event.currentTarget.open)
+                                }
+                            >
                                 <summary
                                     className={`board-color-filter-trigger ${
                                         colorFilter ? 'is-active' : ''
@@ -1492,7 +1715,9 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                             className={`filter-reset ${!colorFilter ? 'is-active' : ''}`}
                                             onClick={() => setColorFilter(null)}
                                             title={t('app.filter.allColors')}
-                                            aria-label={t('app.filter.allColors')}
+                                            aria-label={t(
+                                                'app.filter.allColors'
+                                            )}
                                         >
                                             <FunnelIcon />
                                         </button>
@@ -1501,7 +1726,9 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                                 key={color}
                                                 type="button"
                                                 className={`board-color-dot ${colorFilter === color ? 'is-active' : ''}`}
-                                                style={{ backgroundColor: color }}
+                                                style={{
+                                                    backgroundColor: color,
+                                                }}
                                                 onClick={() =>
                                                     setColorFilter((current) =>
                                                         current === color
@@ -1513,9 +1740,12 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                                     'app.filter.colorDot',
                                                     { color }
                                                 )}
-                                                title={t('app.filter.colorDot', {
-                                                    color,
-                                                })}
+                                                title={t(
+                                                    'app.filter.colorDot',
+                                                    {
+                                                        color,
+                                                    }
+                                                )}
                                             />
                                         ))}
                                     </div>
@@ -1533,6 +1763,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                         type="button"
                                         onClick={zoomOut}
                                         title={t('app.zoom.out')}
+                                        aria-label={t('app.zoom.out')}
                                     >
                                         <MinusIcon />
                                     </button>
@@ -1541,6 +1772,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                         type="button"
                                         onClick={zoomIn}
                                         title={t('app.zoom.in')}
+                                        aria-label={t('app.zoom.in')}
                                     >
                                         <PlusIcon />
                                     </button>
@@ -1551,6 +1783,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                             focusBounds(contentBounds)
                                         }
                                         title={t('app.zoom.fit')}
+                                        aria-label={t('app.zoom.fit')}
                                     >
                                         <ArrowsPointingOutIcon />
                                     </button>
@@ -1571,6 +1804,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                         disabled={!activeTab}
                                         aria-expanded={appearanceOpen}
                                         title={t('app.appearance.title')}
+                                        aria-label={t('app.appearance.title')}
                                     >
                                         <SwatchIcon />
                                         <span>{t('app.appearance')}</span>
@@ -1641,197 +1875,296 @@ const BoardApp: React.FC<BoardAppProps> = ({
                             onClick={() => createPostItInView()}
                             disabled={!activeTabId}
                             title={t('app.newCard.title')}
+                            aria-label={t('app.newCard.title')}
                         >
                             <PlusIcon />
                             <span>{t('app.newCard.short')}</span>
                         </button>
+
+                        <div className="board-topbar-status">
+                            <div
+                                className={`board-sync-status is-${syncStatusClass}`}
+                                role="status"
+                                aria-live="polite"
+                                aria-atomic="true"
+                            >
+                                <span
+                                    className="board-sync-dot"
+                                    aria-hidden="true"
+                                />
+                                <span>{syncLabel}</span>
+                            </div>
+                            <div className="board-shortcuts-help">
+                                <button
+                                    type="button"
+                                    aria-label={t('app.help.title')}
+                                    title={t('app.help.title')}
+                                >
+                                    ?
+                                </button>
+                                <div
+                                    className="board-shortcuts-tooltip"
+                                    role="tooltip"
+                                >
+                                    <strong>{t('app.help.title')}</strong>
+                                    <span>
+                                        {linkingSourceId
+                                            ? t('app.help.linking')
+                                            : t('app.help.canvas')}
+                                    </span>
+                                    <span>{t('app.help.shortcuts')}</span>
+                                    <span className="board-shortcuts-tooltip-meta">
+                                        {Math.round(zoom * 100)}% ·{' '}
+                                        {hasActiveFilters
+                                            ? t('app.status.results', {
+                                                  n: resultCount,
+                                              })
+                                            : t('app.status.free')}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </header>
 
-                {view === 'canvas' ? (
-                <div
-                    ref={canvasRef}
-                    className={`board-canvas ${isPanning ? 'is-panning' : ''}`}
-                    onPointerDown={handleCanvasPointerDown}
-                    onWheel={handleWheelZoom}
-                    onDoubleClick={handleCanvasDoubleClick}
-                    style={{
-                        ...(customBackground
-                            ? { '--canvas-bg': customBackground }
-                            : {}),
-                        backgroundPosition: `${offset.x}px ${offset.y}px`,
-                        backgroundSize: `${28 * zoom}px ${28 * zoom}px`,
-                    } as React.CSSProperties}
+                <nav
+                    className="mobile-board-actions"
+                    aria-label={t('app.mobileActions.aria')}
                 >
-                    {isLoading && (
-                        <div className="board-loading">
-                            <span className="loading-dot" />
-                            {t('app.loading')}
-                        </div>
+                    <button
+                        type="button"
+                        className="mobile-board-action is-primary"
+                        onClick={() => createPostItInView()}
+                        disabled={!activeTabId}
+                        aria-label={t('app.newCard.title')}
+                    >
+                        <PlusIcon />
+                        <span>{t('app.newCard.short')}</span>
+                    </button>
+                    <button
+                        type="button"
+                        className="mobile-board-action"
+                        onClick={() => setCommandPaletteOpen(true)}
+                        aria-label={t('app.palette.title')}
+                    >
+                        <CommandLineIcon />
+                        <span>{t('app.mobileActions.palette')}</span>
+                    </button>
+                    {view === 'canvas' && (
+                        <button
+                            type="button"
+                            className="mobile-board-action"
+                            onClick={() => focusBounds(contentBounds)}
+                            aria-label={t('app.zoom.fit')}
+                        >
+                            <ArrowsPointingOutIcon />
+                            <span>{t('app.mobileActions.fit')}</span>
+                        </button>
                     )}
+                </nav>
 
-                    {!isLoading && postIts.length === 0 && (
-                        <div className="empty-board">
-                            <span className="empty-board-icon">
-                                <Squares2X2Icon />
-                            </span>
-                            <strong>{t('app.empty.title')}</strong>
-                            <span>{t('app.empty.text')}</span>
-                            <button
-                                type="button"
-                                onClick={() => createPostItInView()}
-                            >
-                                <PlusIcon />
-                                {t('app.empty.create')}
-                            </button>
-                        </div>
-                    )}
-
-                    {!isLoading &&
-                        postIts.length > 0 &&
-                        hasActiveFilters &&
-                        resultCount === 0 && (
-                            <div className="empty-search">
-                                <MagnifyingGlassIcon />
-                                <strong>{t('app.empty.noResults')}</strong>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setSearchTerm('');
-                                        setColorFilter(null);
-                                    }}
-                                >
-                                    {t('app.empty.resetFilters')}
-                                </button>
+                {view === 'canvas' ? (
+                    <div
+                        ref={canvasRef}
+                        className={`board-canvas ${isPanning ? 'is-panning' : ''}`}
+                        onPointerDown={handleCanvasPointerDown}
+                        onWheel={handleWheelZoom}
+                        onDoubleClick={handleCanvasDoubleClick}
+                        style={
+                            {
+                                ...(customBackground
+                                    ? { '--canvas-bg': customBackground }
+                                    : {}),
+                                backgroundPosition: `${offset.x}px ${offset.y}px`,
+                                backgroundSize: `${28 * zoom}px ${28 * zoom}px`,
+                            } as React.CSSProperties
+                        }
+                    >
+                        {isLoading && (
+                            <div className="board-loading">
+                                <span className="loading-dot" />
+                                {t('app.loading')}
                             </div>
                         )}
 
-                    <div
-                        className="board-content"
-                        style={{
-                            transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
-                        }}
-                    >
-                        <ConnectionsLayer
-                            links={links}
-                            cardBoxes={cardBoxes}
-                            selectedLinkId={selectedLinkId}
-                            onSelectLink={setSelectedLinkId}
-                            onRelabel={relabelLink}
-                            onDelete={(id) => {
-                                removeLink(id);
-                                setSelectedLinkId(null);
-                            }}
-                        />
-                        {visibleStacks.map((stack) => (
-                            <PostItStackCard
-                                key={stack._id}
-                                stack={stack}
-                                cards={postIts.filter(
-                                    (postIt) => postIt.stackId === stack._id
-                                )}
-                                onToggle={toggleStack}
-                                onPromote={promoteInStack}
-                            />
-                        ))}
-                        {visiblePostIts.map((postIt) => (
-                            <PostItCard
-                                key={postIt._id}
-                                postIt={postIt}
-                                tabs={tabs}
-                                activeTabId={activeTabId}
-                                saveState={saveState}
-                                dropIntent={
-                                    draggingPostItId === postIt._id
-                                        ? draggingDropIntent
-                                        : null
-                                }
-                                zoom={zoom}
-                                linkingSourceId={linkingSourceId}
-                                mentionView={mentionGraph[postIt._id]}
-                                selected={selectedCardIds.has(postIt._id)}
-                                onNavigateToCard={openCardOnCanvas}
-                                onLocalChange={patchPostItLocal}
-                                onAutosave={scheduleSave}
-                                onFocus={handleFocusCard}
-                                onDragStateChange={setDraggingPostItId}
-                                onMove={handleMove}
-                                onMoveToTab={movePostItToTab}
-                                onUnstack={unstackPostIt}
-                                onDuplicate={clonePostIt}
-                                onDelete={handleDeleteCard}
-                                onStartLink={handleStartLink}
-                                onLinkTarget={handleLinkTarget}
-                            />
-                        ))}
-                    </div>
-
-                    <div className="board-canvas-status">
-                        <span>{Math.round(zoom * 100)}%</span>
-                        <span className="status-separator" />
-                        <span>
-                            {hasActiveFilters
-                                ? t('app.status.results', { n: resultCount })
-                                : t('app.status.free')}
-                        </span>
-                    </div>
-
-                    {linkingSourceId ? (
-                        <div className="board-help-pill is-linking">
-                            {t('app.help.linking')}
-                        </div>
-                    ) : (
-                        postIts.length > 0 && (
-                            <div className="board-help-pill">
-                                {t('app.help.canvas')}
+                        {!isLoading && postIts.length === 0 && (
+                            <div className="empty-board">
+                                <span className="empty-board-icon">
+                                    <Squares2X2Icon />
+                                </span>
+                                <strong>{t('app.empty.title')}</strong>
+                                <span>{t('app.empty.text')}</span>
+                                <div className="empty-board-actions">
+                                    <button
+                                        type="button"
+                                        onClick={() => createPostItInView()}
+                                    >
+                                        <PlusIcon />
+                                        {t('app.empty.create')}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="empty-board-template-button"
+                                        onClick={() =>
+                                            applyTemplate(WELCOME_TEMPLATE_ID)
+                                        }
+                                        title={t('app.empty.templateTitle')}
+                                    >
+                                        {t('app.empty.template')}
+                                    </button>
+                                </div>
+                                <div
+                                    className="empty-board-tips"
+                                    aria-label={t('app.empty.tipsAria')}
+                                >
+                                    <span>{t('app.empty.tip.create')}</span>
+                                    <span>{t('app.empty.tip.palette')}</span>
+                                </div>
                             </div>
-                        )
-                    )}
-                    {selectedCardIds.size > 0 && (
-                        <div className="board-selection-bar" role="toolbar">
-                            <span className="board-selection-count">
-                                {t('app.selection.count', {
-                                    n: selectedCardIds.size,
-                                })}
-                            </span>
-                            <button
-                                type="button"
-                                onClick={duplicateSelectedCards}
-                                title={`${t('app.selection.duplicate')} (Ctrl+D)`}
-                            >
-                                <DocumentDuplicateIcon />
-                                <span>{t('app.selection.duplicate')}</span>
-                            </button>
-                            <button
-                                type="button"
-                                className="is-danger"
-                                onClick={deleteSelectedCards}
-                                title={`${t('app.selection.delete')} (Suppr)`}
-                            >
-                                <TrashIcon />
-                                <span>{t('app.selection.delete')}</span>
-                            </button>
-                            <button
-                                type="button"
-                                className="board-selection-clear"
-                                onClick={clearCardSelection}
-                                title={`${t('app.selection.clear')} (Échap)`}
-                                aria-label={t('app.selection.clear')}
-                            >
-                                <XMarkIcon />
-                            </button>
+                        )}
+
+                        {!isLoading &&
+                            postIts.length > 0 &&
+                            hasActiveFilters &&
+                            resultCount === 0 && (
+                                <div className="empty-search">
+                                    <MagnifyingGlassIcon />
+                                    <strong>{t('app.empty.noResults')}</strong>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSearchTerm('');
+                                            setColorFilter(null);
+                                        }}
+                                    >
+                                        {t('app.empty.resetFilters')}
+                                    </button>
+                                </div>
+                            )}
+
+                        <div
+                            className="board-content"
+                            style={{
+                                transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+                            }}
+                        >
+                            <ConnectionsLayer
+                                links={links}
+                                cardBoxes={cardBoxes}
+                                selectedLinkId={selectedLinkId}
+                                onSelectLink={setSelectedLinkId}
+                                onRelabel={relabelLink}
+                                onDelete={(id) => {
+                                    removeLink(id);
+                                    setSelectedLinkId(null);
+                                }}
+                            />
+                            {visibleStacks.map((stack) => (
+                                <PostItStackCard
+                                    key={stack._id}
+                                    stack={stack}
+                                    cards={postIts.filter(
+                                        (postIt) => postIt.stackId === stack._id
+                                    )}
+                                    zoom={zoom}
+                                    onToggle={toggleStack}
+                                    onPromote={promoteInStack}
+                                    onFocus={(postItId) =>
+                                        handleFocusCard(postItId)
+                                    }
+                                    onLocalMove={(stackId, x, y) =>
+                                        patchStackLocal(stackId, { x, y })
+                                    }
+                                    onMove={handleMoveStack}
+                                    onDragStateChange={setDraggingStackId}
+                                />
+                            ))}
+                            {visiblePostIts.map((postIt) => (
+                                <PostItCard
+                                    key={postIt._id}
+                                    postIt={postIt}
+                                    tabs={tabs}
+                                    activeTabId={activeTabId}
+                                    saveState={saveState}
+                                    dropIntent={
+                                        draggingPostItId === postIt._id
+                                            ? draggingDropIntent
+                                            : null
+                                    }
+                                    isDropTarget={
+                                        draggingDropIntent !== null &&
+                                        draggingPostItId !== postIt._id &&
+                                        (draggingDropIntent.type === 'stack' ||
+                                            draggingDropIntent.type ===
+                                                'dock') &&
+                                        draggingDropIntent.targetId ===
+                                            postIt._id
+                                    }
+                                    zoom={zoom}
+                                    linkingSourceId={linkingSourceId}
+                                    mentionView={mentionGraph[postIt._id]}
+                                    selected={selectedCardIds.has(postIt._id)}
+                                    onNavigateToCard={openCardOnCanvas}
+                                    onLocalChange={patchPostItLocal}
+                                    onAutosave={scheduleSave}
+                                    onFocus={handleFocusCard}
+                                    onDragStateChange={setDraggingPostItId}
+                                    onMove={handleMove}
+                                    onMoveToTab={movePostItToTab}
+                                    onUnstack={unstackPostIt}
+                                    onDuplicate={clonePostIt}
+                                    onDelete={handleDeleteCard}
+                                    onStartLink={handleStartLink}
+                                    onLinkTarget={handleLinkTarget}
+                                />
+                            ))}
                         </div>
-                    )}
-                    <BoardMinimap
-                        canvasRef={canvasRef}
-                        offset={offset}
-                        zoom={zoom}
-                        postIts={postIts}
-                        stacks={stacks}
-                    />
-                </div>
+
+                        {selectedCardIds.size > 0 && (
+                            <div className="board-selection-bar" role="toolbar">
+                                <span className="board-selection-count">
+                                    {t('app.selection.count', {
+                                        n: selectedCardIds.size,
+                                    })}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={duplicateSelectedCards}
+                                    title={`${t('app.selection.duplicate')} (Ctrl+D)`}
+                                >
+                                    <DocumentDuplicateIcon />
+                                    <span>{t('app.selection.duplicate')}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    className="is-danger"
+                                    onClick={deleteSelectedCards}
+                                    title={`${t('app.selection.delete')} (Suppr)`}
+                                >
+                                    <TrashIcon />
+                                    <span>{t('app.selection.delete')}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    className="board-selection-clear"
+                                    onClick={clearCardSelection}
+                                    title={`${t('app.selection.clear')} (Ã‰chap)`}
+                                    aria-label={t('app.selection.clear')}
+                                >
+                                    <XMarkIcon />
+                                </button>
+                            </div>
+                        )}
+                        <BoardMinimap
+                            canvasRef={canvasRef}
+                            offset={offset}
+                            zoom={zoom}
+                            postIts={postIts}
+                            stacks={stacks}
+                        />
+                    </div>
                 ) : (
-                    <div className="board-alt-view">
+                    <div className="board-alt-view app-scrollbar">
                         {isLoading ? (
                             <div className="board-loading">
                                 <span className="loading-dot" />
@@ -1894,9 +2227,16 @@ const BoardApp: React.FC<BoardAppProps> = ({
                 >
                     <div
                         className="account-dialog"
+                        ref={deleteDialogRef}
                         role="dialog"
                         aria-modal="true"
                         aria-label={t('app.delete.aria')}
+                        onKeyDown={(event) => {
+                            if (event.key === 'Escape' && !isDeleting) {
+                                event.preventDefault();
+                                setDeleteDialogOpen(false);
+                            }
+                        }}
                     >
                         <h2>{t('app.delete.title')}</h2>
                         <p>{t('app.delete.body')}</p>

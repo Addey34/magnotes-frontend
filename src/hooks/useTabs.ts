@@ -14,9 +14,9 @@ const TAB_COLORS = ['#facc15', '#38bdf8', '#fb7185', '#4ade80', '#c084fc'];
 // light/cork themes). Existing 'home'/'work'/… tabs keep their glyph.
 const DEFAULT_TAB_ICON = '📝';
 
-type TabCustomization = Partial<
-    Pick<BoardTab, 'color' | 'theme' | 'icon'>
-> & { backgroundColor?: string | null };
+type TabCustomization = Partial<Pick<BoardTab, 'color' | 'theme' | 'icon'>> & {
+    backgroundColor?: string | null;
+};
 
 const normalizeTabs = (tabs: BoardTab[]) =>
     tabs.map((tab) => ({ ...tab, icon: tab.icon || DEFAULT_TAB_ICON }));
@@ -76,8 +76,8 @@ export const useTabs = (
                           backgroundColor:
                               updates.backgroundColor === null
                                   ? undefined
-                                  : updates.backgroundColor ??
-                                    tab.backgroundColor,
+                                  : (updates.backgroundColor ??
+                                    tab.backgroundColor),
                       }
                     : tab
             )
@@ -121,18 +121,30 @@ export const useTabs = (
         }
     };
 
-    const reorderTabs = async (draggedTabId: string, targetTabId: string) => {
+    const reorderTabs = async (
+        draggedTabId: string,
+        targetTabId: string,
+        position: 'before' | 'after' = 'before'
+    ) => {
         if (draggedTabId === targetTabId) return;
         const previousTabs = tabs;
         const nextTabs = [...tabs];
         const sourceIndex = nextTabs.findIndex(
             (tab) => tab._id === draggedTabId
         );
-        const targetIndex = nextTabs.findIndex((tab) => tab._id === targetTabId);
+        const targetIndex = nextTabs.findIndex(
+            (tab) => tab._id === targetTabId
+        );
         if (sourceIndex < 0 || targetIndex < 0) return;
 
         const [movedTab] = nextTabs.splice(sourceIndex, 1);
-        nextTabs.splice(targetIndex, 0, movedTab);
+        const adjustedTargetIndex =
+            sourceIndex < targetIndex ? targetIndex - 1 : targetIndex;
+        const insertIndex =
+            position === 'after'
+                ? adjustedTargetIndex + 1
+                : adjustedTargetIndex;
+        nextTabs.splice(insertIndex, 0, movedTab);
         const orderedTabs = nextTabs.map((tab, index) => ({
             ...tab,
             order: index + 1,

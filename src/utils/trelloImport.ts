@@ -52,7 +52,9 @@ interface TrelloBoard {
 }
 
 // Map a Trello list name to a card status when it clearly names a Kanban stage.
-function statusFromListName(name: string | undefined): PostItStatus | undefined {
+function statusFromListName(
+    name: string | undefined
+): PostItStatus | undefined {
     const value = (name ?? '').toLowerCase();
     if (/(done|fait|termin|complet|closed|clôtur|cloture)/.test(value)) {
         return 'done';
@@ -110,7 +112,7 @@ export function parseTrelloBoard(data: unknown): TrelloParsedCard[] {
         .sort((a, b) => (a.pos ?? 0) - (b.pos ?? 0))
         .map((card) => {
             const column = card.idList
-                ? columnByList.get(card.idList) ?? fallbackColumn
+                ? (columnByList.get(card.idList) ?? fallbackColumn)
                 : fallbackColumn;
             const row = rowCounters.get(column) ?? 0;
             rowCounters.set(column, row + 1);

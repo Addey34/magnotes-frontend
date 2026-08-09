@@ -19,9 +19,7 @@ export interface BoardMarkdownOptions {
 }
 
 function escapeMarkdown(value: string): string {
-    return value
-        .replace(/\\/g, '\\\\')
-        .replace(/([`*_[\]<>#])/g, '\\$1');
+    return value.replace(/\\/g, '\\\\').replace(/([`*_[\]<>#])/g, '\\$1');
 }
 
 function compareText(left: string, right: string): number {
@@ -44,10 +42,7 @@ function formatTag(tag: string): string | null {
     return value ? `#${escapeMarkdown(value)}` : null;
 }
 
-function cardToMarkdown(
-    card: MarkdownCard,
-    includeMetadata: boolean
-): string {
+function cardToMarkdown(card: MarkdownCard, includeMetadata: boolean): string {
     const blocks: string[] = [];
     const title = card.title?.trim() || 'Sans titre';
     blocks.push(`## ${escapeMarkdown(title)}`);

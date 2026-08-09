@@ -7,11 +7,7 @@
 // purely presentational — the real styling lives in CSS variables.
 
 export type BoardThemeId =
-    | 'clair'
-    | 'frigo'
-    | 'magnetique'
-    | 'liege'
-    | 'ardoise';
+    'clair' | 'frigo' | 'magnetique' | 'liege' | 'ardoise';
 
 export interface BoardTheme {
     id: BoardThemeId;

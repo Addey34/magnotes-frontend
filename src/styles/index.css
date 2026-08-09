@@ -1,4 +1,4 @@
-:root {
+﻿:root {
     --primary: #6366f1;
     --primary-dark: #4f46e5;
     --secondary: #10b981;
@@ -12,13 +12,32 @@
     --shadow-md: 0 4px 10px rgba(0, 0, 0, 0.1);
     --transition: 160ms ease;
     color-scheme: dark;
-    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-family:
+        Inter,
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        'Segoe UI',
+        sans-serif;
     font-synthesis: none;
     text-rendering: optimizeLegibility;
 }
 
 * {
     box-sizing: border-box;
+}
+
+.sr-only {
+    border: 0;
+    clip: rect(0, 0, 0, 0);
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    padding: 0;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
 }
 
 html,
@@ -70,7 +89,9 @@ select:focus-visible {
     gap: 0.5rem;
     justify-content: center;
     padding: 0.75rem 1rem;
-    transition: background-color var(--transition), transform var(--transition);
+    transition:
+        background-color var(--transition),
+        transform var(--transition);
 }
 
 .btn-primary {
@@ -92,7 +113,7 @@ select:focus-visible {
     color: var(--light);
 }
 
-/* Language switch (FR/EN) — shared across the auth screen and board menu. */
+/* Language switch (FR/EN) â€” shared across the auth screen and board menu. */
 .lang-switch {
     display: inline-flex;
     gap: 2px;
@@ -111,11 +132,13 @@ select:focus-visible {
     background: transparent;
     color: #9b99ae;
     cursor: pointer;
-    transition: background-color 160ms ease, color 160ms ease;
+    transition:
+        background-color 160ms ease,
+        color 160ms ease;
 }
 
 .lang-switch__btn.is-active {
-    background: rgba(139, 124, 246, 0.9);
+    background: #6253d1;
     color: #fff;
 }
 

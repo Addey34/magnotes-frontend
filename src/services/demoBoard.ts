@@ -138,7 +138,10 @@ export async function createTab(
     backgroundColor?: string
 ): Promise<BoardTab> {
     const store = load();
-    const maxOrder = store.tabs.reduce((max, tab) => Math.max(max, tab.order), 0);
+    const maxOrder = store.tabs.reduce(
+        (max, tab) => Math.max(max, tab.order),
+        0
+    );
     const timestamp = now();
     const tab: BoardTab = {
         _id: newId(),
@@ -242,6 +245,7 @@ type CreatePostItInput = Pick<
     | 'y'
     | 'width'
     | 'height'
+    | 'rotation'
 >;
 
 export async function createPostIt(input: CreatePostItInput): Promise<PostIt> {

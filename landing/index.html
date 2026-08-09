@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
     <head>
         <meta charset="UTF-8" />
@@ -8,7 +8,10 @@
             name="description"
             content="MagNotes est un tableau visuel infini pour freelances et pros : post-its, piles, checklists, échéances, vues Kanban et Timeline, Markdown, connexions entre cartes. Gratuit."
         />
-        <meta property="og:title" content="MagNotes — Tableaux de post-its visuels" />
+        <meta
+            property="og:title"
+            content="MagNotes — Tableaux de post-its visuels"
+        />
         <meta
             property="og:description"
             content="Organisez idées, tâches et projets sur un canvas infini. Post-its, piles, Kanban, Timeline, Markdown."
@@ -40,7 +43,10 @@
             }
             body {
                 font-family:
-                    'Segoe UI', system-ui, -apple-system, sans-serif;
+                    'Segoe UI',
+                    system-ui,
+                    -apple-system,
+                    sans-serif;
                 background: var(--bg);
                 color: var(--text);
                 line-height: 1.6;
@@ -93,7 +99,9 @@
                 border-radius: var(--radius);
                 font-weight: 600;
                 font-size: 0.95rem;
-                transition: transform 0.15s, box-shadow 0.15s;
+                transition:
+                    transform 0.15s,
+                    box-shadow 0.15s;
             }
             .btn-primary {
                 background: var(--accent);
@@ -151,7 +159,10 @@
                 position: relative;
                 aspect-ratio: 4 / 3.1;
                 background:
-                    radial-gradient(rgba(255, 255, 255, 0.09) 1px, transparent 1px)
+                    radial-gradient(
+                            rgba(255, 255, 255, 0.09) 1px,
+                            transparent 1px
+                        )
                         0 0 / 22px 22px,
                     var(--bg-soft);
                 border: 1px solid rgba(255, 255, 255, 0.07);
@@ -306,7 +317,9 @@
     <body>
         <header>
             <div class="wrap nav">
-                <span class="logo"><span class="logo-mark">🧲</span> MagNotes</span>
+                <span class="logo"
+                    ><span class="logo-mark">🧲</span> MagNotes</span
+                >
                 <nav>
                     <a class="btn btn-ghost" href="/app/">Se connecter</a>
                     <a class="btn btn-primary" href="/app/">Commencer</a>
@@ -317,37 +330,88 @@
         <main class="wrap">
             <section class="hero">
                 <div>
-                    <h1>Vos idées, comme des <em>post-its sur un frigo</em>. En mieux.</h1>
+                    <h1>
+                        Vos idées, comme des <em>post-its sur un frigo</em>. En
+                        mieux.
+                    </h1>
                     <p>
                         MagNotes est un tableau visuel infini pour organiser
-                        idées, tâches et projets. Empilez, connectez,
-                        planifiez — sans formulaire, sans friction.
+                        idées, tâches et projets. Empilez, connectez, planifiez
+                        — sans formulaire, sans friction.
                     </p>
                     <div class="hero-cta">
-                        <a class="btn btn-primary" href="/app/">Commencer gratuitement</a>
-                        <a class="btn btn-ghost" href="/app/?demo=1">Essayer sans compte</a>
+                        <a class="btn btn-primary" href="/app/"
+                            >Commencer gratuitement</a
+                        >
+                        <a class="btn btn-ghost" href="/app/?demo=1"
+                            >Essayer sans compte</a
+                        >
                     </div>
-                    <p class="hero-note">Gratuit · Aucune carte bancaire · Vos données restent les vôtres (export &amp; suppression en un clic)</p>
+                    <p class="hero-note">
+                        Gratuit · Aucune carte bancaire · Vos données restent
+                        les vôtres (export &amp; suppression en un clic)
+                    </p>
                 </div>
                 <div class="board" aria-hidden="true">
                     <svg viewBox="0 0 400 310">
                         <defs>
-                            <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-                                <path d="M0,0 L6,3 L0,6" fill="none" stroke="#8b7cf6" stroke-width="1.5" />
+                            <marker
+                                id="arr"
+                                markerWidth="8"
+                                markerHeight="8"
+                                refX="6"
+                                refY="3"
+                                orient="auto"
+                            >
+                                <path
+                                    d="M0,0 L6,3 L0,6"
+                                    fill="none"
+                                    stroke="#8b7cf6"
+                                    stroke-width="1.5"
+                                />
                             </marker>
                         </defs>
-                        <path d="M150 80 C 200 90, 230 90, 265 78" fill="none" stroke="#8b7cf6" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#arr)" />
-                        <path d="M120 200 C 160 230, 200 245, 245 245" fill="none" stroke="#8b7cf6" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#arr)" />
+                        <path
+                            d="M150 80 C 200 90, 230 90, 265 78"
+                            fill="none"
+                            stroke="#8b7cf6"
+                            stroke-width="1.5"
+                            stroke-dasharray="4 4"
+                            marker-end="url(#arr)"
+                        />
+                        <path
+                            d="M120 200 C 160 230, 200 245, 245 245"
+                            fill="none"
+                            stroke="#8b7cf6"
+                            stroke-width="1.5"
+                            stroke-dasharray="4 4"
+                            marker-end="url(#arr)"
+                        />
                     </svg>
-                    <div class="note n1"><b>Idée produit 💡</b><small>Brainstorm de lancement</small></div>
-                    <div class="note n2"><b>Client Dupont</b><small>Devis à envoyer · vendredi</small></div>
-                    <div class="note n3"><b>Checklist site</b><span class="check">☑ <s>Maquette</s></span><span class="check">☐ Intégration</span></div>
-                    <div class="note n4"><b>Facturation ⏰</b><small>Échéance : fin du mois</small></div>
+                    <div class="note n1">
+                        <b>Idée produit 💡</b
+                        ><small>Brainstorm de lancement</small>
+                    </div>
+                    <div class="note n2">
+                        <b>Client Dupont</b
+                        ><small>Devis à envoyer · vendredi</small>
+                    </div>
+                    <div class="note n3">
+                        <b>Checklist site</b
+                        ><span class="check">☑ <s>Maquette</s></span
+                        ><span class="check">☐ Intégration</span>
+                    </div>
+                    <div class="note n4">
+                        <b>Facturation ⏰</b
+                        ><small>Échéance : fin du mois</small>
+                    </div>
                 </div>
             </section>
 
             <section id="features">
-                <h2 class="section-title">Un seul tableau, quatre façons de le voir</h2>
+                <h2 class="section-title">
+                    Un seul tableau, quatre façons de le voir
+                </h2>
                 <p class="section-sub">
                     Pensé pour les freelances et les pros qui veulent un vrai
                     outil de notes de travail — pas une todo-list de plus.
@@ -356,32 +420,56 @@
                     <div class="feature">
                         <div class="icon">🗺️</div>
                         <h3>Canvas infini</h3>
-                        <p>Panoramique libre, zoom centré sur le curseur, minimap. Empilez les cartes, accolez-les bord à bord, la place ne manque jamais.</p>
+                        <p>
+                            Panoramique libre, zoom centré sur le curseur,
+                            minimap. Empilez les cartes, accolez-les bord à
+                            bord, la place ne manque jamais.
+                        </p>
                     </div>
                     <div class="feature">
                         <div class="icon">📋</div>
                         <h3>Kanban, Agenda &amp; Timeline</h3>
-                        <p>Les mêmes cartes, projetées en colonnes par statut, groupées par échéance ou déroulées en frise chronologique.</p>
+                        <p>
+                            Les mêmes cartes, projetées en colonnes par statut,
+                            groupées par échéance ou déroulées en frise
+                            chronologique.
+                        </p>
                     </div>
                     <div class="feature">
                         <div class="icon">✅</div>
                         <h3>Cartes de travail</h3>
-                        <p>Statut, priorité, échéance, tags, checklists avec progression, images — chaque post-it est un vrai objet de travail.</p>
+                        <p>
+                            Statut, priorité, échéance, tags, checklists avec
+                            progression, images — chaque post-it est un vrai
+                            objet de travail.
+                        </p>
                     </div>
                     <div class="feature">
                         <div class="icon">🔗</div>
                         <h3>Connexions &amp; mentions</h3>
-                        <p>Reliez les cartes par des flèches typées, citez-les avec <code>[[mentions]]</code> et retrouvez qui cite quoi grâce aux backlinks.</p>
+                        <p>
+                            Reliez les cartes par des flèches typées, citez-les
+                            avec <code>[[mentions]]</code> et retrouvez qui cite
+                            quoi grâce aux backlinks.
+                        </p>
                     </div>
                     <div class="feature">
                         <div class="icon">⌨️</div>
                         <h3>Palette de commandes</h3>
-                        <p>Ctrl+K : recherche floue sur tous vos tableaux, capture rapide d'une note, changement de vue, insertion de templates.</p>
+                        <p>
+                            Ctrl+K : recherche floue sur tous vos tableaux,
+                            capture rapide d'une note, changement de vue,
+                            insertion de templates.
+                        </p>
                     </div>
                     <div class="feature">
                         <div class="icon">📝</div>
                         <h3>Markdown &amp; export</h3>
-                        <p>Écrivez en Markdown, collez des images, exportez n'importe quel tableau en fichier Markdown. Vos notes restent portables.</p>
+                        <p>
+                            Écrivez en Markdown, collez des images, exportez
+                            n'importe quel tableau en fichier Markdown. Vos
+                            notes restent portables.
+                        </p>
                     </div>
                 </div>
             </section>
@@ -390,13 +478,16 @@
                 <div class="cta-final">
                     <h2>Sortez vos idées de votre tête.</h2>
                     <p>Créez votre premier tableau en moins d'une minute.</p>
-                    <a class="btn btn-primary" href="/app/?demo=1">Essayer sans compte</a>
+                    <a class="btn btn-primary" href="/app/?demo=1"
+                        >Essayer sans compte</a
+                    >
                 </div>
             </section>
         </main>
 
         <footer>
-            <span>© 2026 MagNotes</span> · <span>Fait avec soin par un freelance, pour les freelances</span>
+            <span>© 2026 MagNotes</span> ·
+            <span>Fait avec soin par un freelance, pour les freelances</span>
         </footer>
     </body>
 </html>

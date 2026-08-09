@@ -32,14 +32,22 @@ const activeLabel = () =>
 describe('CommandPalette', () => {
     it('renders nothing while closed', () => {
         const { container } = render(
-            <CommandPalette open={false} commands={makeCommands()} onClose={jest.fn()} />
+            <CommandPalette
+                open={false}
+                commands={makeCommands()}
+                onClose={jest.fn()}
+            />
         );
         expect(container).toBeEmptyDOMElement();
     });
 
     it('highlights the top match when the query changes', () => {
         render(
-            <CommandPalette open commands={makeCommands()} onClose={jest.fn()} />
+            <CommandPalette
+                open
+                commands={makeCommands()}
+                onClose={jest.fn()}
+            />
         );
         const input = screen.getByLabelText('Rechercher une commande');
 
@@ -115,7 +123,11 @@ describe('CommandPalette', () => {
         expect(document.activeElement).toBe(trigger);
 
         const { rerender } = render(
-            <CommandPalette open commands={makeCommands()} onClose={jest.fn()} />
+            <CommandPalette
+                open
+                commands={makeCommands()}
+                onClose={jest.fn()}
+            />
         );
         rerender(
             <CommandPalette

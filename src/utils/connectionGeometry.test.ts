@@ -1,9 +1,4 @@
-import {
-    Box,
-    borderPoint,
-    centerOf,
-    linkAnchors,
-} from './connectionGeometry';
+import { Box, borderPoint, centerOf, linkAnchors } from './connectionGeometry';
 
 const box = (x: number, y: number, width = 100, height = 100): Box => ({
     x,

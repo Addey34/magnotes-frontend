@@ -16,7 +16,10 @@ export const DICTIONARY = {
     // --- auth screen ---------------------------------------------------------
     'auth.brand.tagline': { fr: 'Workspace', en: 'Workspace' },
     'auth.eyebrow': { fr: 'Votre espace visuel', en: 'Your visual space' },
-    'auth.hero.title1': { fr: 'Organisez vos idées,', en: 'Organize your ideas,' },
+    'auth.hero.title1': {
+        fr: 'Organisez vos idées,',
+        en: 'Organize your ideas,',
+    },
     'auth.hero.title2': { fr: ' naturellement.', en: ' naturally.' },
     'auth.hero.sub': {
         fr: 'Un tableau libre pour capturer, rapprocher et structurer ce qui compte.',
@@ -31,9 +34,18 @@ export const DICTIONARY = {
     'auth.kicker.forgot': { fr: 'Mot de passe oublié', en: 'Forgot password' },
     'auth.kicker.reset': { fr: 'Nouveau mot de passe', en: 'New password' },
     'auth.title.login': { fr: 'Ravi de vous revoir', en: 'Welcome back' },
-    'auth.title.register': { fr: 'Créez votre espace', en: 'Create your space' },
-    'auth.title.verify': { fr: 'Confirmez votre e-mail', en: 'Confirm your email' },
-    'auth.title.forgot': { fr: 'Réinitialiser l’accès', en: 'Reset your access' },
+    'auth.title.register': {
+        fr: 'Créez votre espace',
+        en: 'Create your space',
+    },
+    'auth.title.verify': {
+        fr: 'Confirmez votre e-mail',
+        en: 'Confirm your email',
+    },
+    'auth.title.forgot': {
+        fr: 'Réinitialiser l’accès',
+        en: 'Reset your access',
+    },
     'auth.title.reset': {
         fr: 'Choisissez un mot de passe',
         en: 'Choose a password',
@@ -47,8 +59,8 @@ export const DICTIONARY = {
         en: 'An email, a password, and you’re set.',
     },
     'auth.sub.verify': {
-        fr: 'Entrez le code à 6 chiffres que nous venons de vous envoyer.',
-        en: 'Enter the 6-digit code we just sent you.',
+        fr: 'Entrez le code à 6 chiffres envoyé à {email}.',
+        en: 'Enter the 6-digit code sent to {email}.',
     },
     'auth.sub.forgot': {
         fr: 'Indiquez votre e-mail pour recevoir un code de réinitialisation.',
@@ -62,7 +74,10 @@ export const DICTIONARY = {
     'auth.field.email': { fr: 'Adresse e-mail', en: 'Email address' },
     'auth.field.code': { fr: 'Code de vérification', en: 'Verification code' },
     'auth.field.password': { fr: 'Mot de passe', en: 'Password' },
-    'auth.field.newPassword': { fr: 'Nouveau mot de passe', en: 'New password' },
+    'auth.field.newPassword': {
+        fr: 'Nouveau mot de passe',
+        en: 'New password',
+    },
     'auth.field.confirm': {
         fr: 'Confirmer le mot de passe',
         en: 'Confirm password',
@@ -87,13 +102,19 @@ export const DICTIONARY = {
     'auth.forgotLink': { fr: 'Mot de passe oublié ?', en: 'Forgot password?' },
 
     'auth.submit.login': { fr: 'Se connecter', en: 'Sign in' },
-    'auth.submit.register': { fr: 'Créer mon compte', en: 'Create my account' },
+    'auth.submit.register': {
+        fr: 'Créer mon compte',
+        en: 'Create my account',
+    },
     'auth.submit.verify': { fr: 'Confirmer', en: 'Confirm' },
     'auth.submit.forgot': { fr: 'Envoyer le code', en: 'Send the code' },
     'auth.submit.reset': { fr: 'Réinitialiser', en: 'Reset' },
     'auth.submit.loading': { fr: 'Chargement...', en: 'Loading...' },
 
-    'auth.verify.noCode': { fr: 'Vous n’avez rien reçu ?', en: 'Didn’t get anything?' },
+    'auth.verify.noCode': {
+        fr: 'Vous n’avez rien reçu ?',
+        en: 'Didn’t get anything?',
+    },
     'auth.verify.resend': { fr: 'Renvoyer le code', en: 'Resend the code' },
     'auth.backToLogin': { fr: 'Retour à la connexion', en: 'Back to sign in' },
     'auth.switch.toRegister': {
@@ -169,11 +190,15 @@ export const DICTIONARY = {
         en: 'Personal note boards',
     },
     'app.menu.preferences': { fr: 'Préférences', en: 'Preferences' },
+    'app.menu.language': { fr: 'Langue', en: 'Language' },
     'app.menu.preferences.sub': {
         fr: 'Changer de thème',
         en: 'Change theme',
     },
-    'app.menu.exportMd': { fr: 'Exporter en Markdown', en: 'Export as Markdown' },
+    'app.menu.exportMd': {
+        fr: 'Exporter en Markdown',
+        en: 'Export as Markdown',
+    },
     'app.menu.exportMd.sub': {
         fr: 'Le tableau courant en .md',
         en: 'The current board as .md',
@@ -186,7 +211,10 @@ export const DICTIONARY = {
         fr: 'Depuis un fichier .md ou un export Trello .json',
         en: 'From a .md file or a Trello .json export',
     },
-    'app.menu.exportData': { fr: 'Exporter mes données', en: 'Export my data' },
+    'app.menu.exportData': {
+        fr: 'Exporter mes données',
+        en: 'Export my data',
+    },
     'app.menu.exportData.loading': {
         fr: 'Export en cours…',
         en: 'Exporting…',
@@ -196,7 +224,10 @@ export const DICTIONARY = {
         en: 'Download a JSON file',
     },
     'app.menu.share': { fr: 'Partager ce tableau', en: 'Share this board' },
-    'app.menu.share.active': { fr: 'Lien public actif', en: 'Public link active' },
+    'app.menu.share.active': {
+        fr: 'Lien public actif',
+        en: 'Public link active',
+    },
     'app.menu.share.inactive': {
         fr: 'Lien public en lecture seule',
         en: 'Read-only public link',
@@ -209,7 +240,10 @@ export const DICTIONARY = {
         fr: 'Efface toutes vos données',
         en: 'Erases all your data',
     },
-    'app.menu.createAccount': { fr: 'Créer un compte', en: 'Create an account' },
+    'app.menu.createAccount': {
+        fr: 'Créer un compte',
+        en: 'Create an account',
+    },
     'app.menu.createAccount.sub': {
         fr: 'Garder mes notes en ligne',
         en: 'Keep my notes online',
@@ -217,6 +251,14 @@ export const DICTIONARY = {
     'app.theme.light': { fr: 'Thème clair', en: 'Light theme' },
     'app.theme.dark': { fr: 'Thème sombre', en: 'Dark theme' },
     'app.logout': { fr: 'Déconnexion', en: 'Sign out' },
+    'app.sidebar.collapse': {
+        fr: 'Réduire la barre latérale',
+        en: 'Collapse sidebar',
+    },
+    'app.sidebar.collapse.sub': {
+        fr: 'Garder plus de place pour le tableau',
+        en: 'Give the board more room',
+    },
 
     // --- guest demo banner ---------------------------------------------------
     'app.demo.title': { fr: 'Mode démo.', en: 'Demo mode.' },
@@ -341,6 +383,7 @@ export const DICTIONARY = {
     'app.rename.save': { fr: 'Enregistrer le nom', en: 'Save the name' },
     'app.rename.title': { fr: 'Renommer cette page', en: 'Rename this page' },
     'app.view.canvas': { fr: 'Canvas', en: 'Canvas' },
+    'app.view.switcher': { fr: 'Changer de vue', en: 'Change view' },
     'app.view.canvas.title': { fr: 'Vue canvas', en: 'Canvas view' },
     'app.view.kanban': { fr: 'Kanban', en: 'Kanban' },
     'app.view.kanban.title': { fr: 'Vue Kanban', en: 'Kanban view' },
@@ -361,6 +404,14 @@ export const DICTIONARY = {
     },
     'app.status.results': { fr: '{n} résultat(s)', en: '{n} result(s)' },
     'app.status.free': { fr: 'Canvas libre', en: 'Free canvas' },
+    'app.sync.offline': { fr: 'Hors ligne', en: 'Offline' },
+    'app.sync.local': {
+        fr: 'Stocké sur cet appareil',
+        en: 'Stored on this device',
+    },
+    'app.sync.saving': { fr: 'Enregistrement…', en: 'Saving…' },
+    'app.sync.saved': { fr: 'Synchronisé', en: 'Synced' },
+    'app.sync.error': { fr: 'À vérifier', en: 'Needs attention' },
     'app.selection.count': {
         fr: '{n} sélectionnée(s)',
         en: '{n} selected',
@@ -373,8 +424,13 @@ export const DICTIONARY = {
         en: 'Click a target card to create the link · Esc to cancel',
     },
     'app.help.canvas': {
-        fr: 'Double-clic pour créer / Glissez le fond pour naviguer / Scroll pour zoomer',
-        en: 'Double-click to create / Drag the background to pan / Scroll to zoom',
+        fr: 'Double-cliquez le fond pour créer · Cliquez une note pour éditer · Maintenez la poignée pour déplacer · Molette pour zoomer',
+        en: 'Double-click the background to create · Click a note to edit · Hold the handle to move · Scroll to zoom',
+    },
+    'app.help.title': { fr: 'Aide et raccourcis', en: 'Help and shortcuts' },
+    'app.help.shortcuts': {
+        fr: 'N créer · Suppr supprimer · Ctrl+D dupliquer · Ctrl+Z annuler · Ctrl+K palette',
+        en: 'N create Â· Delete remove Â· Ctrl+D duplicate Â· Ctrl+Z undo Â· Ctrl+K palette',
     },
     'app.zoom.aria': { fr: 'Zoom du tableau', en: 'Board zoom' },
     'app.zoom.out': { fr: 'Dézoomer', en: 'Zoom out' },
@@ -396,6 +452,12 @@ export const DICTIONARY = {
         en: 'Command palette (Ctrl+K)',
     },
     'app.newCard.short': { fr: 'Post-it', en: 'Sticky note' },
+    'app.mobileActions.aria': {
+        fr: 'Actions rapides du tableau',
+        en: 'Board quick actions',
+    },
+    'app.mobileActions.palette': { fr: 'Rechercher', en: 'Search' },
+    'app.mobileActions.fit': { fr: 'Cadrer', en: 'Fit' },
     'app.newCard.title': {
         fr: 'Nouveau post-it — ou double-clic sur le tableau',
         en: 'New sticky note — or double-click the board',
@@ -407,13 +469,37 @@ export const DICTIONARY = {
 
     // --- board states --------------------------------------------------------
     'app.loading': { fr: 'Chargement du tableau', en: 'Loading the board' },
-    'app.empty.title': { fr: 'Votre tableau est vide', en: 'Your board is empty' },
+    'app.minimap.aria': { fr: 'Aperçu du tableau', en: 'Board overview' },
+    'app.empty.title': {
+        fr: 'Votre tableau est vide',
+        en: 'Your board is empty',
+    },
     'app.empty.text': {
         fr: 'Double-cliquez dans le canvas ou créez votre première note.',
         en: 'Double-click the canvas or create your first note.',
     },
     'app.empty.create': { fr: 'Créer un post-it', en: 'Create a sticky note' },
+    'app.empty.template': {
+        fr: 'Découvrir avec un exemple',
+        en: 'Explore with an example',
+    },
+    'app.empty.templateTitle': {
+        fr: 'Charger le tableau de bienvenue',
+        en: 'Load the welcome board',
+    },
     'app.empty.noResults': { fr: 'Aucune note trouvée', en: 'No note found' },
+    'app.empty.tipsAria': {
+        fr: 'Conseils pour commencer',
+        en: 'Getting started tips',
+    },
+    'app.empty.tip.create': {
+        fr: 'Double-cliquez pour créer une note',
+        en: 'Double-click to create a note',
+    },
+    'app.empty.tip.palette': {
+        fr: 'Ouvrez la palette avec Ctrl/Cmd+K',
+        en: 'Open the palette with Ctrl/Cmd+K',
+    },
     'app.empty.resetFilters': {
         fr: 'Réinitialiser les filtres',
         en: 'Reset filters',
@@ -646,6 +732,8 @@ export const DICTIONARY = {
         en: 'Image not found.',
     },
     'card.tool.color': { fr: 'Couleur de carte', en: 'Card color' },
+    'card.tool.move': { fr: 'Maintenir pour déplacer', en: 'Hold to move' },
+    'card.tool.rotate': { fr: 'Faire pivoter la note', en: 'Rotate note' },
     'card.tool.text': { fr: 'Texte', en: 'Text' },
     'card.tool.task': {
         fr: 'Tâche (statut, échéance, checklist)',

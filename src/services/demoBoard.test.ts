@@ -44,7 +44,10 @@ describe('demoBoard store', () => {
     it('applies patches and clears fields set to null', async () => {
         const tab = await demo.createTab('A', '#111');
         const card = await demo.createPostIt(baseCardInput(tab._id));
-        await demo.updatePostIt(card._id, { status: 'doing', title: 'Renamed' });
+        await demo.updatePostIt(card._id, {
+            status: 'doing',
+            title: 'Renamed',
+        });
         let stored = (await demo.fetchPostIts(tab._id))[0];
         expect(stored.status).toBe('doing');
         expect(stored.title).toBe('Renamed');
@@ -121,7 +124,10 @@ describe('demoBoard store', () => {
         const tab = await demo.createTab('A', '#111');
         const stack = await demo.createStack({ tabId: tab._id, x: 0, y: 0 });
         const card = await demo.createPostIt(baseCardInput(tab._id));
-        await demo.updatePostIt(card._id, { stackId: stack._id, stackOrder: 0 });
+        await demo.updatePostIt(card._id, {
+            stackId: stack._id,
+            stackOrder: 0,
+        });
         await demo.deleteStack(stack._id);
         const stored = (await demo.fetchPostIts(tab._id))[0];
         expect(stored.stackId).toBeUndefined();

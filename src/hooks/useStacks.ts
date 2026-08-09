@@ -16,6 +16,10 @@ export const useStacks = (
     const [stacksByTab, setStacksByTab] = useState<
         Record<string, PostItStack[]>
     >({});
+    const [loadedTabs, setLoadedTabs] = useState<Set<string>>(() => new Set());
+    const [loadingTabs, setLoadingTabs] = useState<Set<string>>(
+        () => new Set()
+    );
 
     const stacks = useMemo(
         () => (activeTabId ? stacksByTab[activeTabId] || [] : []),
@@ -24,6 +28,7 @@ export const useStacks = (
 
     const loadStacks = useCallback(
         async (tabId: string) => {
+            setLoadingTabs((current) => new Set(current).add(tabId));
             try {
                 const loadedStacks = await fetchStacks(tabId);
                 setStacksByTab((current) => ({
@@ -32,12 +37,22 @@ export const useStacks = (
                 }));
             } catch {
                 onLoadError?.();
+            } finally {
+                setLoadedTabs((current) => new Set(current).add(tabId));
+                setLoadingTabs((current) => {
+                    const next = new Set(current);
+                    next.delete(tabId);
+                    return next;
+                });
             }
         },
         [onLoadError]
     );
 
-    const addStack = async (x: number, y: number): Promise<PostItStack | null> => {
+    const addStack = async (
+        x: number,
+        y: number
+    ): Promise<PostItStack | null> => {
         if (!activeTabId) return null;
 
         let stack: PostItStack;
@@ -69,6 +84,26 @@ export const useStacks = (
                 stack._id === stackId ? { ...stack, ...updates } : stack
             ),
         }));
+    };
+
+    const settleStack = async (stackId: string, x: number, y: number) => {
+        if (!activeTabId) return;
+        const previous = (stacksByTab[activeTabId] || []).find(
+            (stack) => stack._id === stackId
+        );
+        if (!previous) return;
+
+        const updates: PostItStackUpdate = {
+            x: snapToGrid(x),
+            y: snapToGrid(y),
+        };
+        patchStackLocal(stackId, updates);
+        try {
+            await updateStack(stackId, updates);
+        } catch {
+            patchStackLocal(stackId, { x: previous.x, y: previous.y });
+            onMutationError?.();
+        }
     };
 
     const toggleStack = async (stackId: string, collapsed: boolean) => {
@@ -107,7 +142,11 @@ export const useStacks = (
             setStacksByTab((current) => {
                 const next = [...(current[activeTabId] || [])];
                 if (!next.some((stack) => stack._id === stackId)) {
-                    next.splice(Math.min(removedIndex, next.length), 0, removed);
+                    next.splice(
+                        Math.min(removedIndex, next.length),
+                        0,
+                        removed
+                    );
                 }
                 return { ...current, [activeTabId]: next };
             });
@@ -116,16 +155,22 @@ export const useStacks = (
     };
 
     useEffect(() => {
-        if (activeTabId && !stacksByTab[activeTabId]) {
+        if (
+            activeTabId &&
+            !loadedTabs.has(activeTabId) &&
+            !loadingTabs.has(activeTabId)
+        ) {
             loadStacks(activeTabId);
         }
-    }, [activeTabId, loadStacks, stacksByTab]);
+    }, [activeTabId, loadStacks, loadedTabs]);
 
     return {
         stacks,
+        isLoadingStacks: activeTabId ? loadingTabs.has(activeTabId) : false,
         addStack,
+        patchStackLocal,
+        settleStack,
         toggleStack,
         removeStack,
     };
 };
-

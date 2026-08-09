@@ -71,4 +71,16 @@ describe('useConnections rollbacks', () => {
         expect(result.current.links).toEqual([link]);
         expect(onMutationError).toHaveBeenCalledTimes(1);
     });
+
+    it('does not retry a failed initial load on every render', async () => {
+        mockedFetch.mockRejectedValue(new Error('offline'));
+        const onLoadError = jest.fn();
+        const { result } = renderHook(() =>
+            useConnections('tab-1', onLoadError, jest.fn())
+        );
+
+        await waitFor(() => expect(onLoadError).toHaveBeenCalledTimes(1));
+        expect(mockedFetch).toHaveBeenCalledTimes(1);
+        expect(result.current.isLoadingConnections).toBe(false);
+    });
 });

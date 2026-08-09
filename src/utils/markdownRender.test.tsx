@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import { render } from '@testing-library/react';
-import React from 'react';
+
 import { renderMarkdown } from './markdownRender';
 
 const html = (text: string): string => {
@@ -27,6 +27,10 @@ describe('renderMarkdown', () => {
         const unsafe = html('bad [x](javascript:alert(1))');
         expect(unsafe).not.toContain('<a ');
         expect(unsafe).toContain('[x](javascript:alert(1))');
+
+        const protocolRelative = html('bad [x](//evil.example)');
+        expect(protocolRelative).not.toContain('<a ');
+        expect(protocolRelative).toContain('[x](//evil.example)');
     });
 
     it('maps #/##/### to h3/h4/h5', () => {

@@ -44,7 +44,7 @@ export function translate(
     const entry = DICTIONARY[key];
     // Missing keys return the key itself, a visible signal in dev rather than a
     // crash; French falls back to English text when a pair lacks `fr`.
-    let text: string = entry ? entry[lang] ?? entry.en : key;
+    let text: string = entry ? (entry[lang] ?? entry.en) : key;
     if (params) {
         for (const [name, value] of Object.entries(params)) {
             text = text.replace(

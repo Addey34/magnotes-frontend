@@ -5,14 +5,23 @@
  */
 
 import * as React from 'react';
-import { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import {
+    createContext,
+    useCallback,
+    useContext,
+    useMemo,
+    useState,
+} from 'react';
 import { TranslationKey } from './dictionary';
 import { detectLang, Lang, storeLang, translate } from './i18n';
 
 interface LangContextValue {
     lang: Lang;
     setLang: (lang: Lang) => void;
-    t: (key: TranslationKey, params?: Record<string, string | number>) => string;
+    t: (
+        key: TranslationKey,
+        params?: Record<string, string | number>
+    ) => string;
 }
 
 const LangContext = createContext<LangContextValue | null>(null);
@@ -36,7 +45,9 @@ export const LangProvider: React.FC<{ children: React.ReactNode }> = ({
         [lang, setLang]
     );
 
-    return <LangContext.Provider value={value}>{children}</LangContext.Provider>;
+    return (
+        <LangContext.Provider value={value}>{children}</LangContext.Provider>
+    );
 };
 
 export function useT(): LangContextValue {

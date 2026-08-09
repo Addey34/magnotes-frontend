@@ -98,17 +98,20 @@ export function useBoardViewport() {
         []
     );
 
-    const focusBounds = useCallback((bounds: BoardBounds | null) => {
-        const rect = canvasRef.current?.getBoundingClientRect();
-        if (!rect || !bounds) {
-            resetViewport();
-            return;
-        }
+    const focusBounds = useCallback(
+        (bounds: BoardBounds | null) => {
+            const rect = canvasRef.current?.getBoundingClientRect();
+            if (!rect || !bounds) {
+                resetViewport();
+                return;
+            }
 
-        const next = computeFocusView(bounds, rect);
-        setZoom(next.zoom);
-        setOffset(next.offset);
-    }, [resetViewport]);
+            const next = computeFocusView(bounds, rect);
+            setZoom(next.zoom);
+            setOffset(next.offset);
+        },
+        [resetViewport]
+    );
 
     const startPan = useCallback(
         (event: React.PointerEvent<HTMLElement>): void => {
@@ -131,10 +134,12 @@ export function useBoardViewport() {
                 setIsPanning(false);
                 window.removeEventListener('pointermove', handlePointerMove);
                 window.removeEventListener('pointerup', handlePointerUp);
+                window.removeEventListener('pointercancel', handlePointerUp);
             };
 
             window.addEventListener('pointermove', handlePointerMove);
             window.addEventListener('pointerup', handlePointerUp);
+            window.addEventListener('pointercancel', handlePointerUp);
         },
         [offset]
     );
@@ -142,7 +147,11 @@ export function useBoardViewport() {
     const handleWheelZoom = useCallback(
         (event: React.WheelEvent<HTMLElement>): void => {
             event.preventDefault();
-            setZoomAroundPoint(zoom - event.deltaY * 0.001, event.clientX, event.clientY);
+            setZoomAroundPoint(
+                zoom - event.deltaY * 0.001,
+                event.clientX,
+                event.clientY
+            );
         },
         [setZoomAroundPoint, zoom]
     );

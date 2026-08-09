@@ -1,10 +1,10 @@
 import { buildMentionGraph, CardRef } from './mentionGraph';
 
-const card = (
-    _id: string,
-    title: string,
-    content = ''
-): CardRef => ({ _id, title, content });
+const card = (_id: string, title: string, content = ''): CardRef => ({
+    _id,
+    title,
+    content,
+});
 
 describe('buildMentionGraph', () => {
     it('returns an entry for every card', () => {
@@ -19,17 +19,12 @@ describe('buildMentionGraph', () => {
             card('2', 'Beta'),
         ];
         const graph = buildMentionGraph(cards);
-        expect(graph['1'].mentions).toEqual([
-            { cardId: '2', title: 'Beta' },
-        ]);
+        expect(graph['1'].mentions).toEqual([{ cardId: '2', title: 'Beta' }]);
         expect(graph['1'].unresolved).toEqual([]);
     });
 
     it('matches mentions case-insensitively', () => {
-        const cards = [
-            card('1', 'Alpha', 'lié à [[beta]]'),
-            card('2', 'Beta'),
-        ];
+        const cards = [card('1', 'Alpha', 'lié à [[beta]]'), card('2', 'Beta')];
         expect(buildMentionGraph(cards)['1'].mentions).toEqual([
             { cardId: '2', title: 'Beta' },
         ]);
@@ -43,14 +38,9 @@ describe('buildMentionGraph', () => {
     });
 
     it('builds incoming backlinks with the source title', () => {
-        const cards = [
-            card('1', 'Alpha', 'voir [[Beta]]'),
-            card('2', 'Beta'),
-        ];
+        const cards = [card('1', 'Alpha', 'voir [[Beta]]'), card('2', 'Beta')];
         const graph = buildMentionGraph(cards);
-        expect(graph['2'].backlinks).toEqual([
-            { cardId: '1', title: 'Alpha' },
-        ]);
+        expect(graph['2'].backlinks).toEqual([{ cardId: '1', title: 'Alpha' }]);
         expect(graph['1'].backlinks).toEqual([]);
     });
 
@@ -59,9 +49,7 @@ describe('buildMentionGraph', () => {
         const graph = buildMentionGraph(cards);
         expect(graph['1'].backlinks).toEqual([]);
         // A self-mention still resolves as an outgoing mention.
-        expect(graph['1'].mentions).toEqual([
-            { cardId: '1', title: 'Alpha' },
-        ]);
+        expect(graph['1'].mentions).toEqual([{ cardId: '1', title: 'Alpha' }]);
     });
 
     it('does not duplicate a backlink when a card mentions the same target twice', () => {

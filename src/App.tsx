@@ -8,7 +8,7 @@ import {
     logout as logoutRequest,
     setupAuthInterceptor,
 } from './services/authApi';
-import { importDemoBoardToAccount } from './services/demoImport';
+import { importDemoBoardToAccount } from './services/demoImportRuntime';
 import {
     activateDemo,
     clearDemoImportPending,

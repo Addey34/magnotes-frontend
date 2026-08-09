@@ -85,7 +85,9 @@ export function computeDropIntent(
 
         const dockCandidates = [
             {
-                distance: Math.abs(moved.x - (target.x + target.width + DOCK_GAP)),
+                distance: Math.abs(
+                    moved.x - (target.x + target.width + DOCK_GAP)
+                ),
                 x: target.x + target.width + DOCK_GAP,
                 y: target.y,
                 enabled: verticalOverlap >= minVerticalOverlap,
@@ -97,13 +99,17 @@ export function computeDropIntent(
                 enabled: verticalOverlap >= minVerticalOverlap,
             },
             {
-                distance: Math.abs(moved.y - (target.y + target.height + DOCK_GAP)),
+                distance: Math.abs(
+                    moved.y - (target.y + target.height + DOCK_GAP)
+                ),
                 x: target.x,
                 y: target.y + target.height + DOCK_GAP,
                 enabled: horizontalOverlap >= minHorizontalOverlap,
             },
             {
-                distance: Math.abs(moved.y + moved.height + DOCK_GAP - target.y),
+                distance: Math.abs(
+                    moved.y + moved.height + DOCK_GAP - target.y
+                ),
                 x: target.x,
                 y: target.y - moved.height - DOCK_GAP,
                 enabled: horizontalOverlap >= minHorizontalOverlap,

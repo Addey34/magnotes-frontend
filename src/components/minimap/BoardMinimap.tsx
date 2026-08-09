@@ -1,5 +1,6 @@
 import React, { RefObject, useEffect, useMemo, useState } from 'react';
 import { PostIt, PostItStack } from '../../types/boardTypes';
+import { useT } from '../../i18n/LangContext';
 
 interface BoardMinimapProps {
     canvasRef: RefObject<HTMLDivElement>;
@@ -20,6 +21,7 @@ const BoardMinimap: React.FC<BoardMinimapProps> = ({
     postIts,
     stacks,
 }) => {
+    const { t } = useT();
     const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
 
     useEffect(() => {
@@ -79,11 +81,11 @@ const BoardMinimap: React.FC<BoardMinimapProps> = ({
     if (!geometry) return null;
 
     return (
-        <aside className='board-minimap' aria-label='Apercu du tableau'>
+        <aside className="board-minimap" aria-label={t('app.minimap.aria')}>
             {postIts.map((postIt) => (
                 <span
                     key={postIt._id}
-                    className='board-minimap-note'
+                    className="board-minimap-note"
                     style={{
                         ...geometry.mapRect(postIt),
                         backgroundColor: postIt.color,
@@ -93,7 +95,7 @@ const BoardMinimap: React.FC<BoardMinimapProps> = ({
             {stacks.map((stack) => (
                 <span
                     key={stack._id}
-                    className='board-minimap-stack'
+                    className="board-minimap-stack"
                     style={geometry.mapRect({
                         x: stack.x,
                         y: stack.y,
@@ -103,7 +105,7 @@ const BoardMinimap: React.FC<BoardMinimapProps> = ({
                 />
             ))}
             <span
-                className='board-minimap-viewport'
+                className="board-minimap-viewport"
                 style={geometry.viewport}
             />
         </aside>

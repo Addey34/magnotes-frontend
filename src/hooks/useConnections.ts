@@ -15,6 +15,10 @@ export const useConnections = (
     const [linksByTab, setLinksByTab] = useState<Record<string, CardLink[]>>(
         {}
     );
+    const [loadedTabs, setLoadedTabs] = useState<Set<string>>(() => new Set());
+    const [loadingTabs, setLoadingTabs] = useState<Set<string>>(
+        () => new Set()
+    );
 
     const links = useMemo(
         () => (activeTabId ? linksByTab[activeTabId] || [] : []),
@@ -23,6 +27,7 @@ export const useConnections = (
 
     const loadLinks = useCallback(
         async (tabId: string) => {
+            setLoadingTabs((current) => new Set(current).add(tabId));
             try {
                 const loaded = await fetchConnections(tabId);
                 setLinksByTab((current) => ({
@@ -31,6 +36,13 @@ export const useConnections = (
                 }));
             } catch {
                 onLoadError?.();
+            } finally {
+                setLoadedTabs((current) => new Set(current).add(tabId));
+                setLoadingTabs((current) => {
+                    const next = new Set(current);
+                    next.delete(tabId);
+                    return next;
+                });
             }
         },
         [onLoadError]
@@ -130,7 +142,11 @@ export const useConnections = (
                 setLinksByTab((current) => {
                     const next = [...(current[activeTabId] || [])];
                     if (!next.some((link) => link._id === linkId)) {
-                        next.splice(Math.min(removedIndex, next.length), 0, removed);
+                        next.splice(
+                            Math.min(removedIndex, next.length),
+                            0,
+                            removed
+                        );
                     }
                     return { ...current, [activeTabId]: next };
                 });
@@ -163,8 +179,7 @@ export const useConnections = (
         (cardId: string): CardLink[] => {
             if (!activeTabId) return [];
             return (linksByTab[activeTabId] || []).filter(
-                (link) =>
-                    link.sourceId === cardId || link.targetId === cardId
+                (link) => link.sourceId === cardId || link.targetId === cardId
             );
         },
         [activeTabId, linksByTab]
@@ -213,13 +228,20 @@ export const useConnections = (
     );
 
     useEffect(() => {
-        if (activeTabId && !linksByTab[activeTabId]) {
+        if (
+            activeTabId &&
+            !loadedTabs.has(activeTabId) &&
+            !loadingTabs.has(activeTabId)
+        ) {
             loadLinks(activeTabId);
         }
-    }, [activeTabId, loadLinks, linksByTab]);
+    }, [activeTabId, loadLinks, loadedTabs]);
 
     return {
         links,
+        isLoadingConnections: activeTabId
+            ? loadingTabs.has(activeTabId)
+            : false,
         addLink,
         relabelLink,
         removeLink,

@@ -2,7 +2,7 @@
 
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { deletePostIt, fetchPostIts, updatePostIt } from '../services/boardApi';
-import { PostIt } from '../types/boardTypes';
+import { PostIt, PostItStack } from '../types/boardTypes';
 import { usePostIts } from './usePostIts';
 
 jest.mock('../services/boardApi', () => ({
@@ -28,6 +28,13 @@ const card: PostIt = {
     zIndex: 1,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
+};
+
+const secondCard: PostIt = {
+    ...card,
+    _id: 'card-2',
+    title: 'Second card',
+    x: 260,
 };
 
 describe('usePostIts rollbacks', () => {
@@ -62,6 +69,50 @@ describe('usePostIts rollbacks', () => {
         expect(onMutationError).toHaveBeenCalledTimes(1);
     });
 
+    it('creates a stack when a card is dropped on another card center', async () => {
+        mockedUpdate.mockResolvedValue(undefined);
+        mockedFetch.mockResolvedValue([card, secondCard]);
+        const stack: PostItStack = {
+            _id: 'stack-1',
+            userId: 'user-1',
+            tabId: 'tab-1',
+            x: card.x,
+            y: card.y,
+            collapsed: false,
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+        };
+        const createStackAt = jest.fn().mockResolvedValue(stack);
+        const { result } = renderHook(() =>
+            usePostIts('tab-1', jest.fn(), jest.fn())
+        );
+        await waitFor(() => expect(result.current.postIts).toHaveLength(2));
+
+        await act(async () =>
+            result.current.settlePostIt(
+                'card-2',
+                card.x,
+                card.y,
+                [],
+                createStackAt
+            )
+        );
+
+        expect(createStackAt).toHaveBeenCalledWith(card.x, card.y);
+        expect(mockedUpdate).toHaveBeenCalledWith('card-1', {
+            stackId: 'stack-1',
+            stackOrder: 1,
+            x: card.x,
+            y: card.y,
+        });
+        expect(mockedUpdate).toHaveBeenCalledWith('card-2', {
+            stackId: 'stack-1',
+            stackOrder: 2,
+            x: card.x,
+            y: card.y,
+        });
+    });
+
     it('restores a card and its local links when deletion fails', async () => {
         mockedDelete.mockRejectedValue(new Error('network'));
         const onMutationError = jest.fn();
@@ -85,5 +136,17 @@ describe('usePostIts rollbacks', () => {
         expect(dropLocal).toHaveBeenCalledTimes(1);
         expect(restoreLocal).toHaveBeenCalledWith([]);
         expect(onMutationError).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not retry a failed initial load on every render', async () => {
+        mockedFetch.mockRejectedValue(new Error('offline'));
+        const onLoadError = jest.fn();
+        const { result } = renderHook(() =>
+            usePostIts('tab-1', onLoadError, jest.fn())
+        );
+
+        await waitFor(() => expect(onLoadError).toHaveBeenCalledTimes(1));
+        expect(mockedFetch).toHaveBeenCalledTimes(1);
+        expect(result.current.isLoadingPostIts).toBe(false);
     });
 });

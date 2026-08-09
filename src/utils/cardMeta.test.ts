@@ -39,4 +39,8 @@ describe('formatDueDate', () => {
         expect(formatDueDate('2026-07-20')).toMatch(/\d{2}/);
         expect(formatDueDate('nope')).toBe('nope');
     });
+    it('uses the app language rather than the system locale', () => {
+        expect(formatDueDate('2026-07-20', 'fr')).toBe('20 juil.');
+        expect(formatDueDate('2026-07-20', 'en')).toBe('Jul 20');
+    });
 });

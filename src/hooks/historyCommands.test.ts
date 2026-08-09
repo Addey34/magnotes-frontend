@@ -1,4 +1,8 @@
-import { buildCardChange, captureBefore, isNoOpChange } from './historyCommands';
+import {
+    buildCardChange,
+    captureBefore,
+    isNoOpChange,
+} from './historyCommands';
 import { PostIt } from '../types/boardTypes';
 
 const baseCard: PostIt = {
@@ -26,13 +30,23 @@ describe('captureBefore', () => {
     });
 
     it('normalizes undefined fields to null so they round-trip through $unset', () => {
-        const freeCard: PostIt = { ...baseCard, stackId: undefined, stackOrder: undefined };
-        const before = captureBefore(freeCard, { stackId: null, stackOrder: null });
+        const freeCard: PostIt = {
+            ...baseCard,
+            stackId: undefined,
+            stackOrder: undefined,
+        };
+        const before = captureBefore(freeCard, {
+            stackId: null,
+            stackOrder: null,
+        });
         expect(before).toEqual({ stackId: null, stackOrder: null });
     });
 
     it('preserves an existing stack membership so undo can restack', () => {
-        const before = captureBefore(baseCard, { stackId: null, stackOrder: null });
+        const before = captureBefore(baseCard, {
+            stackId: null,
+            stackOrder: null,
+        });
         expect(before).toEqual({ stackId: 'stack-9', stackOrder: 2 });
     });
 });

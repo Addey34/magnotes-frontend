@@ -95,4 +95,5 @@ export const DEFAULT_POST_IT = {
     fontFamily: 'Inter',
     width: 220,
     height: 150,
+    rotation: 0,
 };

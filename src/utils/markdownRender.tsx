@@ -10,7 +10,7 @@ import React from 'react';
 const INLINE_PATTERN =
     /(\*\*[^*]+\*\*)|(`[^`]+`)|(\[[^\]]+\]\([^)]+\))|(\*[^*]+\*)|(_[^_]+_)/;
 
-const SAFE_URL = /^(https?:\/\/|mailto:|\/)/i;
+const SAFE_URL = /^(https?:\/\/|mailto:|\/(?!\/))/i;
 
 export function renderInline(text: string, keyPrefix = 'i'): React.ReactNode[] {
     const nodes: React.ReactNode[] = [];

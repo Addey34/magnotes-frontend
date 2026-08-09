@@ -104,9 +104,13 @@ export const setBoardShare = async (
     try {
         const url = `${baseUrl}/api/tabs/${tabId}/share`;
         const response = enabled
-            ? await axios.post<{ shareToken: string | null }>(url, {}, {
-                  headers: getAuthHeaders(),
-              })
+            ? await axios.post<{ shareToken: string | null }>(
+                  url,
+                  {},
+                  {
+                      headers: getAuthHeaders(),
+                  }
+              )
             : await axios.delete<{ shareToken: string | null }>(url, {
                   headers: getAuthHeaders(),
               });
@@ -172,7 +176,21 @@ export const searchPostIts = async (query: string): Promise<PostIt[]> => {
 };
 
 export const createPostIt = async (
-    input: Pick<PostIt, 'tabId' | 'title' | 'content' | 'color' | 'textColor' | 'textSize' | 'fontFamily' | 'x' | 'y' | 'width' | 'height'>
+    input: Pick<
+        PostIt,
+        | 'tabId'
+        | 'title'
+        | 'content'
+        | 'color'
+        | 'textColor'
+        | 'textSize'
+        | 'fontFamily'
+        | 'x'
+        | 'y'
+        | 'width'
+        | 'height'
+        | 'rotation'
+    >
 ): Promise<PostIt> => {
     if (isDemoActive()) return demoBoard.createPostIt(input);
     try {
@@ -246,14 +264,16 @@ export const restorePostIt = async (card: PostIt): Promise<PostIt | null> => {
     }
 };
 
-
 export const fetchStacks = async (tabId: string): Promise<PostItStack[]> => {
     if (isDemoActive()) return demoBoard.fetchStacks(tabId);
     try {
-        const response = await axios.get<PostItStack[]>(`${baseUrl}/api/stacks`, {
-            params: { tabId },
-            headers: getAuthHeaders(),
-        });
+        const response = await axios.get<PostItStack[]>(
+            `${baseUrl}/api/stacks`,
+            {
+                params: { tabId },
+                headers: getAuthHeaders(),
+            }
+        );
         return response.data;
     } catch (error) {
         handleError(error);
@@ -304,9 +324,7 @@ export const deleteStack = async (stackId: string): Promise<void> => {
 };
 
 // Connections (Pillar 3): arrows/links between two cards of the same tab.
-export const fetchConnections = async (
-    tabId: string
-): Promise<CardLink[]> => {
+export const fetchConnections = async (tabId: string): Promise<CardLink[]> => {
     if (isDemoActive()) return demoBoard.fetchConnections(tabId);
     try {
         const response = await axios.get<CardLink[]>(

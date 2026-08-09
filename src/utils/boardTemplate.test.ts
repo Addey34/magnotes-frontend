@@ -48,7 +48,8 @@ describe('buildTemplateCards', () => {
         const cards = buildTemplateCards(template, 'tab-123', center);
 
         const minX = Math.min(...cards.map(({ x }) => x));
-        const maxX = Math.max(...cards.map(({ x }) => x)) + DEFAULT_POST_IT.width;
+        const maxX =
+            Math.max(...cards.map(({ x }) => x)) + DEFAULT_POST_IT.width;
         const minY = Math.min(...cards.map(({ y }) => y));
         const maxY =
             Math.max(...cards.map(({ y }) => y)) + DEFAULT_POST_IT.height;
@@ -75,6 +76,7 @@ describe('buildTemplateCards', () => {
             y: 68,
             width: DEFAULT_POST_IT.width,
             height: DEFAULT_POST_IT.height,
+            rotation: DEFAULT_POST_IT.rotation,
         });
     });
 
@@ -95,8 +97,6 @@ describe('buildTemplateCards', () => {
         });
         expect(card.tags).not.toBe(template.cards[1].tags);
         expect(card.checklist).not.toBe(template.cards[1].checklist);
-        expect(card.checklist?.[0]).not.toBe(
-            template.cards[1].checklist?.[0]
-        );
+        expect(card.checklist?.[0]).not.toBe(template.cards[1].checklist?.[0]);
     });
 });

@@ -76,9 +76,7 @@ describe('parseTrelloBoard', () => {
         expect(first?.row).toBe(0);
         expect(second?.column).toBe(0);
         expect(second?.row).toBe(1);
-        expect(
-            cards.find((card) => card.title === 'En route')?.column
-        ).toBe(1);
+        expect(cards.find((card) => card.title === 'En route')?.column).toBe(1);
     });
 
     it('maps labels to tags, due date, and merges checklist items in order', () => {
@@ -92,9 +90,9 @@ describe('parseTrelloBoard', () => {
     });
 
     it('derives status from the list name', () => {
-        expect(
-            cards.find((card) => card.title === 'Autre tâche')?.status
-        ).toBe('todo');
+        expect(cards.find((card) => card.title === 'Autre tâche')?.status).toBe(
+            'todo'
+        );
         expect(cards.find((card) => card.title === 'En route')?.status).toBe(
             'doing'
         );
