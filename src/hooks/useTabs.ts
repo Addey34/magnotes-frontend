@@ -27,7 +27,10 @@ export const useTabs = (
 ) => {
     const [tabs, setTabs] = useState<BoardTab[]>([]);
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
-    const [isLoadingTabs, setIsLoadingTabs] = useState(false);
+    // Start in the loading state so consumers cannot mistake the initial
+    // empty array for a successfully loaded account with no boards.
+    const [isLoadingTabs, setIsLoadingTabs] = useState(true);
+    const [hasLoadedTabs, setHasLoadedTabs] = useState(false);
 
     const loadTabs = useCallback(async () => {
         setIsLoadingTabs(true);
@@ -39,6 +42,7 @@ export const useTabs = (
                     ? currentTabId
                     : loadedTabs[0]?._id || null
             );
+            setHasLoadedTabs(true);
         } catch {
             onLoadError?.();
         } finally {
@@ -192,6 +196,7 @@ export const useTabs = (
         tabs,
         activeTabId,
         isLoadingTabs,
+        hasLoadedTabs,
         setActiveTabId,
         addTab,
         renameTab,

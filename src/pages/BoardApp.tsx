@@ -230,6 +230,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
         tabs,
         activeTabId,
         isLoadingTabs,
+        hasLoadedTabs,
         setActiveTabId,
         addTab,
         renameTab,
@@ -1000,13 +1001,13 @@ const BoardApp: React.FC<BoardAppProps> = ({
     // activeTabId asynchronously: create the tab, then apply once it is active.
     const onboardingRef = useRef<'idle' | 'creating' | 'done'>('idle');
     useEffect(() => {
-        if (isLoadingTabs || tabs.length > 0) return;
+        if (!hasLoadedTabs || isLoadingTabs || tabs.length > 0) return;
         if (onboardingRef.current !== 'idle') return;
         onboardingRef.current = 'creating';
         // No fixed background: let the board theme / app light-dark mode drive
         // the canvas colour (a frozen background would override every ambiance).
         addTab();
-    }, [isLoadingTabs, tabs.length]);
+    }, [hasLoadedTabs, isLoadingTabs, tabs.length]);
     useEffect(() => {
         if (onboardingRef.current !== 'creating' || !activeTabId) return;
         onboardingRef.current = 'done';
