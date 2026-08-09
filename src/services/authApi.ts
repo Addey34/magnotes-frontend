@@ -1,6 +1,5 @@
 import axios from 'axios';
 import {
-    getRefreshToken,
     getToken,
     isTokenExpired,
     removeToken,
@@ -8,10 +7,10 @@ import {
 } from '../utils/tokenUtils';
 
 const baseUrl = import.meta.env.VITE_API_URL || '';
+const withCredentials = { withCredentials: true };
 
 export interface AuthSession {
     token: string;
-    refreshToken: string;
     user: { email: string; displayName: string; emailVerified: boolean };
 }
 
@@ -25,7 +24,11 @@ export const register = (email: string, password: string) =>
 
 export const verifyEmail = (email: string, code: string) =>
     axios
-        .post<AuthSession>(`${baseUrl}/api/auth/verify`, { email, code })
+        .post<AuthSession>(
+            `${baseUrl}/api/auth/verify`,
+            { email, code },
+            withCredentials
+        )
         .then((r) => r.data);
 
 export const resendCode = (email: string) =>
@@ -35,7 +38,11 @@ export const resendCode = (email: string) =>
 
 export const login = (email: string, password: string) =>
     axios
-        .post<AuthSession>(`${baseUrl}/api/auth/login`, { email, password })
+        .post<AuthSession>(
+            `${baseUrl}/api/auth/login`,
+            { email, password },
+            withCredentials
+        )
         .then((r) => r.data);
 
 export const forgotPassword = (email: string) =>
@@ -55,27 +62,26 @@ export const resetPassword = (email: string, code: string, password: string) =>
         .then((r) => r.data);
 
 export const logout = () => {
-    const refreshToken = getRefreshToken();
     removeToken();
-    if (refreshToken) {
-        // Fire-and-forget: revoke the refresh token server-side.
-        axios
-            .post(`${baseUrl}/api/auth/logout`, { refreshToken })
-            .catch(() => undefined);
-    }
+    // Fire-and-forget: revoke the HttpOnly refresh cookie server-side.
+    axios
+        .post(`${baseUrl}/api/auth/logout`, undefined, withCredentials)
+        .catch(() => undefined);
 };
 
 let refreshPromise: Promise<string | null> | null = null;
 
-/** Exchange the stored refresh token for a fresh access token (deduplicated). */
+/** Exchange the HttpOnly refresh cookie for a fresh access token. */
 async function refreshSession(): Promise<string | null> {
-    const refreshToken = getRefreshToken();
-    if (!refreshToken) return null;
     if (!refreshPromise) {
         refreshPromise = axios
-            .post<AuthSession>(`${baseUrl}/api/auth/refresh`, { refreshToken })
+            .post<AuthSession>(
+                `${baseUrl}/api/auth/refresh`,
+                undefined,
+                withCredentials
+            )
             .then((r) => {
-                setTokens(r.data.token, r.data.refreshToken);
+                setTokens(r.data.token);
                 return r.data.token;
             })
             .catch(() => {
@@ -91,7 +97,7 @@ async function refreshSession(): Promise<string | null> {
 
 /**
  * Ensure there is a usable session on app start: reuse a valid access token,
- * otherwise silently refresh it. Returns true when the user stays logged in.
+ * otherwise silently refresh it from the HttpOnly cookie.
  */
 export async function bootstrapSession(): Promise<boolean> {
     const token = getToken();
@@ -101,8 +107,7 @@ export async function bootstrapSession(): Promise<boolean> {
 
 /**
  * Install a global 401 interceptor: on an expired access token, transparently
- * refresh once and replay the request, so paying users are never kicked out
- * mid-session. Auth endpoints are excluded to avoid loops.
+ * refresh once and replay the request, so users are not kicked out mid-session.
  */
 export function setupAuthInterceptor(onSessionLost: () => void) {
     axios.interceptors.response.use(

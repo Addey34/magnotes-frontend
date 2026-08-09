@@ -42,12 +42,23 @@ type Mode = 'login' | 'register' | 'verify' | 'forgot' | 'reset';
 
 type DemoColor = 'yellow' | 'pink' | 'mint' | 'sky' | 'lavender';
 
-const DEMO_COLORS: Record<DemoColor, { bg: string; text: string; shadow: string }> = {
-    yellow: { bg: '#fef08a', text: '#713f12', shadow: 'rgba(234, 179, 8, 0.26)' },
+const DEMO_COLORS: Record<
+    DemoColor,
+    { bg: string; text: string; shadow: string }
+> = {
+    yellow: {
+        bg: '#fef08a',
+        text: '#713f12',
+        shadow: 'rgba(234, 179, 8, 0.26)',
+    },
     pink: { bg: '#fda4af', text: '#881337', shadow: 'rgba(225, 29, 72, 0.24)' },
     mint: { bg: '#86efac', text: '#14532d', shadow: 'rgba(22, 163, 74, 0.24)' },
     sky: { bg: '#7dd3fc', text: '#0c4a6e', shadow: 'rgba(2, 132, 199, 0.24)' },
-    lavender: { bg: '#c4b5fd', text: '#2e1065', shadow: 'rgba(124, 58, 237, 0.24)' },
+    lavender: {
+        bg: '#c4b5fd',
+        text: '#2e1065',
+        shadow: 'rgba(124, 58, 237, 0.24)',
+    },
 };
 
 const DEMO_NOTES = [
@@ -79,8 +90,8 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
         if (next === 'login' || next === 'register') setNotice('');
     };
 
-    const finishSession = (token: string, refreshToken: string) => {
-        setTokens(token, refreshToken);
+    const finishSession = (token: string) => {
+        setTokens(token);
         onLogin();
     };
 
@@ -101,7 +112,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
         try {
             if (mode === 'login') {
                 const session = await loginRequest(email.trim(), password);
-                finishSession(session.token, session.refreshToken);
+                finishSession(session.token);
             } else if (mode === 'register') {
                 requireMatchingPasswords();
                 await registerRequest(email.trim(), password);
@@ -109,7 +120,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
                 setNotice(t('auth.notice.codeSent'));
             } else if (mode === 'verify') {
                 const session = await verifyEmail(email.trim(), code.trim());
-                finishSession(session.token, session.refreshToken);
+                finishSession(session.token);
             } else if (mode === 'forgot') {
                 const { message } = await forgotPassword(email.trim());
                 goTo('reset');
@@ -188,7 +199,9 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
                 <div className="auth-visual-content">
                     <Brand t={t} />
                     <div className="auth-hero-copy">
-                        <span className="auth-eyebrow">{t('auth.eyebrow')}</span>
+                        <span className="auth-eyebrow">
+                            {t('auth.eyebrow')}
+                        </span>
                         <h1>
                             {t('auth.hero.title1')}
                             <span>{t('auth.hero.title2')}</span>
@@ -212,7 +225,11 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
                             {t(`auth.kicker.${mode}` as TranslationKey)}
                         </span>
                         <h2>{t(`auth.title.${mode}` as TranslationKey)}</h2>
-                        <p>{t(`auth.sub.${mode}` as TranslationKey)}</p>
+                        <p>
+                            {mode === 'verify'
+                                ? t('auth.sub.verify', { email: email.trim() })
+                                : t(`auth.sub.${mode}` as TranslationKey)}
+                        </p>
                     </header>
 
                     <form className="auth-form" onSubmit={handleSubmit}>
@@ -226,7 +243,9 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
                                         name="email"
                                         id="email"
                                         autoComplete="username"
-                                        placeholder={t('auth.placeholder.email')}
+                                        placeholder={t(
+                                            'auth.placeholder.email'
+                                        )}
                                         value={email}
                                         onChange={(event) =>
                                             setEmail(event.target.value)
@@ -273,7 +292,9 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
                                 <div className="auth-input-wrap">
                                     <LockClosedIcon />
                                     <input
-                                        type={showPassword ? 'text' : 'password'}
+                                        type={
+                                            showPassword ? 'text' : 'password'
+                                        }
                                         name="password"
                                         id="password"
                                         autoComplete={
@@ -293,7 +314,9 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
                                         className="auth-eye-button"
                                         type="button"
                                         onClick={() =>
-                                            setShowPassword((current) => !current)
+                                            setShowPassword(
+                                                (current) => !current
+                                            )
                                         }
                                         aria-label={
                                             showPassword
@@ -317,7 +340,9 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
                                 <div className="auth-input-wrap">
                                     <LockClosedIcon />
                                     <input
-                                        type={showPassword ? 'text' : 'password'}
+                                        type={
+                                            showPassword ? 'text' : 'password'
+                                        }
                                         name="confirm-password"
                                         id="confirm-password"
                                         autoComplete="new-password"
@@ -351,7 +376,10 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
                             </p>
                         )}
                         {notice && (
-                            <p className="auth-message is-success" role="status">
+                            <p
+                                className="auth-message is-success"
+                                role="status"
+                            >
                                 {notice}
                             </p>
                         )}
@@ -397,7 +425,9 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
                             <button
                                 type="button"
                                 onClick={() =>
-                                    goTo(mode === 'login' ? 'register' : 'login')
+                                    goTo(
+                                        mode === 'login' ? 'register' : 'login'
+                                    )
                                 }
                             >
                                 {mode === 'login'
@@ -414,7 +444,9 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
 
 const Brand: React.FC<{ t: Translate }> = ({ t }) => (
     <div className="auth-brand">
-        <span className="auth-logo-mark"><DocumentIcon /></span>
+        <span className="auth-logo-mark">
+            <DocumentIcon />
+        </span>
         <div>
             <strong>MagNotes</strong>
             <span>{t('auth.brand.tagline')}</span>
