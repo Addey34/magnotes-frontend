@@ -61,7 +61,7 @@ for **noncommercial** purposes. Commercial use requires a separate license.
 
 This public repository contains the frontend and public build configuration only.
 The Express/MongoDB backend and deployment assets live in the private repository
-[`magnotes-full`](https://github.com/Addey34/magnotes-full). Local operator, AI,
+[`magnotes-backend`](https://github.com/Addey34/magnotes-backend). Local operator, AI,
 QA and audit documents stay outside both repositories under the parent workspace.
 Do not copy the parent `MagNotes/` workspace, `.env` files, or private documents
 into this public repository.
