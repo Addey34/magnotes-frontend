@@ -23,7 +23,7 @@ jobs:
             - run: pnpm run format:check
             - run: pnpm run typecheck
             - run: pnpm run lint
-            - run: pnpm test -- --runInBand
+            - run: pnpm test --runInBand
             - run: pnpm run build
               env:
                   VITE_API_URL: https://api-magnotes.adrianguichard.dev
