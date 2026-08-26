@@ -233,6 +233,9 @@ const BoardApp: React.FC<BoardAppProps> = ({
         isPanning,
         screenToBoardPoint,
         startPan,
+        handleTouchStart,
+        handleTouchMove,
+        handleTouchEnd,
         handleWheelZoom,
         zoomIn,
         zoomOut,
@@ -1993,6 +1996,18 @@ const BoardApp: React.FC<BoardAppProps> = ({
                         ref={canvasRef}
                         className={`board-canvas ${isPanning ? 'is-panning' : ''}`}
                         onPointerDown={handleCanvasPointerDown}
+                        onTouchStart={(event) => {
+                            if (
+                                (event.target as HTMLElement).closest(
+                                    '.post-it-card, .post-it-stack-card, button, input, textarea, select'
+                                )
+                            )
+                                return;
+                            handleTouchStart(event);
+                        }}
+                        onTouchMove={handleTouchMove}
+                        onTouchEnd={handleTouchEnd}
+                        onTouchCancel={handleTouchEnd}
                         onWheel={handleWheelZoom}
                         onDoubleClick={handleCanvasDoubleClick}
                         style={
