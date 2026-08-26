@@ -83,7 +83,7 @@ import {
 } from '../services/boardApi';
 import ShareDialog from '../components/share/ShareDialog';
 import NotificationCenter from '../components/ui/NotificationCenter';
-import { PostIt, PostItStatus } from '../types/boardTypes';
+import { PostIt, PostItSaveUpdate, PostItStatus } from '../types/boardTypes';
 import { Box } from '../utils/connectionGeometry';
 import { buildMentionGraph } from '../utils/mentionGraph';
 import { useT } from '../i18n/LangContext';
@@ -125,11 +125,24 @@ const BoardApp: React.FC<BoardAppProps> = ({
         [notify, t]
     );
     const notifySaveError = useCallback(
-        () =>
-            notify(t('notification.saveFailed'), {
-                key: 'board-save-failed',
-                kind: 'error',
-            }),
+        (error?: unknown) => {
+            const status = (error as { response?: { status?: number } })
+                ?.response?.status;
+            notify(
+                t(
+                    status === 409
+                        ? 'notification.saveConflict'
+                        : 'notification.saveFailed'
+                ),
+                {
+                    key:
+                        status === 409
+                            ? 'board-save-conflict'
+                            : 'board-save-failed',
+                    kind: 'error',
+                }
+            );
+        },
         [notify, t]
     );
     const notifyActionError = useCallback(
@@ -277,10 +290,21 @@ const BoardApp: React.FC<BoardAppProps> = ({
         restoreLinksLocal,
         restoreLinks,
     } = useConnections(activeTabId, notifyLoadError, notifyActionError);
-    const { saveState, scheduleSave } = useAutosave(
+    const { saveState, scheduleSave } = useAutosave<
+        PostItSaveUpdate,
+        PostIt | undefined
+    >(
         useCallback(updatePostIt, []),
         500,
-        notifySaveError
+        notifySaveError,
+        useCallback(
+            (postItId: string, savedPostIt: PostIt | undefined) => {
+                if (savedPostIt) {
+                    patchPostItLocal(postItId, savedPostIt);
+                }
+            },
+            [patchPostItLocal]
+        )
     );
 
     const activeTab = tabs.find((tab) => tab._id === activeTabId);

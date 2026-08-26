@@ -100,12 +100,14 @@ describe('usePostIts rollbacks', () => {
 
         expect(createStackAt).toHaveBeenCalledWith(card.x, card.y);
         expect(mockedUpdate).toHaveBeenCalledWith('card-1', {
+            expectedUpdatedAt: card.updatedAt,
             stackId: 'stack-1',
             stackOrder: 1,
             x: card.x,
             y: card.y,
         });
         expect(mockedUpdate).toHaveBeenCalledWith('card-2', {
+            expectedUpdatedAt: secondCard.updatedAt,
             stackId: 'stack-1',
             stackOrder: 2,
             x: card.x,

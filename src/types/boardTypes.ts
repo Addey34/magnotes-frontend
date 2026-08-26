@@ -92,6 +92,11 @@ export type PostItUpdate = Partial<
     >
 >;
 
+/** A patch guarded by the card state that was last loaded by this client. */
+export type PostItSaveUpdate = PostItUpdate & {
+    expectedUpdatedAt?: string;
+};
+
 export interface PostItStack {
     _id: string;
     userId: string;

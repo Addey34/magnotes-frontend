@@ -44,6 +44,7 @@ import {
 import {
     BoardTab,
     PostIt,
+    PostItSaveUpdate,
     PostItUpdate,
     SaveState,
 } from '../../types/boardTypes';
@@ -71,7 +72,7 @@ interface PostItCardProps {
     isDropTarget?: boolean;
     onNavigateToCard: (cardId: string) => void;
     onLocalChange: (postItId: string, updates: PostItUpdate) => void;
-    onAutosave: (postItId: string, updates: PostItUpdate) => void;
+    onAutosave: (postItId: string, updates: PostItSaveUpdate) => void;
     onFocus: (postItId: string, additive?: boolean) => void;
     onDragStateChange: (postItId: string | null) => void;
     onMove: (postItId: string, x: number, y: number) => void;
@@ -113,6 +114,13 @@ const PostItCard: React.FC<PostItCardProps> = ({
     const [isDragging, setIsDragging] = useState(false);
     const [isHovered, setIsHovered] = useState(false);
     const [stylePanel, setStylePanel] = useState<StylePanel>(null);
+
+    const scheduleCardSave = (updates: PostItUpdate): void => {
+        onAutosave(postIt._id, {
+            ...updates,
+            expectedUpdatedAt: postIt.updatedAt,
+        });
+    };
     const [newChecklistText, setNewChecklistText] = useState('');
     const [newTag, setNewTag] = useState('');
     const [detailOpen, setDetailOpen] = useState(false);
@@ -287,7 +295,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
             rotation: normalizeRotation(value),
         };
         onLocalChange(postIt._id, updates);
-        onAutosave(postIt._id, updates);
+        scheduleCardSave(updates);
     };
 
     const handleRotateStart = (
@@ -353,7 +361,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
 
             const updates = getRotateUpdates(upEvent.clientX, upEvent.clientY);
             onLocalChange(postIt._id, updates);
-            onAutosave(postIt._id, updates);
+            scheduleCardSave(updates);
         };
 
         const handlePointerCancel = (): void => {
@@ -434,7 +442,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
             window.removeEventListener('pointercancel', handlePointerCancel);
             const updates = getResizeUpdates(upEvent.clientX, upEvent.clientY);
             onLocalChange(postIt._id, updates);
-            onAutosave(postIt._id, updates);
+            scheduleCardSave(updates);
         };
 
         const handlePointerCancel = () => {
@@ -457,12 +465,12 @@ const PostItCard: React.FC<PostItCardProps> = ({
     const updateText = (field: 'title' | 'content', value: string): void => {
         const updates = { [field]: value };
         onLocalChange(postIt._id, updates);
-        onAutosave(postIt._id, updates);
+        scheduleCardSave(updates);
     };
 
     const applyStyle = (updates: PostItUpdate): void => {
         onLocalChange(postIt._id, updates);
-        onAutosave(postIt._id, updates);
+        scheduleCardSave(updates);
     };
 
     const applyImageFile = async (file: File): Promise<void> => {

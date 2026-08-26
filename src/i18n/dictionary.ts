@@ -838,6 +838,10 @@ export const DICTIONARY = {
         fr: 'La modification n’a pas pu être enregistrée. Vérifiez votre connexion.',
         en: 'The change could not be saved. Check your connection.',
     },
+    'notification.saveConflict': {
+        fr: 'Cette carte a été modifiée ailleurs. Rechargez le tableau avant de réessayer.',
+        en: 'This card was changed elsewhere. Reload the board before trying again.',
+    },
     'notification.actionFailed': {
         fr: 'L’action n’a pas pu aboutir. Veuillez réessayer.',
         en: 'The action could not be completed. Please try again.',

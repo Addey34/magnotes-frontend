@@ -53,7 +53,10 @@ export interface ImportApi {
     ): Promise<PostItStack>;
     updateStack(stackId: string, updates: PostItStackUpdate): Promise<void>;
     createPostIt(input: CreatePostItInput): Promise<PostIt>;
-    updatePostIt(postItId: string, updates: PostItUpdate): Promise<void>;
+    updatePostIt(
+        postItId: string,
+        updates: PostItUpdate
+    ): Promise<PostIt | void>;
     createConnection(
         input: Pick<CardLink, 'tabId' | 'sourceId' | 'targetId'> &
             Partial<Pick<CardLink, 'label' | 'kind'>>

@@ -21,6 +21,7 @@
         "format": "prettier --write .",
         "format:check": "prettier --check .",
         "e2e": "playwright test",
+        "e2e:real": "playwright test e2e/auth.real.spec.ts",
         "e2e:install": "playwright install chromium",
         "verify": "pnpm run format:check && pnpm run typecheck && pnpm run lint && jest --runInBand && pnpm run build && pnpm audit --prod --audit-level=high"
     },

@@ -6,10 +6,11 @@ interface PendingSave<T> {
     updates: T;
 }
 
-export const useAutosave = <T extends object>(
-    save: (id: string, updates: T) => Promise<void>,
+export const useAutosave = <T extends object, TResult = void>(
+    save: (id: string, updates: T) => Promise<TResult>,
     delay = 500,
-    onError?: () => void
+    onError?: (error: unknown) => void,
+    onSaved?: (id: string, result: TResult) => void
 ) => {
     const pending = useRef<Record<string, PendingSave<T>>>({});
     const failed = useRef<Record<string, T>>({});
@@ -40,7 +41,8 @@ export const useAutosave = <T extends object>(
             const operation = previous
                 .catch(() => undefined)
                 .then(() => save(id, updatesToSave))
-                .then(() => {
+                .then((result) => {
+                    onSaved?.(id, result);
                     if (mounted.current) {
                         setSaveState({ status: 'saved', postItId: id });
                     }
@@ -51,7 +53,7 @@ export const useAutosave = <T extends object>(
                         ...updatesToSave,
                         ...(failed.current[id] || {}),
                     } as T;
-                    onError?.();
+                    onError?.(error);
                     if (mounted.current) {
                         setSaveState({ status: 'error', postItId: id });
                     }
@@ -65,7 +67,7 @@ export const useAutosave = <T extends object>(
             inFlight.current[id] = operation;
             return operation;
         },
-        [onError, save]
+        [onError, onSaved, save]
     );
 
     const scheduleSave = useCallback(

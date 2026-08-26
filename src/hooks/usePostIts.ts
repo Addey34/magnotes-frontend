@@ -154,13 +154,16 @@ export const usePostIts = (
                 // the base card is already persisted and shown, so we swallow the
                 // error and move on rather than leaving the template half-applied.
                 try {
-                    await updatePostIt(created._id, taskFields);
+                    const saved = await updatePostIt(created._id, {
+                        ...taskFields,
+                        expectedUpdatedAt: created.updatedAt,
+                    });
                     setPostItsByTab((current) => ({
                         ...current,
                         [activeTabId]: (current[activeTabId] || []).map(
                             (postIt) =>
                                 postIt._id === created._id
-                                    ? { ...postIt, ...taskFields }
+                                    ? saved || { ...postIt, ...taskFields }
                                     : postIt
                         ),
                     }));
@@ -183,6 +186,24 @@ export const usePostIts = (
         }));
     };
 
+    const persistPostIt = async (
+        postItId: string,
+        updates: PostItUpdate,
+        expectedUpdatedAt?: string
+    ) => {
+        const current = activeTabId
+            ? (postItsByTab[activeTabId] || []).find(
+                  (postIt) => postIt._id === postItId
+              )
+            : undefined;
+        const saved = await updatePostIt(postItId, {
+            ...updates,
+            expectedUpdatedAt: expectedUpdatedAt ?? current?.updatedAt,
+        });
+        if (saved) patchPostItLocal(postItId, saved);
+        return saved;
+    };
+
     const savePostIt = async (postItId: string, updates: PostItUpdate) => {
         const previous = activeTabId
             ? (postItsByTab[activeTabId] || []).find(
@@ -191,7 +212,7 @@ export const usePostIts = (
             : undefined;
         patchPostItLocal(postItId, updates);
         try {
-            await updatePostIt(postItId, updates);
+            await persistPostIt(postItId, updates, previous?.updatedAt);
         } catch {
             if (previous) {
                 patchPostItLocal(
@@ -208,7 +229,7 @@ export const usePostIts = (
     const applyChanges = (changes: CardChange[], phase: 'before' | 'after') => {
         changes.forEach((change) => patchPostItLocal(change.id, change[phase]));
         return Promise.all(
-            changes.map((change) => updatePostIt(change.id, change[phase]))
+            changes.map((change) => persistPostIt(change.id, change[phase]))
         );
     };
 
@@ -225,7 +246,9 @@ export const usePostIts = (
 
         try {
             await Promise.all(
-                effective.map((change) => updatePostIt(change.id, change.after))
+                effective.map((change) =>
+                    persistPostIt(change.id, change.after)
+                )
             );
         } catch (error) {
             console.error('Board update failed, reverting:', error);
@@ -266,7 +289,11 @@ export const usePostIts = (
 
         patchPostItLocal(postItId, { zIndex: nextZIndex });
         try {
-            await updatePostIt(postItId, { zIndex: nextZIndex });
+            await persistPostIt(
+                postItId,
+                { zIndex: nextZIndex },
+                focusedCard.updatedAt
+            );
         } catch {
             patchPostItLocal(postItId, { zIndex: focusedCard.zIndex });
             onMutationError?.();
@@ -480,14 +507,18 @@ export const usePostIts = (
         }));
 
         try {
-            await updatePostIt(postItId, {
-                tabId: targetTabId,
-                stackId: null,
-                stackOrder: null,
-                x: movedPostIt.x,
-                y: movedPostIt.y,
-                zIndex: movedPostIt.zIndex,
-            });
+            await persistPostIt(
+                postItId,
+                {
+                    tabId: targetTabId,
+                    stackId: null,
+                    stackOrder: null,
+                    x: movedPostIt.x,
+                    y: movedPostIt.y,
+                    zIndex: movedPostIt.zIndex,
+                },
+                postIt.updatedAt
+            );
         } catch {
             setPostItsByTab((current) => ({
                 ...current,

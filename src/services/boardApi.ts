@@ -4,6 +4,7 @@ import {
     CardLink,
     CardLinkUpdate,
     PostIt,
+    PostItSaveUpdate,
     PostItStack,
     PostItStackUpdate,
     PostItUpdate,
@@ -208,15 +209,23 @@ export const createPostIt = async (
 
 export const updatePostIt = async (
     postItId: string,
-    updates: PostItUpdate
-): Promise<void> => {
-    if (isDemoActive()) return demoBoard.updatePostIt(postItId, updates);
+    updates: PostItSaveUpdate
+): Promise<PostIt | undefined> => {
+    const { expectedUpdatedAt, ...patch } = updates;
+    if (isDemoActive()) {
+        await demoBoard.updatePostIt(postItId, patch);
+        return undefined;
+    }
     try {
-        await axios.patch(`${baseUrl}/api/postits/${postItId}`, updates, {
-            headers: getAuthHeaders(),
-        });
+        const response = await axios.patch<PostIt>(
+            `${baseUrl}/api/postits/${postItId}`,
+            { ...patch, expectedUpdatedAt },
+            { headers: getAuthHeaders() }
+        );
+        return response.data;
     } catch (error) {
         handleError(error);
+        return undefined;
     }
 };
 
