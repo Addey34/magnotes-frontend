@@ -25,6 +25,7 @@ import {
 } from './stackOrdering';
 import { TemplateCardPayload } from '../utils/boardTemplate';
 import { findFreePostItPosition } from '../utils/postItPlacement';
+import { trackProductEvent } from '../services/analytics';
 
 export type { DropIntent } from './dropIntent';
 
@@ -120,6 +121,7 @@ export const usePostIts = (
             ...current,
             [activeTabId]: [...(current[activeTabId] || []), postIt],
         }));
+        if (postIts.length === 0) trackProductEvent('first_card_created');
         history.clear();
     };
 

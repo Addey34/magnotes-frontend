@@ -7,6 +7,7 @@ import {
     updateTab as updateTabRequest,
 } from '../services/boardApi';
 import { BoardTab } from '../types/boardTypes';
+import { trackProductEvent } from '../services/analytics';
 
 const TAB_COLORS = ['#facc15', '#38bdf8', '#fb7185', '#4ade80', '#c084fc'];
 // Colourful emoji default so the board's "logo" stays visible on every theme
@@ -66,6 +67,7 @@ export const useTabs = (
         }
         setTabs((currentTabs) => [...currentTabs, tab]);
         setActiveTabId(tab._id);
+        trackProductEvent('board_created');
     };
 
     const patchTab = async (tabId: string, updates: TabCustomization) => {

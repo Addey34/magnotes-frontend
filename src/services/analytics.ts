@@ -22,6 +22,32 @@ export interface AnalyticsConfig {
     isDemo?: boolean;
 }
 
+export type ProductEvent =
+    | 'signup_started'
+    | 'signup_registered'
+    | 'email_verified'
+    | 'login_completed'
+    | 'board_created'
+    | 'first_card_created';
+
+type UmamiTracker = {
+    track: (event: ProductEvent) => void;
+};
+
+/**
+ * Sends one anonymous product milestone when Umami has loaded. Event payloads
+ * deliberately never include emails, user ids, board names, or card content.
+ */
+export function trackProductEvent(event: ProductEvent): boolean {
+    if (typeof window === 'undefined' || isDemoRequested()) return false;
+
+    const tracker = (window as typeof window & { umami?: UmamiTracker }).umami;
+    if (typeof tracker?.track !== 'function') return false;
+
+    tracker.track(event);
+    return true;
+}
+
 /**
  * Inject the Umami tracker once. Pure w.r.t. its `config` argument.
  * Returns true when a script tag was injected.

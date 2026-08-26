@@ -20,6 +20,7 @@ import {
 import { setTokens } from '../utils/tokenUtils';
 import { TranslationKey } from '../i18n/dictionary';
 import { useT } from '../i18n/LangContext';
+import { trackProductEvent } from '../services/analytics';
 import { LanguageSwitch } from '../i18n/LanguageSwitch';
 import '../styles/LoginForm.css';
 
@@ -113,14 +114,17 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
             if (mode === 'login') {
                 const session = await loginRequest(email.trim(), password);
                 finishSession(session.token);
+                trackProductEvent('login_completed');
             } else if (mode === 'register') {
                 requireMatchingPasswords();
                 await registerRequest(email.trim(), password);
+                trackProductEvent('signup_registered');
                 goTo('verify');
                 setNotice(t('auth.notice.codeSent'));
             } else if (mode === 'verify') {
                 const session = await verifyEmail(email.trim(), code.trim());
                 finishSession(session.token);
+                trackProductEvent('email_verified');
             } else if (mode === 'forgot') {
                 const { message } = await forgotPassword(email.trim());
                 goTo('reset');
@@ -424,11 +428,14 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
                                 : t('auth.switch.toLogin')}
                             <button
                                 type="button"
-                                onClick={() =>
-                                    goTo(
-                                        mode === 'login' ? 'register' : 'login'
-                                    )
-                                }
+                                onClick={() => {
+                                    const next =
+                                        mode === 'login' ? 'register' : 'login';
+                                    if (next === 'register') {
+                                        trackProductEvent('signup_started');
+                                    }
+                                    goTo(next);
+                                }}
                             >
                                 {mode === 'login'
                                     ? t('auth.switch.register')

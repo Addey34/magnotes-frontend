@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { initAnalytics } from './analytics';
+import { initAnalytics, trackProductEvent } from './analytics';
 
 const CONFIG = {
     src: 'https://analytics.example.com/script.js',
@@ -18,6 +18,7 @@ function tracker(): HTMLScriptElement | null {
 describe('initAnalytics', () => {
     beforeEach(() => {
         document.head.innerHTML = '';
+        delete (window as typeof window & { umami?: unknown }).umami;
     });
 
     it('injects the tracker when fully configured', () => {
@@ -46,5 +47,19 @@ describe('initAnalytics', () => {
         expect(initAnalytics(CONFIG)).toBe(true);
         expect(initAnalytics(CONFIG)).toBe(false);
         expect(document.querySelectorAll('#umami-analytics')).toHaveLength(1);
+    });
+
+    it('tracks anonymous product events only when Umami is available', () => {
+        const track = jest.fn();
+        (window as typeof window & { umami?: { track: typeof track } }).umami =
+            {
+                track,
+            };
+
+        expect(trackProductEvent('email_verified')).toBe(true);
+        expect(track).toHaveBeenCalledWith('email_verified');
+
+        delete (window as typeof window & { umami?: unknown }).umami;
+        expect(trackProductEvent('login_completed')).toBe(false);
     });
 });
