@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     clampZoom as clampZoomValue,
     computeFocusView,
+    pinchViewport,
     screenToBoard,
     zoomAroundPoint,
     ZOOM_STEP,
@@ -22,6 +23,15 @@ export function useBoardViewport() {
     const [offset, setOffset] = useState<BoardPoint>({ x: 0, y: 0 });
     const [isPanning, setIsPanning] = useState(false);
     const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+    const touchPoints = useRef(new Map<number, BoardPoint>());
+    const touchCleanup = useRef<(() => void) | null>(null);
+    const viewportRef = useRef({ zoom: 1, offset: { x: 0, y: 0 } });
+
+    useEffect(() => {
+        viewportRef.current = { zoom, offset };
+    }, [offset, zoom]);
+
+    useEffect(() => () => touchCleanup.current?.(), []);
 
     // Track the canvas pixel size so viewport culling stays correct on resize.
     useEffect(() => {
@@ -116,6 +126,140 @@ export function useBoardViewport() {
     const startPan = useCallback(
         (event: React.PointerEvent<HTMLElement>): void => {
             if (event.button !== 0) return;
+
+            // Pointer events unify mouse and touch. A touch session tracks all
+            // active fingers: one pans, two fingers pinch around their midpoint.
+            // It intentionally lives on the empty canvas only, leaving card drag
+            // gestures and inputs untouched.
+            if (event.pointerType === 'touch') {
+                touchPoints.current.set(event.pointerId, {
+                    x: event.clientX,
+                    y: event.clientY,
+                });
+                event.currentTarget.setPointerCapture(event.pointerId);
+                setIsPanning(true);
+
+                if (touchCleanup.current) return;
+
+                let panStart: {
+                    point: BoardPoint;
+                    offset: BoardPoint;
+                } | null = {
+                    point: { x: event.clientX, y: event.clientY },
+                    offset: viewportRef.current.offset,
+                };
+                let pinchStart: {
+                    midpoint: BoardPoint;
+                    distance: number;
+                    zoom: number;
+                    offset: BoardPoint;
+                } | null = null;
+
+                const midpoint = (points: BoardPoint[]): BoardPoint => ({
+                    x: (points[0].x + points[1].x) / 2,
+                    y: (points[0].y + points[1].y) / 2,
+                });
+                const distance = (points: BoardPoint[]): number =>
+                    Math.hypot(
+                        points[0].x - points[1].x,
+                        points[0].y - points[1].y
+                    );
+
+                const resetPan = (
+                    point: BoardPoint,
+                    nextOffset: BoardPoint
+                ) => {
+                    panStart = { point, offset: nextOffset };
+                    pinchStart = null;
+                };
+
+                const handlePointerMove = (moveEvent: PointerEvent) => {
+                    if (!touchPoints.current.has(moveEvent.pointerId)) return;
+                    touchPoints.current.set(moveEvent.pointerId, {
+                        x: moveEvent.clientX,
+                        y: moveEvent.clientY,
+                    });
+                    const points = [...touchPoints.current.values()];
+                    if (points.length >= 2) {
+                        const currentMidpoint = midpoint(points);
+                        if (!pinchStart) {
+                            pinchStart = {
+                                midpoint: currentMidpoint,
+                                distance: Math.max(distance(points), 1),
+                                zoom: viewportRef.current.zoom,
+                                offset: viewportRef.current.offset,
+                            };
+                        }
+                        const rect = canvasRef.current?.getBoundingClientRect();
+                        if (!rect) return;
+                        const next = pinchViewport(
+                            {
+                                zoom: pinchStart.zoom,
+                                offset: pinchStart.offset,
+                            },
+                            pinchStart.midpoint,
+                            currentMidpoint,
+                            distance(points) / pinchStart.distance,
+                            rect
+                        );
+                        viewportRef.current = next;
+                        setZoom(next.zoom);
+                        setOffset(next.offset);
+                        return;
+                    }
+
+                    const point = points[0];
+                    if (!point || !panStart) return;
+                    const nextOffset = {
+                        x: panStart.offset.x + point.x - panStart.point.x,
+                        y: panStart.offset.y + point.y - panStart.point.y,
+                    };
+                    viewportRef.current = {
+                        ...viewportRef.current,
+                        offset: nextOffset,
+                    };
+                    setOffset(nextOffset);
+                };
+
+                const handlePointerEnd = (endEvent: PointerEvent) => {
+                    touchPoints.current.delete(endEvent.pointerId);
+                    const remaining = [...touchPoints.current.values()];
+                    if (remaining.length === 1) {
+                        // Continue smoothly as a one-finger pan after a pinch.
+                        setOffset((currentOffset) => {
+                            resetPan(remaining[0], currentOffset);
+                            viewportRef.current = {
+                                ...viewportRef.current,
+                                offset: currentOffset,
+                            };
+                            return currentOffset;
+                        });
+                        return;
+                    }
+                    if (remaining.length > 0) return;
+                    setIsPanning(false);
+                    touchCleanup.current?.();
+                };
+
+                const cleanup = () => {
+                    window.removeEventListener(
+                        'pointermove',
+                        handlePointerMove
+                    );
+                    window.removeEventListener('pointerup', handlePointerEnd);
+                    window.removeEventListener(
+                        'pointercancel',
+                        handlePointerEnd
+                    );
+                    touchCleanup.current = null;
+                    touchPoints.current.clear();
+                };
+                touchCleanup.current = cleanup;
+                window.addEventListener('pointermove', handlePointerMove);
+                window.addEventListener('pointerup', handlePointerEnd);
+                window.addEventListener('pointercancel', handlePointerEnd);
+                return;
+            }
 
             const startX = event.clientX;
             const startY = event.clientY;

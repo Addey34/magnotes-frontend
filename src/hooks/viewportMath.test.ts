@@ -3,6 +3,7 @@ import {
     computeFocusView,
     MAX_ZOOM,
     MIN_ZOOM,
+    pinchViewport,
     screenToBoard,
     ViewportRect,
     zoomAroundPoint,
@@ -96,6 +97,53 @@ describe('zoomAroundPoint', () => {
         expect(next.zoom).toBe(MAX_ZOOM);
         expect(boardAfter.x).toBeCloseTo(boardBefore.x);
         expect(boardAfter.y).toBeCloseTo(boardBefore.y);
+    });
+});
+
+describe('pinchViewport', () => {
+    it('keeps the initial midpoint board point under the moved fingers', () => {
+        const r = rect(10, 20, 1000, 800);
+        const start = { zoom: 1, offset: { x: 80, y: -40 } };
+        const startMidpoint = { x: 300, y: 260 };
+        const currentMidpoint = { x: 360, y: 300 };
+        const boardBefore = screenToBoard(
+            startMidpoint.x,
+            startMidpoint.y,
+            r,
+            start.offset,
+            start.zoom
+        );
+
+        const next = pinchViewport(
+            start,
+            startMidpoint,
+            currentMidpoint,
+            1.5,
+            r
+        );
+        const boardAfter = screenToBoard(
+            currentMidpoint.x,
+            currentMidpoint.y,
+            r,
+            next.offset,
+            next.zoom
+        );
+
+        expect(next.zoom).toBe(1.5);
+        expect(boardAfter.x).toBeCloseTo(boardBefore.x);
+        expect(boardAfter.y).toBeCloseTo(boardBefore.y);
+    });
+
+    it('clamps the pinch zoom to the supported range', () => {
+        const next = pinchViewport(
+            { zoom: 1, offset: { x: 0, y: 0 } },
+            { x: 100, y: 100 },
+            { x: 100, y: 100 },
+            99,
+            rect(0, 0, 800, 600)
+        );
+
+        expect(next.zoom).toBe(MAX_ZOOM);
     });
 });
 

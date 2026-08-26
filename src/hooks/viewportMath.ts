@@ -84,6 +84,36 @@ export function zoomAroundPoint(
 }
 
 /**
+ * Compute the viewport produced by a two-finger pinch. The board point that
+ * started below the fingers remains below their current midpoint, so the same
+ * gesture naturally combines zooming and panning.
+ */
+export function pinchViewport(
+    start: ViewportState,
+    startMidpoint: ViewportPoint,
+    currentMidpoint: ViewportPoint,
+    scale: number,
+    rect: ViewportRect
+): ViewportState {
+    const nextZoom = clampZoom(start.zoom * scale);
+    const boardPoint = screenToBoard(
+        startMidpoint.x,
+        startMidpoint.y,
+        rect,
+        start.offset,
+        start.zoom
+    );
+
+    return {
+        zoom: nextZoom,
+        offset: {
+            x: currentMidpoint.x - rect.left - boardPoint.x * nextZoom,
+            y: currentMidpoint.y - rect.top - boardPoint.y * nextZoom,
+        },
+    };
+}
+
+/**
  * Compute the zoom+offset that frames `bounds` centered in `rect`, never
  * zooming past 1x. Returns a reset view when there is nothing to frame.
  */
