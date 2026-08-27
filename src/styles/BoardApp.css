@@ -3593,8 +3593,15 @@
 }
 
 @media (max-width: 620px) {
+    .board-app {
+        /* The compact topbar uses two rows. Keep every dependent surface on
+           the same metric so the absolute sidebar starts below it instead of
+           overlapping its second row. */
+        --board-topbar-height: 96px;
+    }
+
     .board-workspace {
-        grid-template-rows: 96px minmax(0, 1fr);
+        grid-template-rows: var(--board-topbar-height) minmax(0, 1fr);
     }
 
     .board-topbar {

@@ -224,6 +224,81 @@ test.describe('guest demo surface', () => {
         }
     });
 
+    test('mobile chrome stays separate and a two-finger gesture zooms the canvas', async ({
+        page,
+        browserName,
+    }, testInfo) => {
+        test.skip(
+            browserName !== 'chromium' ||
+                !testInfo.project.name.includes('mobile'),
+            'The multi-touch assertion runs in the Chromium mobile project'
+        );
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.goto('/app/?demo=1');
+
+        const sidebar = page.locator('.board-sidebar');
+        const canvas = page.locator('.board-canvas');
+        const [sidebarBox, canvasBox] = await Promise.all([
+            sidebar.boundingBox(),
+            canvas.boundingBox(),
+        ]);
+        expect(sidebarBox).not.toBeNull();
+        expect(canvasBox).not.toBeNull();
+        expect(Math.round(sidebarBox?.y ?? 0)).toBe(
+            Math.round(canvasBox?.y ?? 0)
+        );
+
+        const content = page.locator('.board-content');
+        const transformBefore = await content.evaluate(
+            (element) => element.style.transform
+        );
+        const session = await page.context().newCDPSession(page);
+        const touchPair = await canvas.evaluate((element) => {
+            const rect = element.getBoundingClientRect();
+            const excluded =
+                '.post-it-card, .post-it-stack-card, button, input, textarea, select';
+            for (let y = rect.top + 30; y < rect.bottom - 140; y += 30) {
+                for (let x = rect.left + 45; x < rect.right - 145; x += 30) {
+                    const first = document.elementFromPoint(x, y);
+                    const second = document.elementFromPoint(x + 70, y);
+                    if (
+                        first?.closest('.board-canvas') &&
+                        second?.closest('.board-canvas') &&
+                        !first.closest(excluded) &&
+                        !second.closest(excluded)
+                    ) {
+                        return { x, y };
+                    }
+                }
+            }
+            throw new Error('No empty canvas area available for touch test');
+        });
+        const { x, y } = touchPair;
+
+        await session.send('Input.dispatchTouchEvent', {
+            type: 'touchStart',
+            touchPoints: [
+                { x, y, id: 1 },
+                { x: x + 70, y, id: 2 },
+            ],
+        });
+        await session.send('Input.dispatchTouchEvent', {
+            type: 'touchMove',
+            touchPoints: [
+                { x: x - 25, y, id: 1 },
+                { x: x + 95, y, id: 2 },
+            ],
+        });
+        await session.send('Input.dispatchTouchEvent', {
+            type: 'touchEnd',
+            touchPoints: [],
+        });
+
+        await expect
+            .poll(() => content.evaluate((element) => element.style.transform))
+            .not.toBe(transformBefore);
+    });
+
     test('view tabs support keyboard navigation', async ({ page }) => {
         await page.setViewportSize({ width: 1440, height: 900 });
         await page.goto('/app/?demo=1');

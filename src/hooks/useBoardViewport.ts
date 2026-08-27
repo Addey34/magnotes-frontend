@@ -153,115 +153,129 @@ export function useBoardViewport() {
         [resetViewport]
     );
 
-    const handleTouchStart = useCallback(
-        (event: React.TouchEvent<HTMLElement>) => {
-            const points = touchPointsFrom(event.touches);
-            if (points.length === 0 || !touchGesture.current) return;
-            event.preventDefault();
-            setIsPanning(true);
+    const handleTouchStart = useCallback((event: TouchEvent) => {
+        const target = event.target as HTMLElement | null;
+        if (
+            target?.closest(
+                '.post-it-card, .post-it-stack-card, button, input, textarea, select'
+            )
+        )
+            return;
+        const points = touchPointsFrom(event.touches);
+        if (points.length === 0) return;
+        event.preventDefault();
+        setIsPanning(true);
 
-            if (points.length >= 2) {
+        if (points.length >= 2) {
+            touchGesture.current = {
+                kind: 'pinch',
+                midpoint: touchMidpoint(points),
+                distance: Math.max(touchDistance(points), 1),
+                zoom: viewportRef.current.zoom,
+                offset: viewportRef.current.offset,
+            };
+            return;
+        }
+
+        touchGesture.current = {
+            kind: 'pan',
+            point: points[0],
+            offset: viewportRef.current.offset,
+        };
+    }, []);
+
+    const handleTouchMove = useCallback((event: TouchEvent) => {
+        const points = touchPointsFrom(event.touches);
+        if (points.length === 0 || !touchGesture.current) return;
+        event.preventDefault();
+
+        if (points.length >= 2) {
+            if (touchGesture.current?.kind !== 'pinch') {
                 touchGesture.current = {
                     kind: 'pinch',
                     midpoint: touchMidpoint(points),
                     distance: Math.max(touchDistance(points), 1),
                     zoom: viewportRef.current.zoom,
-                    offset: viewportRef.current.offset,
-                };
-                return;
-            }
-
-            touchGesture.current = {
-                kind: 'pan',
-                point: points[0],
-                offset: viewportRef.current.offset,
-            };
-        },
-        []
-    );
-
-    const handleTouchMove = useCallback(
-        (event: React.TouchEvent<HTMLElement>) => {
-            const points = touchPointsFrom(event.touches);
-            if (points.length === 0) return;
-            event.preventDefault();
-
-            if (points.length >= 2) {
-                if (touchGesture.current?.kind !== 'pinch') {
-                    touchGesture.current = {
-                        kind: 'pinch',
-                        midpoint: touchMidpoint(points),
-                        distance: Math.max(touchDistance(points), 1),
-                        zoom: viewportRef.current.zoom,
-                        offset: viewportRef.current.offset,
-                    };
-                }
-                const gesture = touchGesture.current;
-                const rect = canvasRef.current?.getBoundingClientRect();
-                if (!rect || gesture?.kind !== 'pinch') return;
-                const next = pinchViewport(
-                    { zoom: gesture.zoom, offset: gesture.offset },
-                    gesture.midpoint,
-                    touchMidpoint(points),
-                    touchDistance(points) / gesture.distance,
-                    rect
-                );
-                viewportRef.current = next;
-                setZoom(next.zoom);
-                setOffset(next.offset);
-                return;
-            }
-
-            if (touchGesture.current?.kind !== 'pan') {
-                touchGesture.current = {
-                    kind: 'pan',
-                    point: points[0],
                     offset: viewportRef.current.offset,
                 };
             }
             const gesture = touchGesture.current;
-            if (gesture?.kind !== 'pan') return;
-            const nextOffset = {
-                x: gesture.offset.x + points[0].x - gesture.point.x,
-                y: gesture.offset.y + points[0].y - gesture.point.y,
-            };
-            viewportRef.current = {
-                ...viewportRef.current,
-                offset: nextOffset,
-            };
-            setOffset(nextOffset);
-        },
-        []
-    );
+            const rect = canvasRef.current?.getBoundingClientRect();
+            if (!rect || gesture?.kind !== 'pinch') return;
+            const next = pinchViewport(
+                { zoom: gesture.zoom, offset: gesture.offset },
+                gesture.midpoint,
+                touchMidpoint(points),
+                touchDistance(points) / gesture.distance,
+                rect
+            );
+            viewportRef.current = next;
+            setZoom(next.zoom);
+            setOffset(next.offset);
+            return;
+        }
 
-    const handleTouchEnd = useCallback(
-        (event: React.TouchEvent<HTMLElement>) => {
-            const points = touchPointsFrom(event.touches);
-            if (!touchGesture.current) return;
-            if (points.length === 0) {
-                touchGesture.current = null;
-                setIsPanning(false);
-                return;
-            }
-            event.preventDefault();
-            if (points.length >= 2) {
-                touchGesture.current = {
-                    kind: 'pinch',
-                    midpoint: touchMidpoint(points),
-                    distance: Math.max(touchDistance(points), 1),
-                    zoom: viewportRef.current.zoom,
-                    offset: viewportRef.current.offset,
-                };
-                return;
-            }
+        if (touchGesture.current?.kind !== 'pan') {
             touchGesture.current = {
                 kind: 'pan',
                 point: points[0],
                 offset: viewportRef.current.offset,
             };
-        },
-        []
-    );
+        }
+        const gesture = touchGesture.current;
+        if (gesture?.kind !== 'pan') return;
+        const nextOffset = {
+            x: gesture.offset.x + points[0].x - gesture.point.x,
+            y: gesture.offset.y + points[0].y - gesture.point.y,
+        };
+        viewportRef.current = {
+            ...viewportRef.current,
+            offset: nextOffset,
+        };
+        setOffset(nextOffset);
+    }, []);
+
+    const handleTouchEnd = useCallback((event: TouchEvent) => {
+        const points = touchPointsFrom(event.touches);
+        if (!touchGesture.current) return;
+        if (points.length === 0) {
+            touchGesture.current = null;
+            setIsPanning(false);
+            return;
+        }
+        event.preventDefault();
+        if (points.length >= 2) {
+            touchGesture.current = {
+                kind: 'pinch',
+                midpoint: touchMidpoint(points),
+                distance: Math.max(touchDistance(points), 1),
+                zoom: viewportRef.current.zoom,
+                offset: viewportRef.current.offset,
+            };
+            return;
+        }
+        touchGesture.current = {
+            kind: 'pan',
+            point: points[0],
+            offset: viewportRef.current.offset,
+        };
+    }, []);
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const options: AddEventListenerOptions = { passive: false };
+        canvas.addEventListener('touchstart', handleTouchStart, options);
+        canvas.addEventListener('touchmove', handleTouchMove, options);
+        canvas.addEventListener('touchend', handleTouchEnd, options);
+        canvas.addEventListener('touchcancel', handleTouchEnd, options);
+        return () => {
+            canvas.removeEventListener('touchstart', handleTouchStart);
+            canvas.removeEventListener('touchmove', handleTouchMove);
+            canvas.removeEventListener('touchend', handleTouchEnd);
+            canvas.removeEventListener('touchcancel', handleTouchEnd);
+        };
+    }, [handleTouchEnd, handleTouchMove, handleTouchStart]);
 
     const startPan = useCallback(
         (event: React.PointerEvent<HTMLElement>): void => {
@@ -315,9 +329,6 @@ export function useBoardViewport() {
         isPanning,
         screenToBoardPoint,
         startPan,
-        handleTouchStart,
-        handleTouchMove,
-        handleTouchEnd,
         handleWheelZoom,
         zoomIn,
         zoomOut,
