@@ -24,7 +24,7 @@ jobs:
             - run: pnpm run typecheck
             - run: pnpm run lint
             - run: pnpm test --runInBand
-            - run: pnpm run build
+            - run: pnpm run build:firebase
               env:
                   VITE_API_URL: https://api-magnotes.adrianguichard.dev
             - run: pnpm audit --prod --audit-level=high
