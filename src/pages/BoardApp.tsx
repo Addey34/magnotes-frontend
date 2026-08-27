@@ -167,7 +167,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
     const [linkingSourceId, setLinkingSourceId] = useState<string | null>(null);
     const [selectedLinkId, setSelectedLinkId] = useState<string | null>(null);
     // Multi-selection of cards (for bulk keyboard actions: delete, duplicate).
-    // Dragging still moves a single card â€” the drop-intent engine is untouched.
+    // Dragging still moves a single card — the drop-intent engine is untouched.
     const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(
         () => new Set()
     );
@@ -315,7 +315,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
     // A custom background overrides the board theme's canvas; when absent, the
     // theme's CSS (or the app light/dark default) drives --canvas-bg instead.
     // Older boards were seeded with the internal default canvas colour frozen
-    // into `backgroundColor`, which silently overrode every ambiance â€” treat
+    // into `backgroundColor`, which silently overrode every ambiance — treat
     // those exact legacy values as "no custom background" so themes work again.
     const rawBackground = activeTab?.backgroundColor;
     const customBackground =
@@ -572,7 +572,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
         [cardMatchesFilters, postIts, stacks]
     );
 
-    // Board-space boxes of the laid-out cards, keyed by id â€” drives the
+    // Board-space boxes of the laid-out cards, keyed by id — drives the
     // connection arrows (uses filtered/stack-resolved positions, not culling,
     // so a link stays drawn even when one endpoint scrolls off-screen).
     const cardBoxes = useMemo(() => {
@@ -983,7 +983,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
                     );
                 }
             } catch {
-                // Not valid JSON â€” fall through to the Markdown parser below.
+                // Not valid JSON — fall through to the Markdown parser below.
             }
         }
         if (cards.length === 0) {
@@ -1044,7 +1044,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
             id: 'new-card',
             label: t('app.cmd.newCard'),
             description: t('app.cmd.newCard.desc'),
-            keywords: ['crÃ©er', 'carte', 'note', 'add', 'new', 'sticky'],
+            keywords: ['créer', 'carte', 'note', 'add', 'new', 'sticky'],
             group: t('app.group.actions'),
             hint: 'N',
             run: () => createPostItInView(),
@@ -1071,7 +1071,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
             id: 'redo',
             label: t('app.cmd.redo'),
             description: t('app.cmd.redo.desc'),
-            keywords: ['redo', 'rÃ©tablir'],
+            keywords: ['redo', 'rétablir'],
             group: t('app.group.actions'),
             hint: 'Ctrl+Maj+Z',
             run: () => redo(),
@@ -1084,7 +1084,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
                     : t('app.theme.dark'),
             description: t('app.cmd.theme.desc'),
             keywords: [
-                'thÃ¨me',
+                'thème',
                 'theme',
                 'sombre',
                 'clair',
@@ -1102,7 +1102,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
             id: 'export-markdown',
             label: t('app.cmd.exportMd'),
             description: t('app.cmd.exportMd.desc'),
-            keywords: ['markdown', 'md', 'tÃ©lÃ©charger', 'export', 'fichier'],
+            keywords: ['markdown', 'md', 'télécharger', 'export', 'fichier'],
             group: t('app.group.actions'),
             run: handleExportMarkdown,
         },
@@ -1138,7 +1138,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
                       description: t('app.cmd.exportData.desc'),
                       keywords: [
                           'json',
-                          'tÃ©lÃ©charger',
+                          'télécharger',
                           'sauvegarde',
                           'backup',
                           'export',
@@ -1167,13 +1167,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
             id: 'view-agenda',
             label: t('app.cmd.viewAgenda'),
             description: t('app.cmd.viewAgenda.desc'),
-            keywords: [
-                'calendrier',
-                'Ã©chÃ©ance',
-                'dates',
-                'agenda',
-                'calendar',
-            ],
+            keywords: ['calendrier', 'échéance', 'dates', 'agenda', 'calendar'],
             group: t('app.group.views'),
             run: () => setView('agenda'),
         },
@@ -1181,7 +1175,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
             id: 'view-timeline',
             label: t('app.cmd.viewTimeline'),
             description: t('app.cmd.viewTimeline.desc'),
-            keywords: ['timeline', 'frise', 'Ã©chÃ©ances', 'planning'],
+            keywords: ['timeline', 'frise', 'échéances', 'planning'],
             group: t('app.group.views'),
             run: () => setView('timeline'),
         },
@@ -1189,7 +1183,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
             id: `template-${template.id}`,
             label: t('app.cmd.template', { label: template.label }),
             description: t('app.cmd.template.desc'),
-            keywords: ['modÃ¨le', 'template', ...template.label.split(' ')],
+            keywords: ['modèle', 'template', ...template.label.split(' ')],
             group: t('app.group.templates'),
             hint: t('app.cmd.hint.insert'),
             run: () => applyTemplate(template.id),
@@ -1240,7 +1234,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
     );
 
     // Cross-board matches for the palette. The active board's cards are already
-    // offered as "Aller Ã " commands, so they are excluded here.
+    // offered as "Aller à" commands, so they are excluded here.
     const globalSearchCommands = useMemo<PaletteCommand[]>(
         () =>
             globalResults
@@ -2173,7 +2167,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                     type="button"
                                     className="board-selection-clear"
                                     onClick={clearCardSelection}
-                                    title={`${t('app.selection.clear')} (Ã‰chap)`}
+                                    title={`${t('app.selection.clear')} (Échap)`}
                                     aria-label={t('app.selection.clear')}
                                 >
                                     <XMarkIcon />

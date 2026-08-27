@@ -430,7 +430,7 @@ export const DICTIONARY = {
     'app.help.title': { fr: 'Aide et raccourcis', en: 'Help and shortcuts' },
     'app.help.shortcuts': {
         fr: 'N créer · Suppr supprimer · Ctrl+D dupliquer · Ctrl+Z annuler · Ctrl+K palette',
-        en: 'N create Â· Delete remove Â· Ctrl+D duplicate Â· Ctrl+Z undo Â· Ctrl+K palette',
+        en: 'N create · Delete remove · Ctrl+D duplicate · Ctrl+Z undo · Ctrl+K palette',
     },
     'app.zoom.aria': { fr: 'Zoom du tableau', en: 'Board zoom' },
     'app.zoom.out': { fr: 'Dézoomer', en: 'Zoom out' },

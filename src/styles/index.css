@@ -113,7 +113,7 @@ select:focus-visible {
     color: var(--light);
 }
 
-/* Language switch (FR/EN) â€” shared across the auth screen and board menu. */
+/* Language switch (FR/EN) — shared across the auth screen and board menu. */
 .lang-switch {
     display: inline-flex;
     gap: 2px;

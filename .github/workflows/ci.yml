@@ -30,6 +30,16 @@ jobs:
             - run: pnpm audit --prod --audit-level=high
             - run: pnpm exec playwright install --with-deps chromium
             - run: pnpm run e2e
+            - name: Upload visual failure artifacts
+              if: failure()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: playwright-visual-failures
+                  path: |
+                      playwright-report/
+                      test-results/
+                  if-no-files-found: ignore
+                  retention-days: 14
 
     secret-scan:
         runs-on: ubuntu-latest
