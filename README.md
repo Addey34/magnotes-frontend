@@ -38,19 +38,21 @@ pnpm run deploy:firebase  # rebuild ./firebase-dist, then deploy hosting:magnote
 
 ## Scripts
 
-| Command                    | Description                                       |
-| -------------------------- | ------------------------------------------------- |
-| `pnpm run dev`             | Vite dev server                                   |
-| `pnpm run build`           | Production build → `dist/`                        |
-| `pnpm run build:firebase`  | Build + assemble `firebase-dist/` (landing + app) |
-| `pnpm run deploy:firebase` | Rebuild the Firebase payload, then deploy it      |
-| `pnpm run preview`         | Preview the production build                      |
-| `pnpm run typecheck`       | `tsc --noEmit`                                    |
-| `npm test`                 | Jest unit tests                                   |
-| `pnpm run lint`            | ESLint (zero warnings)                            |
-| `pnpm run verify`          | Typecheck, lint, tests, build and runtime audit   |
-| `pnpm run e2e`             | Smoke E2E Playwright desktop + mobile + axe       |
-| `pnpm run e2e:install`     | Installe Chromium pour les tests E2E              |
+| Command                       | Description                                                   |
+| ----------------------------- | ------------------------------------------------------------- |
+| `pnpm run dev`                | Vite dev server                                               |
+| `pnpm run build`              | Production build → `dist/`                                    |
+| `pnpm run build:firebase`     | Build + assemble `firebase-dist/` (landing + app)             |
+| `pnpm run deploy:firebase`    | Rebuild the Firebase payload, then deploy it                  |
+| `pnpm run preview`            | Preview the production build                                  |
+| `pnpm run typecheck`          | `tsc --noEmit`                                                |
+| `npm test`                    | Jest unit tests                                               |
+| `pnpm run lint`               | ESLint (zero warnings)                                        |
+| `pnpm run verify`             | Typecheck, lint, tests, build and runtime audit               |
+| `pnpm run e2e`                | Smoke E2E Playwright desktop + mobile + axe                   |
+| `pnpm run monitor:production` | Production publique : santé, console, réseau et accessibilité |
+| `pnpm run monitor:lighthouse` | Budgets Lighthouse landing + authentification                 |
+| `pnpm run e2e:install`        | Installe Chromium pour les tests E2E                          |
 
 ## License
 

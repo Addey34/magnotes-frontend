@@ -1,0 +1,64 @@
+name: Production Monitor
+
+on:
+    schedule:
+        - cron: '15 4 * * *'
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: production-monitor
+    cancel-in-progress: false
+
+jobs:
+    browser-health:
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        steps:
+            - uses: actions/checkout@v4
+            - run: corepack enable
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 20
+                  cache: pnpm
+                  cache-dependency-path: pnpm-lock.yaml
+            - run: pnpm install --frozen-lockfile
+            - run: pnpm exec playwright install --with-deps chromium
+            - run: pnpm run monitor:production
+              env:
+                  PRODUCTION_URL: https://magnotes.adrianguichard.dev
+                  PRODUCTION_API_URL: https://api-magnotes.adrianguichard.dev
+            - name: Upload browser failure evidence
+              if: failure()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: production-browser-failures
+                  path: |
+                      playwright-report/
+                      test-results/
+                  if-no-files-found: ignore
+                  retention-days: 14
+
+    lighthouse:
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        steps:
+            - uses: actions/checkout@v4
+            - run: corepack enable
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 20
+                  cache: pnpm
+                  cache-dependency-path: pnpm-lock.yaml
+            - run: pnpm install --frozen-lockfile
+            - run: pnpm run monitor:lighthouse
+            - name: Upload Lighthouse reports
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: production-lighthouse-reports
+                  path: .lighthouseci/
+                  if-no-files-found: ignore
+                  retention-days: 14

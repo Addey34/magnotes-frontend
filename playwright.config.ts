@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
     testDir: './e2e',
+    testIgnore: 'production.spec.ts',
     timeout: 30_000,
     expect: { timeout: 10_000 },
     // Share visual references across developer machines and Linux CI. The
