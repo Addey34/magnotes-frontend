@@ -19,6 +19,10 @@ type TabCustomization = Partial<Pick<BoardTab, 'color' | 'theme' | 'icon'>> & {
     backgroundColor?: string | null;
 };
 
+type AddTabOptions = {
+    trackCreation?: boolean;
+};
+
 const normalizeTabs = (tabs: BoardTab[]) =>
     tabs.map((tab) => ({ ...tab, icon: tab.icon || DEFAULT_TAB_ICON }));
 
@@ -51,7 +55,10 @@ export const useTabs = (
         }
     }, [onLoadError]);
 
-    const addTab = async (backgroundColor?: string) => {
+    const addTab = async (
+        backgroundColor?: string,
+        { trackCreation = true }: AddTabOptions = {}
+    ) => {
         const color = TAB_COLORS[tabs.length % TAB_COLORS.length];
         let tab: BoardTab;
         try {
@@ -67,7 +74,7 @@ export const useTabs = (
         }
         setTabs((currentTabs) => [...currentTabs, tab]);
         setActiveTabId(tab._id);
-        trackProductEvent('board_created');
+        if (trackCreation) trackProductEvent('board_created');
     };
 
     const patchTab = async (tabId: string, updates: TabCustomization) => {

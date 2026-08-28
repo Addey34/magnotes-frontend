@@ -1,15 +1,21 @@
 /** @jest-environment jsdom */
 
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { fetchTabs } from '../services/boardApi';
+import { createTab, fetchTabs } from '../services/boardApi';
+import { trackProductEvent } from '../services/analytics';
 import { BoardTab } from '../types/boardTypes';
 import { useTabs } from './useTabs';
 
 jest.mock('../services/boardApi', () => ({
+    createTab: jest.fn(),
     deleteTab: jest.fn(),
     fetchTabs: jest.fn(),
     reorderTabs: jest.fn(),
     updateTab: jest.fn(),
+}));
+
+jest.mock('../services/analytics', () => ({
+    trackProductEvent: jest.fn(),
 }));
 
 const tab: BoardTab = {
@@ -25,6 +31,10 @@ const tab: BoardTab = {
 
 describe('useTabs loading state', () => {
     const mockedFetch = fetchTabs as jest.MockedFunction<typeof fetchTabs>;
+    const mockedCreate = createTab as jest.MockedFunction<typeof createTab>;
+    const mockedTrack = trackProductEvent as jest.MockedFunction<
+        typeof trackProductEvent
+    >;
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -71,5 +81,29 @@ describe('useTabs loading state', () => {
 
         expect(result.current.isLoadingTabs).toBe(false);
         expect(result.current.hasLoadedTabs).toBe(false);
+    });
+
+    it('tracks a board created explicitly by the user', async () => {
+        mockedFetch.mockResolvedValue([]);
+        mockedCreate.mockResolvedValue(tab);
+        const { result } = renderHook(() => useTabs());
+        await waitFor(() => expect(result.current.hasLoadedTabs).toBe(true));
+
+        await act(async () => result.current.addTab());
+
+        expect(mockedTrack).toHaveBeenCalledWith('board_created');
+    });
+
+    it('does not track the automatic onboarding board as a conversion', async () => {
+        mockedFetch.mockResolvedValue([]);
+        mockedCreate.mockResolvedValue(tab);
+        const { result } = renderHook(() => useTabs());
+        await waitFor(() => expect(result.current.hasLoadedTabs).toBe(true));
+
+        await act(async () =>
+            result.current.addTab(undefined, { trackCreation: false })
+        );
+
+        expect(mockedTrack).not.toHaveBeenCalled();
     });
 });

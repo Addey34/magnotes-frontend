@@ -1030,7 +1030,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
         onboardingRef.current = 'creating';
         // No fixed background: let the board theme / app light-dark mode drive
         // the canvas colour (a frozen background would override every ambiance).
-        addTab();
+        addTab(undefined, { trackCreation: false });
     }, [hasLoadedTabs, isLoadingTabs, tabs.length]);
     useEffect(() => {
         if (onboardingRef.current !== 'creating' || !activeTabId) return;
