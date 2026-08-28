@@ -16,7 +16,18 @@ export const useAutosave = <T extends object, TResult = void>(
     const failed = useRef<Record<string, T>>({});
     const inFlight = useRef<Record<string, Promise<void>>>({});
     const mounted = useRef(true);
+    const saveRef = useRef(save);
+    const onErrorRef = useRef(onError);
+    const onSavedRef = useRef(onSaved);
     const [saveState, setSaveState] = useState<SaveState>({ status: 'idle' });
+
+    // Keep the autosave queue stable across consumer renders while still
+    // calling the latest callbacks. Depending directly on callback identities
+    // would rerun the lifecycle effect; its cleanup flushes failed writes and
+    // could therefore create an immediate retry loop after a 429/offline error.
+    saveRef.current = save;
+    onErrorRef.current = onError;
+    onSavedRef.current = onSaved;
 
     const flushSave = useCallback(
         (id: string): Promise<void> => {
@@ -40,9 +51,9 @@ export const useAutosave = <T extends object, TResult = void>(
             const previous = inFlight.current[id] || Promise.resolve();
             const operation = previous
                 .catch(() => undefined)
-                .then(() => save(id, updatesToSave))
+                .then(() => saveRef.current(id, updatesToSave))
                 .then((result) => {
-                    onSaved?.(id, result);
+                    onSavedRef.current?.(id, result);
                     if (mounted.current) {
                         setSaveState({ status: 'saved', postItId: id });
                     }
@@ -53,7 +64,7 @@ export const useAutosave = <T extends object, TResult = void>(
                         ...updatesToSave,
                         ...(failed.current[id] || {}),
                     } as T;
-                    onError?.(error);
+                    onErrorRef.current?.(error);
                     if (mounted.current) {
                         setSaveState({ status: 'error', postItId: id });
                     }
@@ -67,7 +78,7 @@ export const useAutosave = <T extends object, TResult = void>(
             inFlight.current[id] = operation;
             return operation;
         },
-        [onError, onSaved, save]
+        []
     );
 
     const scheduleSave = useCallback(

@@ -118,4 +118,31 @@ describe('useAutosave', () => {
         });
         expect(result.current.saveState.status).toBe('saved');
     });
+
+    it('does not retry a failed save merely because callbacks change', async () => {
+        jest.spyOn(console, 'error').mockImplementation(() => undefined);
+        const save = jest.fn().mockRejectedValue(new Error('rate limited'));
+        type HookProps = { onError: (error: unknown) => void };
+        const { result, rerender } = renderHook(
+            ({ onError }: HookProps) => useAutosave(save, 500, onError),
+            {
+                initialProps: {
+                    onError: jest.fn<void, [unknown]>(),
+                },
+            }
+        );
+
+        act(() => {
+            result.current.scheduleSave('card-1', { title: 'Keep me' });
+            jest.advanceTimersByTime(500);
+        });
+        await act(async () => Promise.resolve());
+        expect(save).toHaveBeenCalledTimes(1);
+
+        rerender({ onError: jest.fn<void, [unknown]>() });
+        await act(async () => Promise.resolve());
+
+        expect(save).toHaveBeenCalledTimes(1);
+        expect(result.current.saveState.status).toBe('error');
+    });
 });
