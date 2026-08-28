@@ -58,6 +58,10 @@ test.describe('deployed production', () => {
         expect(response?.status()).toBe(200);
         await expect(page.locator('.auth-page')).toBeVisible();
         await expect(page.locator('#email')).toBeVisible();
+        await expect(page.locator('#umami-analytics')).toHaveAttribute(
+            'src',
+            'https://analytics-magnotes.adrianguichard.dev/script.js'
+        );
         await expectNoBlockingAccessibilityIssues(page);
         expect(failures).toEqual([]);
     });
@@ -74,6 +78,7 @@ test.describe('deployed production', () => {
         await expect(page.locator('.board-app')).toBeVisible();
         await expect(page.locator('.demo-banner')).toBeVisible();
         await expect(page.locator('.post-it-card')).toHaveCount(6);
+        await expect(page.locator('#umami-analytics')).toHaveCount(0);
         await expectNoBlockingAccessibilityIssues(page);
         expect(failures).toEqual([]);
     });
@@ -83,5 +88,17 @@ test.describe('deployed production', () => {
             const response = await request.get(`${apiUrl}${path}`);
             expect(response.status(), path).toBe(200);
         }
+    });
+
+    test('keeps protected and unknown public resources closed', async ({
+        request,
+    }) => {
+        const protectedResponse = await request.get(`${apiUrl}/api/tabs`);
+        expect(protectedResponse.status()).toBe(401);
+
+        const unknownShare = await request.get(
+            `${apiUrl}/api/public/boards/00000000000000000000000000000000`
+        );
+        expect(unknownShare.status()).toBe(404);
     });
 });
