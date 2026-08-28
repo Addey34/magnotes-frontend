@@ -1,7 +1,13 @@
 /** @jest-environment jsdom */
 
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { deletePostIt, fetchPostIts, updatePostIt } from '../services/boardApi';
+import {
+    deletePostIt,
+    duplicatePostIt,
+    fetchPostIts,
+    restorePostIt,
+    updatePostIt,
+} from '../services/boardApi';
 import { PostIt, PostItStack } from '../types/boardTypes';
 import { usePostIts } from './usePostIts';
 
@@ -46,6 +52,12 @@ describe('usePostIts rollbacks', () => {
     >;
     const mockedDelete = deletePostIt as jest.MockedFunction<
         typeof deletePostIt
+    >;
+    const mockedDuplicate = duplicatePostIt as jest.MockedFunction<
+        typeof duplicatePostIt
+    >;
+    const mockedRestore = restorePostIt as jest.MockedFunction<
+        typeof restorePostIt
     >;
 
     beforeEach(() => {
@@ -138,6 +150,28 @@ describe('usePostIts rollbacks', () => {
         expect(dropLocal).toHaveBeenCalledTimes(1);
         expect(restoreLocal).toHaveBeenCalledWith([]);
         expect(onMutationError).toHaveBeenCalledTimes(1);
+    });
+
+    it('undoes deletion after duplicating a card', async () => {
+        mockedDuplicate.mockResolvedValue(secondCard);
+        mockedDelete.mockResolvedValue(undefined);
+        mockedRestore.mockResolvedValue(card);
+        const { result } = renderHook(() =>
+            usePostIts('tab-1', jest.fn(), jest.fn())
+        );
+        await waitFor(() => expect(result.current.postIts).toEqual([card]));
+
+        await act(async () => result.current.clonePostIt('card-1'));
+        expect(result.current.postIts).toEqual([card, secondCard]);
+
+        await act(async () => result.current.removePostIt('card-1'));
+        expect(result.current.postIts).toEqual([secondCard]);
+        expect(result.current.canUndo).toBe(true);
+
+        await act(async () => result.current.undo());
+
+        expect(mockedRestore).toHaveBeenCalledWith(card);
+        expect(result.current.postIts).toEqual([secondCard, card]);
     });
 
     it('does not retry a failed initial load on every render', async () => {
