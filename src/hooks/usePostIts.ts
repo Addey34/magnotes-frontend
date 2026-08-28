@@ -121,7 +121,9 @@ export const usePostIts = (
             ...current,
             [activeTabId]: [...(current[activeTabId] || []), postIt],
         }));
-        if (postIts.length === 0) trackProductEvent('first_card_created');
+        // Track explicit user intent. Template/onboarding cards use
+        // addTemplateCards and deliberately never emit this event.
+        trackProductEvent('card_created');
         history.clear();
     };
 

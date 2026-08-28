@@ -28,7 +28,7 @@ export type ProductEvent =
     | 'email_verified'
     | 'login_completed'
     | 'board_created'
-    | 'first_card_created';
+    | 'card_created';
 
 type UmamiTracker = {
     track: (event: ProductEvent) => void;
