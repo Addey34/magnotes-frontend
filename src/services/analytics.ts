@@ -20,6 +20,8 @@ export interface AnalyticsConfig {
     websiteId?: string;
     /** When true, skip injection (demo sandbox traffic is noise). */
     isDemo?: boolean;
+    /** Explicit opt-out for automated production QA and privacy controls. */
+    disabled?: boolean;
 }
 
 export type ProductEvent =
@@ -34,12 +36,24 @@ type UmamiTracker = {
     track: (event: ProductEvent) => void;
 };
 
+export function isAnalyticsDisabled(): boolean {
+    if (typeof window === 'undefined') return false;
+    return (
+        new URLSearchParams(window.location.search).get('analytics') === 'off'
+    );
+}
+
 /**
  * Sends one anonymous product milestone when Umami has loaded. Event payloads
  * deliberately never include emails, user ids, board names, or card content.
  */
 export function trackProductEvent(event: ProductEvent): boolean {
-    if (typeof window === 'undefined' || isDemoRequested()) return false;
+    if (
+        typeof window === 'undefined' ||
+        isDemoRequested() ||
+        isAnalyticsDisabled()
+    )
+        return false;
 
     const tracker = (window as typeof window & { umami?: UmamiTracker }).umami;
     if (typeof tracker?.track !== 'function') return false;
@@ -57,9 +71,10 @@ export function initAnalytics(config: AnalyticsConfig = {}): boolean {
 
     const { src, websiteId } = config;
     const isDemo = config.isDemo ?? isDemoRequested();
+    const disabled = config.disabled ?? isAnalyticsDisabled();
 
     if (!src || !websiteId) return false;
-    if (isDemo) return false;
+    if (isDemo || disabled) return false;
     if (document.getElementById(SCRIPT_ID)) return false;
 
     const script = document.createElement('script');

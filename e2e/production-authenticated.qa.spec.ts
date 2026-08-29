@@ -39,7 +39,7 @@ test.describe('authenticated production gestures', () => {
         );
 
         try {
-            await page.goto('/app/');
+            await page.goto('/app/?analytics=off');
             await page.locator('#email').fill(email!);
             await page.locator('#password').fill(password!);
             await page.locator('.auth-submit').click();
@@ -311,7 +311,7 @@ test.describe('authenticated production gestures', () => {
             await expect(page.locator('.post-it-stack-card')).toHaveCount(1);
         } finally {
             if (deleteAccount && !page.isClosed()) {
-                await page.goto('/app/');
+                await page.goto('/app/?analytics=off');
                 const board = page.locator('.board-app');
                 const auth = page.locator('.auth-page');
                 await expect(board.or(auth)).toBeVisible();

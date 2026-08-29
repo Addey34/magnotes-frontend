@@ -18,6 +18,7 @@ function tracker(): HTMLScriptElement | null {
 describe('initAnalytics', () => {
     beforeEach(() => {
         document.head.innerHTML = '';
+        window.history.replaceState({}, '', '/');
         delete (window as typeof window & { umami?: unknown }).umami;
     });
 
@@ -41,6 +42,18 @@ describe('initAnalytics', () => {
     it('does not track the demo sandbox', () => {
         expect(initAnalytics({ ...CONFIG, isDemo: true })).toBe(false);
         expect(tracker()).toBeNull();
+    });
+
+    it('opts automated QA out through the analytics query parameter', () => {
+        window.history.replaceState({}, '', '/app/?analytics=off');
+        const track = jest.fn();
+        (window as typeof window & { umami?: { track: typeof track } }).umami =
+            { track };
+
+        expect(initAnalytics(CONFIG)).toBe(false);
+        expect(trackProductEvent('card_created')).toBe(false);
+        expect(tracker()).toBeNull();
+        expect(track).not.toHaveBeenCalled();
     });
 
     it('injects at most once', () => {

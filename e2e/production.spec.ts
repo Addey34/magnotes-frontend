@@ -83,6 +83,18 @@ test.describe('deployed production', () => {
         expect(failures).toEqual([]);
     });
 
+    test('keeps explicit production QA out of analytics', async ({ page }) => {
+        const failures = monitorBrowserFailures(page);
+        const response = await page.goto('/app/?analytics=off', {
+            waitUntil: 'networkidle',
+        });
+
+        expect(response?.status()).toBe(200);
+        await expect(page.locator('.auth-page')).toBeVisible();
+        await expect(page.locator('#umami-analytics')).toHaveCount(0);
+        expect(failures).toEqual([]);
+    });
+
     test('reports a healthy and ready API', async ({ request }) => {
         for (const path of ['/health', '/health/ready']) {
             const response = await request.get(`${apiUrl}${path}`);
