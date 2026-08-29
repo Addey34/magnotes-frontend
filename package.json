@@ -25,6 +25,7 @@
         "e2e:real": "playwright test e2e/auth.real.spec.ts",
         "e2e:install": "playwright install chromium",
         "monitor:production": "playwright test --config playwright.production.config.ts",
+        "qa:production:authenticated": "playwright test --config playwright.production-authenticated.config.ts",
         "monitor:lighthouse": "lhci autorun",
         "verify": "pnpm run format:check && pnpm run typecheck && pnpm run lint && jest --runInBand && pnpm run build && pnpm audit --prod --audit-level=high"
     },
