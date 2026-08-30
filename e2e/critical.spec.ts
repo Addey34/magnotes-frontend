@@ -15,6 +15,7 @@ const openDemo = async (page: Page) => {
     await mockUnauthenticatedRefresh(page);
     await page.goto('/app/?demo=1');
     await expect(page.locator('.board-app')).toBeVisible();
+    await expect(page.locator('.post-it-card').first()).toBeVisible();
 };
 
 test.describe('critical demo journeys', () => {

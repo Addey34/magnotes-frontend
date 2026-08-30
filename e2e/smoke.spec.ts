@@ -299,6 +299,88 @@ test.describe('guest demo surface', () => {
             .not.toBe(transformBefore);
     });
 
+    test('a native touch drag moves a card without breaking mobile editing', async ({
+        page,
+        browserName,
+    }, testInfo) => {
+        test.skip(
+            browserName !== 'chromium' ||
+                !testInfo.project.name.includes('mobile'),
+            'The native touch drag assertion runs in the Chromium mobile project'
+        );
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.goto('/app/?demo=1');
+
+        const cards = page.locator('.post-it-card');
+        await expect(cards.first()).toBeVisible();
+        const findExposedCard = () =>
+            cards.evaluateAll((elements) =>
+                elements.findIndex((element) => {
+                    const dragArea = element.querySelector('.post-it-date');
+                    if (!dragArea) return false;
+                    const rect = dragArea.getBoundingClientRect();
+                    const topmost = document.elementFromPoint(
+                        rect.left + rect.width / 2,
+                        rect.top + rect.height / 2
+                    );
+                    return topmost?.closest('.post-it-card') === element;
+                })
+            );
+        await expect.poll(findExposedCard).toBeGreaterThanOrEqual(0);
+        const exposedCardIndex = await findExposedCard();
+        const card = cards.nth(exposedCardIndex);
+        const before = await card.boundingBox();
+        const dragArea = await card.locator('.post-it-date').boundingBox();
+        if (!before || !dragArea)
+            throw new Error('No visible card geometry for touch drag.');
+
+        const viewportWidth = page.viewportSize()?.width ?? 390;
+        const leftSpace = before.x;
+        const rightSpace = viewportWidth - (before.x + before.width);
+        const deltaX = rightSpace >= leftSpace ? 60 : -60;
+        const start = {
+            x: dragArea.x + dragArea.width / 2,
+            y: dragArea.y + dragArea.height / 2,
+        };
+        const session = await page.context().newCDPSession(page);
+        await session.send('Input.dispatchTouchEvent', {
+            type: 'touchStart',
+            touchPoints: [{ ...start, id: 1 }],
+        });
+        for (let step = 1; step <= 6; step += 1) {
+            await session.send('Input.dispatchTouchEvent', {
+                type: 'touchMove',
+                touchPoints: [
+                    {
+                        x: start.x + (deltaX * step) / 6,
+                        y: start.y + (45 * step) / 6,
+                        id: 1,
+                    },
+                ],
+            });
+            await page.waitForTimeout(20);
+        }
+        await session.send('Input.dispatchTouchEvent', {
+            type: 'touchEnd',
+            touchPoints: [],
+        });
+
+        await expect
+            .poll(async () => {
+                const current = await card.boundingBox();
+                return current ? Math.abs(current.x - before.x) : 0;
+            })
+            .toBeGreaterThan(30);
+
+        const title = card.locator('.post-it-title');
+        await title.fill('Note tactile QA');
+        await expect(title).toHaveValue('Note tactile QA');
+        const hasHorizontalOverflow = await page.evaluate(
+            () => document.documentElement.scrollWidth > window.innerWidth + 1
+        );
+        expect(hasHorizontalOverflow).toBe(false);
+    });
+
     test('view tabs support keyboard navigation', async ({ page }) => {
         await page.setViewportSize({ width: 1440, height: 900 });
         await page.goto('/app/?demo=1');
