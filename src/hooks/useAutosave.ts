@@ -29,57 +29,54 @@ export const useAutosave = <T extends object, TResult = void>(
     onErrorRef.current = onError;
     onSavedRef.current = onSaved;
 
-    const flushSave = useCallback(
-        (id: string): Promise<void> => {
-            const queued = pending.current[id];
-            if (!queued) return inFlight.current[id] || Promise.resolve();
+    const flushSave = useCallback((id: string): Promise<void> => {
+        const queued = pending.current[id];
+        if (!queued) return inFlight.current[id] || Promise.resolve();
 
-            window.clearTimeout(queued.timer);
-            delete pending.current[id];
-            const updatesToSave = {
-                ...(failed.current[id] || {}),
-                ...queued.updates,
-            } as T;
-            delete failed.current[id];
+        window.clearTimeout(queued.timer);
+        delete pending.current[id];
+        const updatesToSave = {
+            ...(failed.current[id] || {}),
+            ...queued.updates,
+        } as T;
+        delete failed.current[id];
 
-            if (mounted.current) {
-                setSaveState({ status: 'saving', postItId: id });
-            }
+        if (mounted.current) {
+            setSaveState({ status: 'saving', postItId: id });
+        }
 
-            // Serialize writes for one card so an older, slower request cannot
-            // land after a newer one and overwrite its fields on the server.
-            const previous = inFlight.current[id] || Promise.resolve();
-            const operation = previous
-                .catch(() => undefined)
-                .then(() => saveRef.current(id, updatesToSave))
-                .then((result) => {
-                    onSavedRef.current?.(id, result);
-                    if (mounted.current) {
-                        setSaveState({ status: 'saved', postItId: id });
-                    }
-                })
-                .catch((error) => {
-                    console.error('Autosave failed:', error);
-                    failed.current[id] = {
-                        ...updatesToSave,
-                        ...(failed.current[id] || {}),
-                    } as T;
-                    onErrorRef.current?.(error);
-                    if (mounted.current) {
-                        setSaveState({ status: 'error', postItId: id });
-                    }
-                })
-                .finally(() => {
-                    if (inFlight.current[id] === operation) {
-                        delete inFlight.current[id];
-                    }
-                });
+        // Serialize writes for one card so an older, slower request cannot
+        // land after a newer one and overwrite its fields on the server.
+        const previous = inFlight.current[id] || Promise.resolve();
+        const operation = previous
+            .catch(() => undefined)
+            .then(() => saveRef.current(id, updatesToSave))
+            .then((result) => {
+                onSavedRef.current?.(id, result);
+                if (mounted.current) {
+                    setSaveState({ status: 'saved', postItId: id });
+                }
+            })
+            .catch((error) => {
+                console.error('Autosave failed:', error);
+                failed.current[id] = {
+                    ...updatesToSave,
+                    ...(failed.current[id] || {}),
+                } as T;
+                onErrorRef.current?.(error);
+                if (mounted.current) {
+                    setSaveState({ status: 'error', postItId: id });
+                }
+            })
+            .finally(() => {
+                if (inFlight.current[id] === operation) {
+                    delete inFlight.current[id];
+                }
+            });
 
-            inFlight.current[id] = operation;
-            return operation;
-        },
-        []
-    );
+        inFlight.current[id] = operation;
+        return operation;
+    }, []);
 
     const scheduleSave = useCallback(
         (id: string, updates: T) => {

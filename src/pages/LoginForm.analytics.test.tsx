@@ -2,11 +2,7 @@
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { LangProvider } from '../i18n/LangContext';
-import {
-    login,
-    register,
-    verifyEmail,
-} from '../services/authApi';
+import { login, register, verifyEmail } from '../services/authApi';
 import { trackProductEvent } from '../services/analytics';
 import LoginForm from './LoginForm';
 
