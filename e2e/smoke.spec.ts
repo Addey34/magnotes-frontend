@@ -35,6 +35,31 @@ test.describe('authentication surface', () => {
             expect(hasHorizontalOverflow).toBe(false);
         }
     });
+
+    test('keeps the active form and primary action visible at keyboard height', async ({
+        page,
+    }) => {
+        await page.setViewportSize({ width: 390, height: 500 });
+        await page.goto('/app/');
+
+        await page.getByRole('button', { name: /create an account/i }).click();
+        const confirmation = page.locator('#confirm-password');
+        await confirmation.focus();
+
+        const submit = page.locator('.auth-submit');
+        await expect(confirmation).toBeVisible();
+        await expect(submit).toBeVisible();
+        const bounds = await submit.boundingBox();
+        expect(bounds).not.toBeNull();
+        expect((bounds?.y ?? 0) + (bounds?.height ?? 0)).toBeLessThanOrEqual(
+            500
+        );
+        expect(
+            await page.evaluate(
+                () => document.documentElement.scrollWidth > innerWidth + 1
+            )
+        ).toBe(false);
+    });
 });
 
 test.describe('guest demo surface', () => {
@@ -76,6 +101,46 @@ test.describe('guest demo surface', () => {
         await expect(page.locator('.post-it-card').first()).toContainText(
             'This board is yours.'
         );
+    });
+
+    test('keeps card editing visible at keyboard height', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 500 });
+        await page.goto('/app/?demo=1');
+
+        const card = page.locator('.post-it-card').first();
+        const title = card.locator('.post-it-title');
+        await title.focus();
+
+        const [titleBounds, actionsBounds] = await Promise.all([
+            title.boundingBox(),
+            page.locator('.mobile-board-actions').boundingBox(),
+        ]);
+        expect(titleBounds).not.toBeNull();
+        expect(actionsBounds).not.toBeNull();
+        expect(titleBounds?.y ?? 500).toBeGreaterThanOrEqual(0);
+        expect((titleBounds?.y ?? 0) + (titleBounds?.height ?? 0)).toBeLessThan(
+            actionsBounds?.y ?? 500
+        );
+    });
+
+    test('preserves in-progress editing through portrait and landscape rotation', async ({
+        page,
+    }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.goto('/app/?demo=1');
+
+        const title = page.locator('.post-it-title').first();
+        await title.fill('Rotation-safe note');
+        await page.setViewportSize({ width: 844, height: 390 });
+
+        await expect(title).toHaveValue('Rotation-safe note');
+        await expect(page.locator('.board-topbar')).toBeVisible();
+        await expect(page.locator('.board-workspace')).toBeVisible();
+        expect(
+            await page.evaluate(
+                () => document.documentElement.scrollWidth > innerWidth + 1
+            )
+        ).toBe(false);
     });
 
     test('sidebar expands on hover without covering the workspace', async ({
