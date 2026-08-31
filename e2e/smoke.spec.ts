@@ -219,7 +219,12 @@ test.describe('guest demo surface', () => {
         const sidebar = page.locator('.board-sidebar');
         const workspace = page.locator('.board-workspace');
         const topbar = page.locator('.board-topbar');
+        const brand = page.locator('.board-brand');
+        const title = page.locator('.board-title-group');
         const collapsedWidth = await sidebar.evaluate((element) =>
+            Math.round(element.getBoundingClientRect().width)
+        );
+        const collapsedBrandWidth = await brand.evaluate((element) =>
             Math.round(element.getBoundingClientRect().width)
         );
 
@@ -251,10 +256,33 @@ test.describe('guest demo surface', () => {
             return {
                 left: Math.round(rect.left),
                 right: Math.round(rect.right),
+                bottom: Math.round(rect.bottom),
             };
         });
         expect(topbarBounds.left).toBe(0);
         expect(topbarBounds.right).toBe(1440);
+
+        const [expandedSidebarBounds, brandBounds, titleBounds] =
+            await Promise.all(
+                [sidebar, brand, title].map((locator) =>
+                    locator.evaluate((element) => {
+                        const rect = element.getBoundingClientRect();
+                        return {
+                            left: Math.round(rect.left),
+                            top: Math.round(rect.top),
+                            right: Math.round(rect.right),
+                            bottom: Math.round(rect.bottom),
+                            width: Math.round(rect.width),
+                        };
+                    })
+                )
+            );
+        expect(expandedSidebarBounds.top).toBeGreaterThanOrEqual(
+            topbarBounds.bottom
+        );
+        expect(brandBounds.width).toBe(collapsedBrandWidth);
+        expect(titleBounds.left).toBeGreaterThanOrEqual(brandBounds.right);
+        expect(titleBounds.top).toBeGreaterThanOrEqual(brandBounds.top);
 
         await page.locator('.board-canvas').hover({
             position: { x: 420, y: 300 },

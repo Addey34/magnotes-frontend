@@ -860,17 +860,6 @@
         grid-template-columns: minmax(0, 1fr) 24px;
         padding-inline: 0;
     }
-
-    .board-app.is-sidebar-expanded .board-brand-slot,
-    .board-app.is-sidebar-expanded .board-brand {
-        width: var(--sidebar-expanded-width);
-    }
-
-    .board-app.is-sidebar-expanded .board-brand-copy {
-        max-width: 164px;
-        opacity: 1;
-        pointer-events: auto;
-    }
 }
 
 .board-sidebar-footer {
