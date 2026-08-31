@@ -154,19 +154,15 @@ export function useBoardViewport() {
     );
 
     const handleTouchStart = useCallback((event: TouchEvent) => {
-        const target = event.target as HTMLElement | null;
-        if (
-            target?.closest(
-                '.post-it-card, .post-it-stack-card, button, input, textarea, select'
-            )
-        )
-            return;
         const points = touchPointsFrom(event.touches);
         if (points.length === 0) return;
-        event.preventDefault();
-        setIsPanning(true);
 
+        // A two-finger gesture anywhere inside the canvas belongs to the board,
+        // even when one finger starts on a card or control. Returning early in
+        // that case lets iOS/WebKit take over and zoom the whole page instead.
         if (points.length >= 2) {
+            event.preventDefault();
+            setIsPanning(true);
             touchGesture.current = {
                 kind: 'pinch',
                 midpoint: touchMidpoint(points),
@@ -176,6 +172,16 @@ export function useBoardViewport() {
             };
             return;
         }
+
+        const target = event.target as HTMLElement | null;
+        if (
+            target?.closest(
+                '.post-it-card, .post-it-stack-card, button, input, textarea, select'
+            )
+        )
+            return;
+        event.preventDefault();
+        setIsPanning(true);
 
         touchGesture.current = {
             kind: 'pan',
@@ -269,11 +275,21 @@ export function useBoardViewport() {
         canvas.addEventListener('touchmove', handleTouchMove, options);
         canvas.addEventListener('touchend', handleTouchEnd, options);
         canvas.addEventListener('touchcancel', handleTouchEnd, options);
+        // WebKit exposes native page pinch through non-standard gesture events.
+        // Prevent it only over the board; the rest of the page remains normally
+        // zoomable for accessibility.
+        const preventNativeGesture = (event: Event) => event.preventDefault();
+        canvas.addEventListener('gesturestart', preventNativeGesture, options);
+        canvas.addEventListener('gesturechange', preventNativeGesture, options);
+        canvas.addEventListener('gestureend', preventNativeGesture, options);
         return () => {
             canvas.removeEventListener('touchstart', handleTouchStart);
             canvas.removeEventListener('touchmove', handleTouchMove);
             canvas.removeEventListener('touchend', handleTouchEnd);
             canvas.removeEventListener('touchcancel', handleTouchEnd);
+            canvas.removeEventListener('gesturestart', preventNativeGesture);
+            canvas.removeEventListener('gesturechange', preventNativeGesture);
+            canvas.removeEventListener('gestureend', preventNativeGesture);
         };
     }, [handleTouchEnd, handleTouchMove, handleTouchStart]);
 

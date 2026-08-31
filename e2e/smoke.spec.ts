@@ -404,40 +404,39 @@ test.describe('guest demo surface', () => {
             (element) => element.style.transform
         );
         const session = await page.context().newCDPSession(page);
-        const touchPair = await canvas.evaluate((element) => {
-            const rect = element.getBoundingClientRect();
-            const excluded =
-                '.post-it-card, .post-it-stack-card, button, input, textarea, select';
-            for (let y = rect.top + 30; y < rect.bottom - 140; y += 30) {
-                for (let x = rect.left + 45; x < rect.right - 145; x += 30) {
-                    const first = document.elementFromPoint(x, y);
-                    const second = document.elementFromPoint(x + 70, y);
-                    if (
-                        first?.closest('.board-canvas') &&
-                        second?.closest('.board-canvas') &&
-                        !first.closest(excluded) &&
-                        !second.closest(excluded)
-                    ) {
-                        return { x, y };
-                    }
-                }
-            }
-            throw new Error('No empty canvas area available for touch test');
-        });
-        const { x, y } = touchPair;
+        const cards = page.locator('.post-it-card');
+        const cardIndex = await cards.evaluateAll((elements) =>
+            elements.findIndex((element) => {
+                const rect = element.getBoundingClientRect();
+                return (
+                    rect.left >= 0 &&
+                    rect.right <= innerWidth &&
+                    rect.top >= 0 &&
+                    rect.bottom <= innerHeight
+                );
+            })
+        );
+        expect(cardIndex).toBeGreaterThanOrEqual(0);
+        const cardBox = await cards.nth(cardIndex).boundingBox();
+        if (!cardBox) throw new Error('No card available for pinch test');
+        const x = cardBox.x + cardBox.width / 2;
+        const y = cardBox.y + cardBox.height / 2;
+        const pageScaleBefore = await page.evaluate(
+            () => window.visualViewport?.scale ?? 1
+        );
 
         await session.send('Input.dispatchTouchEvent', {
             type: 'touchStart',
             touchPoints: [
-                { x, y, id: 1 },
-                { x: x + 70, y, id: 2 },
+                { x: x - 20, y, id: 1 },
+                { x: x + 20, y, id: 2 },
             ],
         });
         await session.send('Input.dispatchTouchEvent', {
             type: 'touchMove',
             touchPoints: [
-                { x: x - 25, y, id: 1 },
-                { x: x + 95, y, id: 2 },
+                { x: x - 130, y, id: 1 },
+                { x: x + 130, y, id: 2 },
             ],
         });
         await session.send('Input.dispatchTouchEvent', {
@@ -448,6 +447,38 @@ test.describe('guest demo surface', () => {
         await expect
             .poll(() => content.evaluate((element) => element.style.transform))
             .not.toBe(transformBefore);
+        const transformZoomed = await content.evaluate(
+            (element) => element.style.transform
+        );
+
+        // A second, inward pinch must remain available after the board hits its
+        // maximum zoom. This reproduces the iOS report where the whole page was
+        // enlarged and could no longer be zoomed back out.
+        await session.send('Input.dispatchTouchEvent', {
+            type: 'touchStart',
+            touchPoints: [
+                { x: x - 120, y, id: 1 },
+                { x: x + 120, y, id: 2 },
+            ],
+        });
+        await session.send('Input.dispatchTouchEvent', {
+            type: 'touchMove',
+            touchPoints: [
+                { x: x - 20, y, id: 1 },
+                { x: x + 20, y, id: 2 },
+            ],
+        });
+        await session.send('Input.dispatchTouchEvent', {
+            type: 'touchEnd',
+            touchPoints: [],
+        });
+
+        await expect
+            .poll(() => content.evaluate((element) => element.style.transform))
+            .not.toBe(transformZoomed);
+        expect(
+            await page.evaluate(() => window.visualViewport?.scale ?? 1)
+        ).toBe(pageScaleBefore);
     });
 
     test('a native touch drag moves a card without breaking mobile editing', async ({
