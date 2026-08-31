@@ -49,6 +49,29 @@ const expectNoBlockingAccessibilityIssues = async (page: Page) => {
 };
 
 test.describe('deployed production', () => {
+    test('keeps every landing navigation action inside the mobile header', async ({
+        page,
+    }) => {
+        const response = await page.goto('/', { waitUntil: 'networkidle' });
+        expect(response?.status()).toBe(200);
+
+        const header = page.locator('header');
+        const headerBox = await header.boundingBox();
+        expect(headerBox).not.toBeNull();
+        for (const action of await header.locator('a').all()) {
+            const actionBox = await action.boundingBox();
+            expect(actionBox).not.toBeNull();
+            expect(actionBox!.y).toBeGreaterThanOrEqual(headerBox!.y);
+            expect(actionBox!.y + actionBox!.height).toBeLessThanOrEqual(
+                headerBox!.y + headerBox!.height
+            );
+            expect(actionBox!.x).toBeGreaterThanOrEqual(headerBox!.x);
+            expect(actionBox!.x + actionBox!.width).toBeLessThanOrEqual(
+                headerBox!.x + headerBox!.width
+            );
+        }
+    });
+
     test('serves the authentication surface without browser failures', async ({
         page,
     }) => {

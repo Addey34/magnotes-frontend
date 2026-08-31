@@ -1916,7 +1916,9 @@
     padding: 13px 13px 24px;
     position: absolute;
     top: 0;
-    touch-action: manipulation;
+    /* A touch starting on a card belongs to card drag. Allowing browser panning
+       here can cancel the pointer stream before the drag threshold is crossed. */
+    touch-action: none;
     transition:
         box-shadow 150ms ease,
         opacity 150ms ease,
