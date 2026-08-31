@@ -305,8 +305,8 @@ test.describe('guest demo surface', () => {
     }, testInfo) => {
         test.skip(
             browserName !== 'chromium' ||
-                !testInfo.project.name.includes('mobile'),
-            'The native touch drag assertion runs in the Chromium mobile project'
+                testInfo.project.name !== 'chromium-touch',
+            'The native touch drag assertion runs in the isolated Chromium touch project'
         );
         await page.setViewportSize({ width: 390, height: 844 });
         await page.goto('/app/?demo=1');
@@ -345,8 +345,11 @@ test.describe('guest demo surface', () => {
         const session = await page.context().newCDPSession(page);
         await session.send('Input.dispatchTouchEvent', {
             type: 'touchStart',
-            touchPoints: [{ ...start, id: 1 }],
+            touchPoints: [
+                { ...start, id: 1, radiusX: 1, radiusY: 1, force: 1 },
+            ],
         });
+        await page.waitForTimeout(80);
         for (let step = 1; step <= 6; step += 1) {
             await session.send('Input.dispatchTouchEvent', {
                 type: 'touchMove',
@@ -355,10 +358,13 @@ test.describe('guest demo surface', () => {
                         x: start.x + (deltaX * step) / 6,
                         y: start.y + (45 * step) / 6,
                         id: 1,
+                        radiusX: 1,
+                        radiusY: 1,
+                        force: 1,
                     },
                 ],
             });
-            await page.waitForTimeout(20);
+            await page.waitForTimeout(60);
         }
         await session.send('Input.dispatchTouchEvent', {
             type: 'touchEnd',

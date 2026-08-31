@@ -22,12 +22,13 @@
         "format": "prettier --write .",
         "format:check": "prettier --check .",
         "e2e": "playwright test",
+        "e2e:touch": "playwright test --config playwright.touch.config.ts",
         "e2e:real": "playwright test e2e/auth.real.spec.ts",
         "e2e:install": "playwright install chromium",
         "monitor:production": "playwright test --config playwright.production.config.ts",
         "qa:production:authenticated": "playwright test --config playwright.production-authenticated.config.ts",
         "monitor:lighthouse": "lhci autorun",
-        "qa:local": "pnpm run format:check && pnpm run typecheck && pnpm run lint && jest --runInBand && pnpm run build && pnpm run e2e",
+        "qa:local": "pnpm run format:check && pnpm run typecheck && pnpm run lint && jest --runInBand && pnpm run build && pnpm run e2e && pnpm run e2e:touch",
         "verify": "pnpm run format:check && pnpm run typecheck && pnpm run lint && jest --runInBand && pnpm run build && pnpm audit --prod --audit-level=high"
     },
     "dependencies": {
