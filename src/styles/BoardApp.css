@@ -3710,6 +3710,37 @@
     }
 }
 
+/* On narrow screens a toolbar placed above the card can slip underneath the
+   two-row topbar. Keep it inside the card and let the last actions scroll into
+   reach instead; this works for touch devices and narrow desktop windows. */
+@media (max-width: 620px) {
+    .post-it-card {
+        padding-top: 44px;
+    }
+
+    .post-it-card::before {
+        display: none;
+    }
+
+    .post-it-hover-tools {
+        left: 8px;
+        overflow-x: auto;
+        padding-bottom: 2px;
+        right: 8px;
+        scrollbar-width: none;
+        top: 7px;
+        transform: none;
+    }
+
+    .post-it-hover-tools::-webkit-scrollbar {
+        display: none;
+    }
+
+    .post-it-hover-tools > button {
+        flex: 0 0 25px;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .board-app,
     .post-it-card,

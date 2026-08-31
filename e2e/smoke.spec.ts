@@ -143,6 +143,73 @@ test.describe('guest demo surface', () => {
         ).toBe(false);
     });
 
+    test('keeps command and card dialogs inside a compact mobile viewport', async ({
+        page,
+    }) => {
+        await page.setViewportSize({ width: 320, height: 500 });
+        await page.goto('/app/?demo=1');
+
+        await page.locator('.mobile-board-action').nth(1).click();
+        const palette = page.locator('.command-palette');
+        await expect(palette).toBeVisible();
+        const paletteBounds = await palette.boundingBox();
+        expect(paletteBounds).not.toBeNull();
+        expect(paletteBounds?.x ?? -1).toBeGreaterThanOrEqual(0);
+        expect(
+            (paletteBounds?.x ?? 0) + (paletteBounds?.width ?? 0)
+        ).toBeLessThanOrEqual(320);
+        expect(paletteBounds?.y ?? -1).toBeGreaterThanOrEqual(0);
+        expect(
+            (paletteBounds?.y ?? 0) + (paletteBounds?.height ?? 0)
+        ).toBeLessThanOrEqual(500);
+        await page.keyboard.press('Escape');
+
+        const cards = page.locator('.post-it-card');
+        const visibleCardIndex = await cards.evaluateAll((elements) => {
+            let bestIndex = -1;
+            let bestArea = 0;
+            elements.forEach((element, index) => {
+                const rect = element.getBoundingClientRect();
+                const width = Math.max(
+                    0,
+                    Math.min(rect.right, innerWidth) - Math.max(rect.left, 0)
+                );
+                const height = Math.max(
+                    0,
+                    Math.min(rect.bottom, innerHeight) - Math.max(rect.top, 0)
+                );
+                if (width * height > bestArea) {
+                    bestArea = width * height;
+                    bestIndex = index;
+                }
+            });
+            return bestIndex;
+        });
+        expect(visibleCardIndex).toBeGreaterThanOrEqual(0);
+        const visibleCard = cards.nth(visibleCardIndex);
+        await visibleCard.locator('.post-it-title').focus();
+        const expand = visibleCard.getByRole('button', { name: /expand/i });
+        await expect(expand).toBeVisible();
+        await expand.click();
+
+        const detail = page.locator('.card-detail');
+        await expect(detail).toBeVisible();
+        await expect(detail.locator('.card-detail-editor')).toBeVisible();
+        await expect(detail.locator('.card-detail-close')).toBeVisible();
+        const detailBounds = await detail.boundingBox();
+        expect(detailBounds).not.toBeNull();
+        expect(detailBounds?.x ?? -1).toBeGreaterThanOrEqual(0);
+        expect(
+            (detailBounds?.x ?? 0) + (detailBounds?.width ?? 0)
+        ).toBeLessThanOrEqual(320);
+        expect(detailBounds?.y ?? -1).toBeGreaterThanOrEqual(0);
+        expect(
+            (detailBounds?.y ?? 0) + (detailBounds?.height ?? 0)
+        ).toBeLessThanOrEqual(500);
+        await detail.locator('.card-detail-close').click();
+        await expect(detail).toBeHidden();
+    });
+
     test('sidebar expands on hover without covering the workspace', async ({
         page,
     }) => {
