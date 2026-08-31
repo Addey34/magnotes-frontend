@@ -129,7 +129,7 @@ test.describe('local authentication journeys', () => {
 
         await expect(page.locator('#email')).toBeVisible();
         await expect(page.locator('.auth-message.is-success')).toHaveText(
-            'Password reset'
+            'Password reset. You can now sign in.'
         );
     });
 });

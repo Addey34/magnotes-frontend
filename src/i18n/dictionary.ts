@@ -136,6 +136,30 @@ export const DICTIONARY = {
         fr: 'Confirmez d’abord votre e-mail avec le code reçu.',
         en: 'Confirm your email first with the code we sent.',
     },
+    'auth.notice.resetCodeSent': {
+        fr: 'Si un compte existe, un code de réinitialisation a été envoyé.',
+        en: 'If an account exists, a reset code has been sent.',
+    },
+    'auth.notice.passwordReset': {
+        fr: 'Mot de passe réinitialisé. Vous pouvez vous connecter.',
+        en: 'Password reset. You can now sign in.',
+    },
+    'auth.error.emailRequired': {
+        fr: 'L’adresse e-mail est requise.',
+        en: 'Email address is required.',
+    },
+    'auth.error.emailInvalid': {
+        fr: 'L’adresse e-mail n’est pas valide.',
+        en: 'Enter a valid email address.',
+    },
+    'auth.error.emailTooLong': {
+        fr: 'L’adresse e-mail est trop longue.',
+        en: 'The email address is too long.',
+    },
+    'auth.error.passwordRequired': {
+        fr: 'Le mot de passe est requis.',
+        en: 'Password is required.',
+    },
     'auth.error.passwordMismatch': {
         fr: 'Les mots de passe ne correspondent pas.',
         en: 'The passwords do not match.',
@@ -143,6 +167,34 @@ export const DICTIONARY = {
     'auth.error.passwordLength': {
         fr: 'Le mot de passe doit contenir au moins 8 caractères.',
         en: 'The password must be at least 8 characters.',
+    },
+    'auth.error.passwordTooLong': {
+        fr: 'Le mot de passe ne peut pas dépasser 128 caractères.',
+        en: 'The password cannot exceed 128 characters.',
+    },
+    'auth.error.codeInvalid': {
+        fr: 'Code invalide ou expiré.',
+        en: 'The code is invalid or expired.',
+    },
+    'auth.error.invalidCredentials': {
+        fr: 'E-mail ou mot de passe incorrect.',
+        en: 'Incorrect email address or password.',
+    },
+    'auth.error.accountExists': {
+        fr: 'Un compte existe déjà avec cet e-mail.',
+        en: 'An account already exists with this email address.',
+    },
+    'auth.error.accountVerified': {
+        fr: 'Ce compte est déjà vérifié, connectez-vous.',
+        en: 'This account is already verified. Sign in instead.',
+    },
+    'auth.error.resendTooSoon': {
+        fr: 'Un code a déjà été envoyé récemment. Patientez un instant.',
+        en: 'A code was sent recently. Please wait before trying again.',
+    },
+    'auth.error.tooManyAttempts': {
+        fr: 'Trop de tentatives. Demandez un nouveau code.',
+        en: 'Too many attempts. Request a new code.',
     },
     'auth.error.server': {
         fr: 'Impossible de contacter le serveur.',

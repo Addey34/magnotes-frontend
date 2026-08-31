@@ -41,6 +41,32 @@ interface ErrorResponse {
 
 type Mode = 'login' | 'register' | 'verify' | 'forgot' | 'reset';
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_MAX = 254;
+const PASSWORD_MAX = 128;
+const CODE_PATTERN = /^\d{6}$/;
+
+const AUTH_ERROR_KEYS: Record<string, TranslationKey> = {
+    "L'adresse e-mail est requise.": 'auth.error.emailRequired',
+    "L'adresse e-mail n'est pas valide.": 'auth.error.emailInvalid',
+    "L'adresse e-mail est trop longue.": 'auth.error.emailTooLong',
+    'Le mot de passe est requis.': 'auth.error.passwordRequired',
+    'Le mot de passe doit contenir au moins 8 caractères.':
+        'auth.error.passwordLength',
+    'Le mot de passe ne peut pas dépasser 128 caractères.':
+        'auth.error.passwordTooLong',
+    'E-mail ou mot de passe incorrect.': 'auth.error.invalidCredentials',
+    'Un compte existe déjà avec cet e-mail.': 'auth.error.accountExists',
+    'Ce compte est déjà vérifié, connectez-vous.': 'auth.error.accountVerified',
+    'Code invalide ou expiré.': 'auth.error.codeInvalid',
+    'Code invalide.': 'auth.error.codeInvalid',
+    'Code expiré, demandez-en un nouveau.': 'auth.error.codeInvalid',
+    'Un code a déjà été envoyé récemment. Patientez un instant.':
+        'auth.error.resendTooSoon',
+    'Trop de tentatives. Demandez un nouveau code.':
+        'auth.error.tooManyAttempts',
+};
+
 type DemoColor = 'yellow' | 'pink' | 'mint' | 'sky' | 'lavender';
 
 const DEMO_COLORS: Record<
@@ -103,6 +129,36 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
         if (password.length < 8) {
             throw new Error(t('auth.error.passwordLength'));
         }
+        if (password.length > PASSWORD_MAX) {
+            throw new Error(t('auth.error.passwordTooLong'));
+        }
+    };
+
+    const requireValidEmail = () => {
+        const value = email.trim();
+        if (!value) throw new Error(t('auth.error.emailRequired'));
+        if (value.length > EMAIL_MAX)
+            throw new Error(t('auth.error.emailTooLong'));
+        if (!EMAIL_PATTERN.test(value))
+            throw new Error(t('auth.error.emailInvalid'));
+    };
+
+    const requireLoginPassword = () => {
+        if (!password) throw new Error(t('auth.error.passwordRequired'));
+        if (password.length > PASSWORD_MAX)
+            throw new Error(t('auth.error.passwordTooLong'));
+    };
+
+    const requireValidCode = () => {
+        if (!CODE_PATTERN.test(code.trim()))
+            throw new Error(t('auth.error.codeInvalid'));
+    };
+
+    const localizedApiError = (data?: ErrorResponse): string | undefined => {
+        const message = data?.error || data?.message;
+        return message && AUTH_ERROR_KEYS[message]
+            ? t(AUTH_ERROR_KEYS[message])
+            : message;
     };
 
     const handleSubmit = async (event: FormEvent) => {
@@ -112,32 +168,34 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
         setIsSubmitting(true);
         try {
             if (mode === 'login') {
+                requireValidEmail();
+                requireLoginPassword();
                 const session = await loginRequest(email.trim(), password);
                 finishSession(session.token);
                 trackProductEvent('login_completed');
             } else if (mode === 'register') {
+                requireValidEmail();
                 requireMatchingPasswords();
                 await registerRequest(email.trim(), password);
                 trackProductEvent('signup_registered');
                 goTo('verify');
                 setNotice(t('auth.notice.codeSent'));
             } else if (mode === 'verify') {
+                requireValidCode();
                 const session = await verifyEmail(email.trim(), code.trim());
                 finishSession(session.token);
                 trackProductEvent('email_verified');
             } else if (mode === 'forgot') {
-                const { message } = await forgotPassword(email.trim());
+                requireValidEmail();
+                await forgotPassword(email.trim());
                 goTo('reset');
-                setNotice(message);
+                setNotice(t('auth.notice.resetCodeSent'));
             } else if (mode === 'reset') {
+                requireValidCode();
                 requireMatchingPasswords();
-                const { message } = await resetPassword(
-                    email.trim(),
-                    code.trim(),
-                    password
-                );
+                await resetPassword(email.trim(), code.trim(), password);
                 goTo('login');
-                setNotice(message);
+                setNotice(t('auth.notice.passwordReset'));
             }
         } catch (caughtError) {
             const axiosError = caughtError as AxiosError<ErrorResponse>;
@@ -154,8 +212,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
                 return;
             }
             setError(
-                data?.error ||
-                    data?.message ||
+                localizedApiError(data) ||
                     (caughtError as Error).message ||
                     t('auth.error.server')
             );
@@ -167,12 +224,13 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
     const handleResend = async () => {
         setError('');
         try {
-            const { message } = await resendCode(email.trim());
-            setNotice(message);
+            await resendCode(email.trim());
+            setNotice(t('auth.notice.codeSent'));
         } catch (caughtError) {
             const axiosError = caughtError as AxiosError<ErrorResponse>;
             setError(
-                axiosError.response?.data?.error || t('auth.error.resend')
+                localizedApiError(axiosError.response?.data) ||
+                    t('auth.error.resend')
             );
         }
     };

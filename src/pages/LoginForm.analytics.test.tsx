@@ -30,8 +30,8 @@ const mockedTrack = trackProductEvent as jest.MockedFunction<
     typeof trackProductEvent
 >;
 
-function renderLogin(onLogin = jest.fn()) {
-    localStorage.setItem('magnotes-lang', 'fr');
+function renderLogin(onLogin = jest.fn(), lang: 'fr' | 'en' = 'fr') {
+    localStorage.setItem('magnotes-lang', lang);
     const rendered = render(
         <LangProvider>
             <LoginForm onLogin={onLogin} />
@@ -134,5 +134,36 @@ describe('LoginForm analytics', () => {
             expect(mockedTrack).toHaveBeenCalledWith('login_completed')
         );
         expect(onLogin).toHaveBeenCalledTimes(1);
+    });
+
+    it('validates the email before the password in English signup', async () => {
+        renderLogin(jest.fn(), 'en');
+        fireEvent.click(
+            screen.getByRole('button', { name: 'Create an account' })
+        );
+        fireEvent.click(
+            screen.getByRole('button', { name: 'Create my account' })
+        );
+
+        expect((await screen.findByRole('alert')).textContent).toBe(
+            'Email address is required.'
+        );
+        expect(mockedRegister).not.toHaveBeenCalled();
+    });
+
+    it('localizes a legacy French API authentication error', async () => {
+        mockedLogin.mockRejectedValue({
+            response: {
+                data: { error: 'E-mail ou mot de passe incorrect.' },
+            },
+        });
+        renderLogin(jest.fn(), 'en');
+        fill('#email', 'user@example.com');
+        fill('#password', 'invalid-password');
+        fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+
+        expect((await screen.findByRole('alert')).textContent).toBe(
+            'Incorrect email address or password.'
+        );
     });
 });
