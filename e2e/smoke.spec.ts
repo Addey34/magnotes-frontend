@@ -284,6 +284,45 @@ test.describe('guest demo surface', () => {
         expect(titleBounds.left).toBeGreaterThanOrEqual(brandBounds.right);
         expect(titleBounds.top).toBeGreaterThanOrEqual(brandBounds.top);
 
+        const expandedControls = await sidebar
+            .locator('.board-tab, .board-tab-add, .sidebar-command')
+            .evaluateAll((elements) =>
+                elements.map((element) => {
+                    const rect = element.getBoundingClientRect();
+                    return {
+                        left: Math.round(rect.left),
+                        right: Math.round(rect.right),
+                        height: Math.round(rect.height),
+                    };
+                })
+            );
+        expect(expandedControls.length).toBeGreaterThan(2);
+        for (const control of expandedControls) {
+            expect(control.left).toBeGreaterThanOrEqual(
+                expandedSidebarBounds.left
+            );
+            expect(control.right).toBeLessThanOrEqual(
+                expandedSidebarBounds.right
+            );
+            expect(control.height).toBe(36);
+        }
+
+        const expandedLabels = sidebar.locator(
+            '.board-tab-name, .board-tab-add span, .sidebar-command span'
+        );
+        await expect
+            .poll(() =>
+                expandedLabels.evaluateAll((elements) =>
+                    elements.every(
+                        (element) =>
+                            Number.parseFloat(
+                                getComputedStyle(element).opacity
+                            ) === 1
+                    )
+                )
+            )
+            .toBe(true);
+
         await page.locator('.board-canvas').hover({
             position: { x: 420, y: 300 },
         });
@@ -296,6 +335,25 @@ test.describe('guest demo surface', () => {
                 { timeout: 1500 }
             )
             .toBeLessThan(100);
+
+        const collapsedIconOffsets = await sidebar
+            .locator('.board-tab-select')
+            .evaluateAll((elements) =>
+                elements.map((element) => {
+                    const control = element.getBoundingClientRect();
+                    const icon = element
+                        .querySelector('.board-tab-icon')
+                        ?.getBoundingClientRect();
+                    return icon
+                        ? Math.abs(
+                              icon.left +
+                                  icon.width / 2 -
+                                  (control.left + control.width / 2)
+                          )
+                        : 0;
+                })
+            );
+        expect(collapsedIconOffsets.every((offset) => offset <= 1)).toBe(true);
     });
 
     test('page customization keeps the custom color inline and dismisses outside', async ({
