@@ -49,7 +49,7 @@ import TimelineView from '../components/views/TimelineView';
 import { CARD_COLORS } from '../constants/boardDefaults';
 import { boardThemeClass } from '../constants/boardThemes';
 import {
-    BOARD_TEMPLATES,
+    getBoardTemplates,
     WELCOME_TEMPLATE_ID,
 } from '../constants/boardTemplates';
 import { buildTemplateCards } from '../utils/boardTemplate';
@@ -113,7 +113,8 @@ const BoardApp: React.FC<BoardAppProps> = ({
     demo = false,
     onRequestSignup,
 }) => {
-    const { t } = useT();
+    const { t, lang } = useT();
+    const boardTemplates = useMemo(() => getBoardTemplates(lang), [lang]);
     const isOnline = useOnlineStatus();
     const { dismiss, notifications, notify } = useNotifications();
     const notifyLoadError = useCallback(
@@ -921,7 +922,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
     // Insert a board template's cards into the active board, adopt its
     // background, and frame the freshly created region.
     const applyTemplate = async (templateId: string) => {
-        const template = BOARD_TEMPLATES.find((item) => item.id === templateId);
+        const template = boardTemplates.find((item) => item.id === templateId);
         if (!template || !activeTabId) return;
         setView('canvas');
         if (template.background) {
@@ -1020,7 +1021,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
     };
 
     // Onboarding: a brand-new account has zero boards (the last board can never
-    // be deleted), so seed a "Bienvenue" board and fill it with the welcome
+    // be deleted), so seed a localized welcome board and fill it with the welcome
     // template that teaches the app by example. Two steps because addTab sets
     // activeTabId asynchronously: create the tab, then apply once it is active.
     const onboardingRef = useRef<'idle' | 'creating' | 'done'>('idle');
@@ -1035,7 +1036,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
     useEffect(() => {
         if (onboardingRef.current !== 'creating' || !activeTabId) return;
         onboardingRef.current = 'done';
-        renameTab(activeTabId, 'Bienvenue');
+        renameTab(activeTabId, lang === 'en' ? 'Welcome' : 'Bienvenue');
         applyTemplate(WELCOME_TEMPLATE_ID);
     }, [activeTabId]);
 
@@ -1179,7 +1180,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
             group: t('app.group.views'),
             run: () => setView('timeline'),
         },
-        ...BOARD_TEMPLATES.map<PaletteCommand>((template) => ({
+        ...boardTemplates.map<PaletteCommand>((template) => ({
             id: `template-${template.id}`,
             label: t('app.cmd.template', { label: template.label }),
             description: t('app.cmd.template.desc'),

@@ -1,4 +1,5 @@
 import { ChecklistItem, PostItStatus } from '../types/boardTypes';
+import { Lang } from '../i18n/i18n';
 
 export interface BoardTemplateCard {
     title: string;
@@ -522,3 +523,308 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
         ],
     },
 ];
+
+interface LocalizedTemplateText {
+    label: string;
+    description: string;
+    cards: Array<{
+        title: string;
+        content: string;
+        tags?: string[];
+        checklist?: string[];
+    }>;
+}
+
+const ENGLISH_TEMPLATE_TEXT: Record<string, LocalizedTemplateText> = {
+    welcome: {
+        label: 'Welcome',
+        description:
+            'The starter board: learn MagNotes by experimenting with these cards.',
+        cards: [
+            {
+                title: 'Welcome to MagNotes 👋',
+                content:
+                    'This board is yours. **Double-click** the background to create a sticky note, drag it to move it, and grab a corner to resize it.',
+            },
+            {
+                title: 'Stack and snap',
+                content:
+                    'Drop a card **in the center** of another to create a stack. Drop it **on an edge** to snap them neatly together.',
+            },
+            {
+                title: 'Ctrl+K opens the command palette',
+                content:
+                    'Search across all your boards, quickly capture a note, switch views, and insert templates — everything is one shortcut away.',
+            },
+            {
+                title: 'A real task card',
+                content:
+                    'Status, priority, due date, tags, and checklist: every sticky note can become a task. Tick the box below 👇',
+                tags: ['example'],
+                checklist: ['Explore MagNotes', 'Tick this box'],
+            },
+            {
+                title: 'Connect your ideas',
+                content:
+                    'Mention a card with [[Welcome to MagNotes 👋]] — it becomes clickable below this card. The link button can also draw arrows between cards.',
+            },
+            {
+                title: 'Switch views',
+                content:
+                    'At the top: **Kanban** (columns by status), **Agenda** (by due date), and **Timeline**. The same cards, seen from different angles.',
+            },
+        ],
+    },
+    'client-project': {
+        label: 'Client project',
+        description:
+            'Define a project, track deliverables, and keep client feedback in one place.',
+        cards: [
+            {
+                title: 'Brief and objectives',
+                content:
+                    'Expected outcome, target audience, constraints, and success criteria.',
+                tags: ['client', 'scope'],
+                checklist: ['Confirm the scope', 'Identify decision-makers'],
+            },
+            {
+                title: 'Next steps',
+                content:
+                    'The three actions that will unblock the project this week.',
+                tags: ['priority'],
+            },
+            {
+                title: 'Deliverables',
+                content: 'Items to produce and submit for approval.',
+                tags: ['production'],
+                checklist: ['Send version 1', 'Deliver the final files'],
+            },
+            {
+                title: 'Client feedback',
+                content: 'Decisions, change requests, and points to clarify.',
+                tags: ['feedback'],
+            },
+            {
+                title: 'Budget and time',
+                content: 'Planned budget, time spent, and any scope changes.',
+                tags: ['management'],
+            },
+            {
+                title: 'Approved',
+                content: 'Move items approved by the client here.',
+                tags: ['approved'],
+            },
+        ],
+    },
+    'content-calendar': {
+        label: 'Content calendar',
+        description:
+            'Turn your ideas into published content with a simple editorial workflow.',
+        cards: [
+            {
+                title: 'Content pillars',
+                content:
+                    'Expertise, behind the scenes, client stories, and personal insights.',
+                tags: ['strategy'],
+            },
+            {
+                title: 'Ideas to explore',
+                content:
+                    'Frequently asked questions, client objections, and topics spotted this week.',
+                tags: ['idea'],
+                checklist: ['Choose a specific angle', 'Choose the format'],
+            },
+            {
+                title: 'Drafting',
+                content: 'Hook, key message, proof, and call to action.',
+                tags: ['writing'],
+            },
+            {
+                title: 'To schedule',
+                content:
+                    'Reviewed content waiting for a publication date and channel.',
+                tags: ['planning'],
+            },
+            {
+                title: 'Published',
+                content:
+                    'Archive published content here and record its results.',
+                tags: ['published', 'metrics'],
+            },
+        ],
+    },
+    'weekly-review': {
+        label: 'Weekly review',
+        description:
+            'Review results, blockers, and priorities for the coming week.',
+        cards: [
+            {
+                title: "This week's wins",
+                content:
+                    'Results achieved, positive feedback, and progress worth celebrating.',
+                tags: ['review'],
+            },
+            {
+                title: 'Key figures',
+                content:
+                    'Revenue, leads, billable time, and your main business metric.',
+                tags: ['metrics'],
+            },
+            {
+                title: 'Blockers and lessons',
+                content:
+                    'What slowed down the work and what you will change next time.',
+                tags: ['improvement'],
+            },
+            {
+                title: 'To wrap up',
+                content: 'Small tasks to finish before starting a new week.',
+                checklist: ['Clear the inbox', 'Check invoices to send'],
+            },
+            {
+                title: "Next week's top 3",
+                content: 'Three concrete outcomes to protect in your schedule.',
+                tags: ['priority'],
+                checklist: ['Priority 1', 'Priority 2', 'Priority 3'],
+            },
+            {
+                title: 'Delegate or remove',
+                content: 'Work that no longer deserves your direct attention.',
+                tags: ['focus'],
+            },
+        ],
+    },
+    'pipeline-commercial': {
+        label: 'Sales pipeline',
+        description:
+            'Track every opportunity from first contact to signature or closure.',
+        cards: [
+            {
+                title: 'Leads to qualify',
+                content:
+                    'New contacts to assess by need, budget, and timeline.',
+                tags: ['prospecting'],
+                checklist: ['Confirm the need', 'Check the budget'],
+            },
+            {
+                title: 'First contact',
+                content:
+                    'People contacted and the next conversation to schedule.',
+                tags: ['contact'],
+            },
+            {
+                title: 'Proposal sent',
+                content:
+                    'Offers sent with price, scope, and expected decision date.',
+                tags: ['proposal'],
+            },
+            {
+                title: 'Follow-ups',
+                content:
+                    'Opportunities awaiting a reply and follow-up messages to send.',
+                tags: ['follow-up'],
+            },
+            {
+                title: 'Negotiation',
+                content:
+                    'Points to settle before agreement: price, schedule, and terms.',
+                tags: ['negotiation'],
+            },
+            {
+                title: 'Won or lost',
+                content:
+                    'Final decision, signed value, and lessons worth keeping.',
+                tags: ['review'],
+            },
+        ],
+    },
+    'onboarding-client': {
+        label: 'Client onboarding',
+        description:
+            'Organize a smooth start, from initial access to the first review.',
+        cards: [
+            {
+                title: 'Welcome and access',
+                content:
+                    'Welcome message, useful contacts, and tools to open for the client.',
+                tags: ['welcome'],
+                checklist: ['Send the welcome message', 'Create shared access'],
+            },
+            {
+                title: 'Kickoff meeting',
+                content:
+                    'Objectives, responsibilities, milestones, and communication rhythm.',
+                tags: ['scope'],
+            },
+            {
+                title: 'Resources received',
+                content:
+                    'Required documents, content, credentials, and brand assets.',
+                tags: ['resources'],
+                checklist: ['Centralize the files', 'Check the credentials'],
+            },
+            {
+                title: 'First deliverable',
+                content:
+                    'An initial delivery to confirm the method and expected quality.',
+                tags: ['production'],
+            },
+            {
+                title: 'Client approval',
+                content:
+                    'Consolidated feedback, recorded decisions, and approved adjustments.',
+                tags: ['approval'],
+            },
+            {
+                title: 'Ongoing follow-up',
+                content: 'Upcoming deadlines, metrics, and recurring meetings.',
+                tags: ['follow-up'],
+            },
+        ],
+    },
+};
+
+/**
+ * Returns localized copies for future insertions. Existing board data is never
+ * translated or mutated when the user changes language.
+ */
+export const getBoardTemplates = (lang: Lang): BoardTemplate[] => {
+    if (lang === 'fr') return BOARD_TEMPLATES;
+
+    return BOARD_TEMPLATES.map((template) => {
+        const localized = ENGLISH_TEMPLATE_TEXT[template.id];
+        if (!localized || localized.cards.length !== template.cards.length) {
+            return template;
+        }
+
+        return {
+            ...template,
+            label: localized.label,
+            description: localized.description,
+            cards: template.cards.map((card, cardIndex) => {
+                const localizedCard = localized.cards[cardIndex];
+                return {
+                    ...card,
+                    title: localizedCard.title,
+                    content: localizedCard.content,
+                    ...(localizedCard.tags
+                        ? { tags: [...localizedCard.tags] }
+                        : {}),
+                    ...(localizedCard.checklist && card.checklist
+                        ? {
+                              checklist: card.checklist.map(
+                                  (item, checklistIndex) => ({
+                                      ...item,
+                                      text:
+                                          localizedCard.checklist?.[
+                                              checklistIndex
+                                          ] ?? item.text,
+                                  })
+                              ),
+                          }
+                        : {}),
+                };
+            }),
+        };
+    });
+};

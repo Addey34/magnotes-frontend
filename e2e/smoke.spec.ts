@@ -59,6 +59,25 @@ test.describe('guest demo surface', () => {
         expect(hasHorizontalOverflow).toBe(false);
     });
 
+    test('seeds a fully English welcome board for English users', async ({
+        page,
+    }) => {
+        await page.addInitScript(() => {
+            localStorage.setItem('magnotes-lang', 'en');
+        });
+        await page.goto('/app/?demo=1');
+
+        await expect(page.locator('.board-tab-name').first()).toHaveText(
+            'Welcome'
+        );
+        await expect(page.locator('.post-it-title').first()).toHaveValue(
+            'Welcome to MagNotes 👋'
+        );
+        await expect(page.locator('.post-it-card').first()).toContainText(
+            'This board is yours.'
+        );
+    });
+
     test('sidebar expands on hover without covering the workspace', async ({
         page,
     }) => {
