@@ -34,6 +34,10 @@
     min-height: 560px;
     overflow: hidden;
     position: relative;
+    /* Keep the application chrome fixed during multi-touch gestures. The
+       canvas owns its two-finger zoom, while pan-x/pan-y preserve scrolling
+       in the sidebar and toolbars. Landing and authentication stay zoomable. */
+    touch-action: pan-x pan-y;
 }
 
 .board-app.theme-light {

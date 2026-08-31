@@ -375,7 +375,7 @@ test.describe('guest demo surface', () => {
         }
     });
 
-    test('mobile chrome stays separate and a two-finger gesture zooms the canvas', async ({
+    test('mobile chrome stays fixed and two-finger gestures zoom only the canvas', async ({
         page,
         browserName,
     }, testInfo) => {
@@ -404,6 +404,42 @@ test.describe('guest demo surface', () => {
             (element) => element.style.transform
         );
         const session = await page.context().newCDPSession(page);
+        const pageScaleBefore = await page.evaluate(
+            () => window.visualViewport?.scale ?? 1
+        );
+
+        if (!sidebarBox) throw new Error('No sidebar available for pinch test');
+        const sidebarCenter = {
+            x: sidebarBox.x + sidebarBox.width / 2,
+            y: sidebarBox.y + Math.min(120, sidebarBox.height / 2),
+        };
+        await session.send('Input.dispatchTouchEvent', {
+            type: 'touchStart',
+            touchPoints: [
+                { x: sidebarCenter.x - 8, y: sidebarCenter.y, id: 1 },
+                { x: sidebarCenter.x + 8, y: sidebarCenter.y, id: 2 },
+            ],
+        });
+        await session.send('Input.dispatchTouchEvent', {
+            type: 'touchMove',
+            touchPoints: [
+                { x: sidebarCenter.x - 20, y: sidebarCenter.y, id: 1 },
+                { x: sidebarCenter.x + 20, y: sidebarCenter.y, id: 2 },
+            ],
+        });
+        await session.send('Input.dispatchTouchEvent', {
+            type: 'touchEnd',
+            touchPoints: [],
+        });
+
+        expect(
+            await content.evaluate((element) => element.style.transform)
+        ).toBe(transformBefore);
+        expect(
+            await page.evaluate(() => window.visualViewport?.scale ?? 1)
+        ).toBe(pageScaleBefore);
+        expect(await sidebar.boundingBox()).toEqual(sidebarBox);
+
         const cards = page.locator('.post-it-card');
         const cardIndex = await cards.evaluateAll((elements) =>
             elements.findIndex((element) => {
@@ -421,10 +457,6 @@ test.describe('guest demo surface', () => {
         if (!cardBox) throw new Error('No card available for pinch test');
         const x = cardBox.x + cardBox.width / 2;
         const y = cardBox.y + cardBox.height / 2;
-        const pageScaleBefore = await page.evaluate(
-            () => window.visualViewport?.scale ?? 1
-        );
-
         await session.send('Input.dispatchTouchEvent', {
             type: 'touchStart',
             touchPoints: [
