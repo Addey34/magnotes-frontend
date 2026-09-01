@@ -295,12 +295,12 @@ export const DICTIONARY = {
         en: 'The current board as .md',
     },
     'app.menu.import': {
-        fr: 'Importer (Markdown / Trello)',
-        en: 'Import (Markdown / Trello)',
+        fr: 'Importer (Markdown / Notion / Trello)',
+        en: 'Import (Markdown / Notion / Trello)',
     },
     'app.menu.import.sub': {
-        fr: 'Depuis un fichier .md ou un export Trello .json',
-        en: 'From a .md file or a Trello .json export',
+        fr: 'Depuis un .md, un CSV Notion ou un export Trello .json',
+        en: 'From .md, Notion CSV, or a Trello .json export',
     },
     'app.menu.exportData': {
         fr: 'Exporter mes données',
@@ -391,8 +391,8 @@ export const DICTIONARY = {
         en: 'Export board as Markdown',
     },
     'app.cmd.import': {
-        fr: 'Importer un fichier (Markdown ou Trello)',
-        en: 'Import a file (Markdown or Trello)',
+        fr: 'Importer un fichier (Markdown, Notion ou Trello)',
+        en: 'Import a file (Markdown, Notion or Trello)',
     },
     'app.cmd.share': {
         fr: 'Partager le tableau (lien public)',
@@ -428,8 +428,8 @@ export const DICTIONARY = {
         en: 'Download the board as a .md file',
     },
     'app.cmd.import.desc': {
-        fr: 'Ajoute des cartes depuis un .md ou un export Trello',
-        en: 'Add cards from a .md file or a Trello export',
+        fr: 'Ajoute des cartes depuis un .md, un CSV Notion ou Trello',
+        en: 'Add cards from .md, Notion CSV, or Trello',
     },
     'app.cmd.share.desc': {
         fr: 'Crée un lien public en lecture seule',

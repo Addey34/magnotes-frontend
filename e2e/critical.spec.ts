@@ -70,6 +70,27 @@ test.describe('critical demo journeys', () => {
             .toBe(true);
     });
 
+    test('imports a Notion database CSV into cards', async ({ page }) => {
+        await openDemo(page);
+
+        await page.locator('input[type="file"]').setInputFiles({
+            name: 'notion-tasks.csv',
+            mimeType: 'text/csv',
+            buffer: Buffer.from(
+                'Name,Description,Status,Due date,Tags\n' +
+                    'Launch page,"Copy, screenshots",In progress,2026-09-04,"marketing, urgent"'
+            ),
+        });
+
+        const importedCard = page.locator('.post-it-card').filter({
+            has: page.locator('.post-it-title[value="Launch page"]'),
+        });
+        await expect(importedCard).toBeVisible();
+        await expect(importedCard.locator('.post-it-content')).toContainText(
+            'Copy, screenshots'
+        );
+    });
+
     test('switches between the four board views', async ({ page }) => {
         await openDemo(page);
 

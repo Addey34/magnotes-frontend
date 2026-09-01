@@ -58,6 +58,7 @@ import {
     buildImportedCards,
     parseMarkdownCards,
 } from '../utils/markdownImport';
+import { parseNotionCsv } from '../utils/notionImport';
 import {
     buildTrelloCards,
     isTrelloBoard,
@@ -954,9 +955,9 @@ const BoardApp: React.FC<BoardAppProps> = ({
         }
     };
 
-    // Import a file into the active board. A `.json` Trello export becomes
-    // columns (like a Kanban board); anything else is parsed as Markdown (the
-    // inverse of the export) and dropped as a centered grid. Both reuse the same
+    // Import a file into the active board. A Notion `.csv` database or a
+    // `.json` Trello export is mapped to cards; anything else is parsed as
+    // Markdown (including Notion page exports). Every format reuses the same
     // create + task-fields path as template insertion.
     const importBoardFile = async (file: File) => {
         if (!activeTabId) return;
@@ -975,7 +976,14 @@ const BoardApp: React.FC<BoardAppProps> = ({
 
         let cards: ReturnType<typeof buildImportedCards> = [];
         const trimmed = text.trimStart();
-        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        const isCsv = file.name.toLowerCase().endsWith('.csv');
+        if (isCsv) {
+            cards = buildImportedCards(
+                parseNotionCsv(text),
+                activeTabId,
+                center
+            );
+        } else if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
             try {
                 const data = JSON.parse(text);
                 if (isTrelloBoard(data)) {
@@ -989,7 +997,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
                 // Not valid JSON — fall through to the Markdown parser below.
             }
         }
-        if (cards.length === 0) {
+        if (!isCsv && cards.length === 0) {
             cards = buildImportedCards(
                 parseMarkdownCards(text),
                 activeTabId,
@@ -2230,7 +2238,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
             <input
                 ref={importInputRef}
                 type="file"
-                accept=".md,.markdown,.txt,.json,text/markdown,text/plain,application/json"
+                accept=".md,.markdown,.txt,.csv,.json,text/markdown,text/plain,text/csv,application/json"
                 style={{ display: 'none' }}
                 onChange={handleImportChange}
             />
