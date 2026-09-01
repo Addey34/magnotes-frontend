@@ -244,8 +244,47 @@ export const DICTIONARY = {
     'app.menu.preferences': { fr: 'Préférences', en: 'Preferences' },
     'app.menu.language': { fr: 'Langue', en: 'Language' },
     'app.menu.preferences.sub': {
-        fr: 'Changer de thème',
-        en: 'Change theme',
+        fr: "Rappels d'échéance",
+        en: 'Due-date reminders',
+    },
+    'app.preferences.title': {
+        fr: "Rappels d'échéance",
+        en: 'Due-date reminders',
+    },
+    'app.preferences.description': {
+        fr: 'Recevez uniquement les rappels que vous activez. Les cartes terminées sont toujours exclues.',
+        en: 'Receive only the reminders you enable. Completed cards are always excluded.',
+    },
+    'app.preferences.frequency': { fr: 'Fréquence', en: 'Frequency' },
+    'app.preferences.off': { fr: 'Désactivés', en: 'Disabled' },
+    'app.preferences.daily': { fr: 'Chaque jour', en: 'Daily' },
+    'app.preferences.weekly': {
+        fr: 'Chaque lundi',
+        en: 'Every Monday',
+    },
+    'app.preferences.timezone': { fr: 'Fuseau horaire', en: 'Time zone' },
+    'app.preferences.hour': { fr: "Heure d'envoi", en: 'Delivery time' },
+    'app.preferences.loading': {
+        fr: 'Chargement des préférences…',
+        en: 'Loading preferences…',
+    },
+    'app.preferences.loadError': {
+        fr: 'Impossible de charger les préférences.',
+        en: 'Unable to load preferences.',
+    },
+    'app.preferences.saveError': {
+        fr: "Impossible d'enregistrer les préférences.",
+        en: 'Unable to save preferences.',
+    },
+    'app.preferences.saved': {
+        fr: 'Préférences enregistrées.',
+        en: 'Preferences saved.',
+    },
+    'app.preferences.close': { fr: 'Fermer', en: 'Close' },
+    'app.preferences.save': { fr: 'Enregistrer', en: 'Save' },
+    'app.preferences.saving': {
+        fr: 'Enregistrement…',
+        en: 'Saving…',
     },
     'app.menu.exportMd': {
         fr: 'Exporter en Markdown',

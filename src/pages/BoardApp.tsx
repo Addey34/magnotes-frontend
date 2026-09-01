@@ -35,6 +35,7 @@ import React, {
 } from 'react';
 import { createPortal } from 'react-dom';
 import AppearancePanel from '../components/appearance/AppearancePanel';
+import EmailPreferencesDialog from '../components/account/EmailPreferencesDialog';
 import BoardMinimap from '../components/minimap/BoardMinimap';
 import CommandPalette, {
     PaletteCommand,
@@ -185,6 +186,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
     const [globalResults, setGlobalResults] = useState<PostIt[]>([]);
     const [isExporting, setIsExporting] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [emailPreferencesOpen, setEmailPreferencesOpen] = useState(false);
     const [deletePassword, setDeletePassword] = useState('');
     const [deleteError, setDeleteError] = useState('');
     const [isDeleting, setIsDeleting] = useState(false);
@@ -1330,11 +1332,15 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                         type="button"
                                         role="menuitem"
                                         onClick={() => {
-                                            setTheme((current) =>
-                                                current === 'theme-dark'
-                                                    ? 'theme-light'
-                                                    : 'theme-dark'
-                                            );
+                                            if (demo) {
+                                                setTheme((current) =>
+                                                    current === 'theme-dark'
+                                                        ? 'theme-light'
+                                                        : 'theme-dark'
+                                                );
+                                            } else {
+                                                setEmailPreferencesOpen(true);
+                                            }
                                             closeBrandMenu();
                                         }}
                                     >
@@ -2234,6 +2240,12 @@ const BoardApp: React.FC<BoardAppProps> = ({
                     tab={activeTab}
                     onToggleShare={handleToggleShare}
                     onClose={() => setShareDialogOpen(false)}
+                />
+            )}
+
+            {emailPreferencesOpen && !demo && (
+                <EmailPreferencesDialog
+                    onClose={() => setEmailPreferencesOpen(false)}
                 />
             )}
 

@@ -3798,6 +3798,46 @@
     width: 100%;
 }
 
+.preferences-dialog {
+    max-width: 440px;
+}
+
+.preferences-dialog__fields {
+    display: grid;
+    gap: 14px;
+}
+
+.preferences-dialog__fields label {
+    display: grid;
+    gap: 6px;
+}
+
+.preferences-dialog__fields label > span {
+    color: var(--text-soft);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.preferences-dialog__fields select {
+    background: var(--control-bg, rgba(255, 255, 255, 0.04));
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+    border-radius: 10px;
+    color: var(--text-main);
+    font: inherit;
+    padding: 10px 12px;
+    width: 100%;
+}
+
+.preferences-dialog__fields select option {
+    background: var(--panel-bg);
+    color: var(--text-main);
+}
+
+.preferences-dialog__success {
+    color: #34d399 !important;
+    margin: 10px 0 0 !important;
+}
+
 .account-dialog-error {
     color: #ef4444;
     font-size: 12px;
@@ -3827,6 +3867,11 @@
 
 .account-dialog-actions button.is-danger {
     background: #ef4444;
+    color: #fff;
+}
+
+.account-dialog-actions button.is-primary {
+    background: var(--accent);
     color: #fff;
 }
 
