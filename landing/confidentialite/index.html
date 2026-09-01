@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="fr">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link rel="icon" type="image/svg+xml" href="/app/icon.svg" />
+        <link rel="apple-touch-icon" href="/app/icon-192.png" />
+        <title>Politique de confidentialité — MagNotes</title>
+        <meta
+            name="description"
+            content="Quelles données MagNotes collecte, pourquoi, combien de temps, et comment exercer vos droits RGPD."
+        />
+        <!--
+          noindex until the placeholder fields below are filled in and the
+          owner approves the text — flip to "index, follow" and link it from
+          the landing footer at that point.
+        -->
+        <meta name="robots" content="noindex, follow" />
+        <meta name="theme-color" content="#14141c" />
+        <link
+            rel="canonical"
+            href="https://magnotes.adrianguichard.dev/confidentialite/"
+        />
+        <style>
+            :root {
+                --bg: #14141c;
+                --bg-soft: #1c1c28;
+                --card: #232334;
+                --text: #ecebf4;
+                --muted: #9b99ae;
+                --accent: #8b7cf6;
+                --border: rgba(255, 255, 255, 0.08);
+            }
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            body {
+                font-family:
+                    'Segoe UI',
+                    system-ui,
+                    -apple-system,
+                    sans-serif;
+                background: var(--bg);
+                color: var(--text);
+                line-height: 1.65;
+            }
+            a {
+                color: var(--accent);
+            }
+            .wrap {
+                max-width: 760px;
+                margin: 0 auto;
+                padding: 0 24px;
+            }
+            header {
+                border-bottom: 1px solid var(--border);
+            }
+            .nav {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                height: 60px;
+                max-width: 1080px;
+                margin: 0 auto;
+                padding: 0 24px;
+            }
+            .logo {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                font-weight: 700;
+                font-size: 1.15rem;
+                text-decoration: none;
+                color: var(--text);
+            }
+            .logo-mark {
+                width: 26px;
+                height: 26px;
+                border-radius: 7px;
+                background: linear-gradient(135deg, var(--accent), #6a5ae0);
+                display: grid;
+                place-items: center;
+                font-size: 0.85rem;
+            }
+            .back {
+                color: var(--muted);
+                text-decoration: none;
+                font-size: 0.9rem;
+            }
+            main {
+                padding: 56px 0 80px;
+            }
+            h1 {
+                font-size: clamp(1.7rem, 3.5vw, 2.3rem);
+                margin-bottom: 8px;
+            }
+            .updated {
+                color: var(--muted);
+                font-size: 0.9rem;
+                margin-bottom: 40px;
+            }
+            .draft-note {
+                background: var(--card);
+                border: 1px solid var(--border);
+                border-left: 3px solid var(--accent);
+                border-radius: 8px;
+                padding: 16px 18px;
+                font-size: 0.9rem;
+                color: var(--muted);
+                margin-bottom: 40px;
+            }
+            h2 {
+                font-size: 1.25rem;
+                margin: 36px 0 12px;
+            }
+            p,
+            li {
+                color: var(--muted);
+                font-size: 0.98rem;
+            }
+            ul {
+                padding-left: 20px;
+                margin: 8px 0;
+            }
+            li {
+                margin-bottom: 6px;
+            }
+            .placeholder {
+                background: rgba(139, 124, 246, 0.16);
+                color: var(--text);
+                padding: 1px 6px;
+                border-radius: 4px;
+                font-size: 0.92em;
+            }
+            footer {
+                border-top: 1px solid var(--border);
+                padding: 28px 0;
+                color: var(--muted);
+                font-size: 0.85rem;
+                text-align: center;
+            }
+        </style>
+    </head>
+    <body>
+        <header>
+            <div class="nav">
+                <a class="logo" href="/"
+                    ><span class="logo-mark">🧲</span>MagNotes</a
+                >
+                <a class="back" href="/">← Retour</a>
+            </div>
+        </header>
+
+        <main class="wrap">
+            <h1>Politique de confidentialité</h1>
+            <p class="updated">Dernière mise à jour : 2026-09-01.</p>
+
+            <div class="draft-note">
+                <strong>Brouillon en relecture.</strong> Cette page décrit
+                fidèlement ce que fait le code de MagNotes aujourd'hui. Les
+                champs marqués
+                <span class="placeholder">à compléter</span> doivent être
+                remplis par l'éditeur du service avant publication officielle —
+                ce ne sont pas des engagements juridiques définitifs.
+            </div>
+
+            <h2>Qui exploite MagNotes ?</h2>
+            <p>
+                MagNotes est édité par
+                <span class="placeholder"
+                    >[nom légal / statut — à compléter]</span
+                >, joignable à
+                <span class="placeholder">[email de contact — à compléter]</span
+                >. Le service est hébergé sur une infrastructure serveur dédiée
+                (base de données MongoDB) ainsi que sur Firebase Hosting
+                (Google) pour les pages publiques statiques.
+            </p>
+
+            <h2>Quelles données sont collectées ?</h2>
+            <ul>
+                <li>
+                    <strong>Compte</strong> : adresse email et mot de passe (le
+                    mot de passe n'est jamais stocké en clair, uniquement sous
+                    forme hachée).
+                </li>
+                <li>
+                    <strong>Contenu que vous créez</strong> : vos tableaux,
+                    cartes, checklists, connexions et images que vous ajoutez.
+                </li>
+                <li>
+                    <strong>Retours (feedback)</strong> : si vous utilisez le
+                    formulaire « Envoyer un avis » dans l'application, le
+                    message est associé à votre compte pour qu'on puisse
+                    comprendre le contexte.
+                </li>
+                <li>
+                    <strong>Session</strong> : un cookie technique
+                    <em>HttpOnly</em> nécessaire pour rester connecté (pas un
+                    cookie publicitaire).
+                </li>
+                <li>
+                    <strong>Journaux techniques</strong> : adresse IP et
+                    horodatage des requêtes, conservés brièvement pour la
+                    sécurité (limitation du nombre de requêtes, détection
+                    d'abus) — pas associés à un profil marketing.
+                </li>
+            </ul>
+
+            <h2>Mesure d'audience</h2>
+            <p>
+                MagNotes utilise Umami, un outil de mesure d'audience que nous
+                hébergeons nous-mêmes, sans cookie et avec anonymisation de
+                l'adresse IP. Il est actif sur l'application
+                (<code>/app/</code>) et la galerie de modèles
+                (<code>/templates/</code>). Aucune donnée de mesure d'audience
+                n'est partagée avec un tiers publicitaire.
+            </p>
+
+            <h2>Pourquoi ces données sont-elles utilisées ?</h2>
+            <ul>
+                <li>Créer et sécuriser votre compte.</li>
+                <li>
+                    Vous envoyer les emails strictement nécessaires au service :
+                    vérification d'adresse, réinitialisation de mot de passe, et
+                    — uniquement si vous l'activez explicitement dans vos
+                    préférences — un rappel des cartes à échéance proche.
+                </li>
+                <li>Comprendre et corriger les retours que vous envoyez.</li>
+                <li>Prévenir les abus (limitation de requêtes).</li>
+            </ul>
+
+            <h2>Qui reçoit ces données ?</h2>
+            <p>
+                Personne n'achète ni ne revend vos données. Deux prestataires
+                techniques y ont un accès limité, strictement pour faire
+                fonctionner le service :
+            </p>
+            <ul>
+                <li>
+                    <strong>Brevo</strong> — envoi des emails transactionnels
+                    décrits ci-dessus.
+                </li>
+                <li>
+                    <strong>Firebase Hosting (Google)</strong> — hébergement des
+                    pages publiques statiques (landing, galerie de modèles) et
+                    du code de l'application ; Google ne reçoit pas le contenu
+                    de vos tableaux, qui reste sur notre propre serveur.
+                </li>
+            </ul>
+
+            <h2>Combien de temps conservons-nous vos données ?</h2>
+            <ul>
+                <li>
+                    Tant que votre compte existe, sauf demande de suppression de
+                    votre part.
+                </li>
+                <li>
+                    Un compte créé mais jamais vérifié par email est supprimé
+                    automatiquement au bout de quelques jours.
+                </li>
+                <li>
+                    Les sauvegardes chiffrées de la base de données sont
+                    conservées 14 jours glissants.
+                </li>
+            </ul>
+
+            <h2>Vos droits</h2>
+            <p>
+                Conformément au RGPD, vous pouvez à tout moment, depuis le menu
+                de l'application :
+            </p>
+            <ul>
+                <li>
+                    <strong>Exporter</strong> l'intégralité de vos données au
+                    format JSON (« Exporter mes données »).
+                </li>
+                <li>
+                    <strong>Supprimer</strong> définitivement votre compte et
+                    toutes les données associées (« Supprimer mon compte »),
+                    après confirmation de votre mot de passe.
+                </li>
+            </ul>
+            <p>
+                Pour toute autre demande (accès, rectification, opposition),
+                écrivez à
+                <span class="placeholder">[email de contact — à compléter]</span
+                >.
+            </p>
+
+            <h2>Modifications de cette politique</h2>
+            <p>
+                Si cette politique évolue de façon significative, la date de
+                mise à jour en haut de cette page sera changée.
+            </p>
+        </main>
+
+        <footer>
+            <span>© 2026 MagNotes</span>
+        </footer>
+    </body>
+</html>
