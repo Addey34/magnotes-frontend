@@ -70,9 +70,14 @@ function shell({
     alternate,
     body,
     schema,
+    analytics,
 }) {
     const c = copy[lang];
-    return `<!doctype html><html lang="${lang}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="index, follow"><link rel="canonical" href="${ORIGIN}${canonical}"><link rel="alternate" hreflang="${alternate.lang}" href="${ORIGIN}${alternate.path}"><meta property="og:type" content="website"><meta property="og:locale" content="${c.locale}"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${ORIGIN}${canonical}"><meta property="og:image" content="${ORIGIN}/og-image.png"><style>${css}</style>${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replaceAll('<', '\\u003c')}</script>` : ''}</head><body><header><div class="wrap nav"><a class="brand" href="/"><span>🧲</span>MagNotes</a><nav class="nav-links"><a class="btn" href="${alternate.path}">${c.lang}</a><a class="btn btn-primary" href="/app/">${c.login}</a></nav></div></header><main>${body}</main><footer>© 2026 MagNotes · ${c.galleryTitle}</footer></body></html>`;
+    const tracker =
+        analytics?.src && analytics?.websiteId
+            ? `<script defer src="${escapeHtml(analytics.src)}" data-website-id="${escapeHtml(analytics.websiteId)}"></script>`
+            : '';
+    return `<!doctype html><html lang="${lang}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="index, follow"><link rel="canonical" href="${ORIGIN}${canonical}"><link rel="alternate" hreflang="${alternate.lang}" href="${ORIGIN}${alternate.path}"><meta property="og:type" content="website"><meta property="og:locale" content="${c.locale}"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${ORIGIN}${canonical}"><meta property="og:image" content="${ORIGIN}/og-image.png"><style>${css}</style>${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replaceAll('<', '\\u003c')}</script>` : ''}${tracker}</head><body><header><div class="wrap nav"><a class="brand" href="/"><span>🧲</span>MagNotes</a><nav class="nav-links"><a class="btn" href="${alternate.path}">${c.lang}</a><a class="btn btn-primary" href="/app/">${c.login}</a></nav></div></header><main>${body}</main><footer>© 2026 MagNotes · ${c.galleryTitle}</footer></body></html>`;
 }
 
 function miniBoard(template) {
@@ -85,7 +90,7 @@ function miniBoard(template) {
         .join('')}</div>`;
 }
 
-function galleryPage(lang, templates) {
+function galleryPage(lang, templates, analytics) {
     const c = copy[lang];
     const canonical = pathFor(lang);
     const otherLang = lang === 'fr' ? 'en' : 'fr';
@@ -103,6 +108,7 @@ function galleryPage(lang, templates) {
         canonical,
         alternate: { lang: otherLang, path: pathFor(otherLang) },
         body,
+        analytics,
         schema: {
             '@context': 'https://schema.org',
             '@type': 'CollectionPage',
@@ -112,7 +118,7 @@ function galleryPage(lang, templates) {
     });
 }
 
-function detailPage(lang, template) {
+function detailPage(lang, template, analytics) {
     const c = copy[lang];
     const otherLang = lang === 'fr' ? 'en' : 'fr';
     const canonical = pathFor(lang, `${template.id}/`);
@@ -137,6 +143,7 @@ function detailPage(lang, template) {
             path: pathFor(otherLang, `${template.id}/`),
         },
         body,
+        analytics,
         schema: {
             '@context': 'https://schema.org',
             '@type': 'CreativeWork',
@@ -154,7 +161,7 @@ function writePage(out, urlPath, html) {
     writeFileSync(resolve(directory, 'index.html'), html);
 }
 
-export async function buildTemplateGallery(out) {
+export async function buildTemplateGallery(out, analytics = {}) {
     const localized = {
         fr: BOARD_TEMPLATES.filter(
             (template) => template.id !== WELCOME_TEMPLATE_ID
@@ -164,12 +171,16 @@ export async function buildTemplateGallery(out) {
         ),
     };
     for (const lang of ['fr', 'en']) {
-        writePage(out, pathFor(lang), galleryPage(lang, localized[lang]));
+        writePage(
+            out,
+            pathFor(lang),
+            galleryPage(lang, localized[lang], analytics)
+        );
         for (const template of localized[lang]) {
             writePage(
                 out,
                 pathFor(lang, `${template.id}/`),
-                detailPage(lang, template)
+                detailPage(lang, template, analytics)
             );
         }
     }
