@@ -9,6 +9,7 @@ import {
     isDemoImportPending,
     isDemoRequested,
     markDemoImportPending,
+    requestedDemoTemplateId,
 } from './demoMode';
 
 describe('demoMode flags', () => {
@@ -35,5 +36,18 @@ describe('demoMode flags', () => {
         expect(isDemoRequested()).toBe(false);
         window.history.replaceState({}, '', '/app/?demo=1');
         expect(isDemoRequested()).toBe(true);
+    });
+
+    it('accepts safe template slugs and rejects malformed values', () => {
+        expect(requestedDemoTemplateId('?template=client-project')).toBe(
+            'client-project'
+        );
+        expect(requestedDemoTemplateId('?template=Client%20Project')).toBe(
+            undefined
+        );
+        expect(requestedDemoTemplateId('?template=../../admin')).toBe(
+            undefined
+        );
+        expect(requestedDemoTemplateId('')).toBeUndefined();
     });
 });

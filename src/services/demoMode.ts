@@ -27,6 +27,14 @@ export function isDemoRequested(): boolean {
     return new URLSearchParams(window.location.search).has('demo');
 }
 
+export function requestedDemoTemplateId(search?: string): string | undefined {
+    if (typeof window === 'undefined' && search === undefined) return undefined;
+    const value = new URLSearchParams(search ?? window.location.search).get(
+        'template'
+    );
+    return value && /^[a-z0-9-]+$/.test(value) ? value : undefined;
+}
+
 export function isDemoActive(): boolean {
     return safeSession()?.getItem(ACTIVE_KEY) === '1';
 }

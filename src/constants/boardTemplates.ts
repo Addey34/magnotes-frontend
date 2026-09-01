@@ -1,5 +1,5 @@
-import { ChecklistItem, PostItStatus } from '../types/boardTypes';
-import { Lang } from '../i18n/i18n';
+import type { ChecklistItem, PostItStatus } from '../types/boardTypes';
+import type { Lang } from '../i18n/i18n';
 
 export interface BoardTemplateCard {
     title: string;

@@ -19,6 +19,19 @@ const openDemo = async (page: Page) => {
 };
 
 test.describe('critical demo journeys', () => {
+    test('opens a public template directly in the demo', async ({ page }) => {
+        await mockUnauthenticatedRefresh(page);
+        await page.goto('/app/?demo=1&template=client-project');
+
+        await expect(page.locator('.board-app')).toBeVisible();
+        await expect(
+            page.locator('.post-it-title[value="Brief and objectives"]')
+        ).toBeVisible();
+        await expect(page.locator('.board-title-trigger')).toHaveText(
+            'Client project'
+        );
+    });
+
     test('creates and edits a card', async ({ page }) => {
         await openDemo(page);
 

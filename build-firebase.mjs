@@ -7,6 +7,7 @@
 import { rmSync, mkdirSync, cpSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildTemplateGallery } from './scripts/build-template-gallery.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const clientDist = resolve(root, 'dist');
@@ -26,5 +27,6 @@ mkdirSync(out, { recursive: true });
 cpSync(landing, out, { recursive: true });
 // The React build is served under /app/.
 cpSync(clientDist, resolve(out, 'app'), { recursive: true });
+await buildTemplateGallery(out);
 
 console.log('firebase-dist assembled at', out);

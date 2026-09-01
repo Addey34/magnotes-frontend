@@ -17,6 +17,7 @@ import {
     isDemoImportPending,
     isDemoRequested,
     markDemoImportPending,
+    requestedDemoTemplateId,
 } from './services/demoMode';
 
 // Public read-only share route: `/app/b/<token>` (or `/b/<token>` in dev).
@@ -26,6 +27,8 @@ const publicShareToken = (() => {
     const match = window.location.pathname.match(/\/b\/([a-f0-9]{32})/i);
     return match ? match[1] : null;
 })();
+
+const requestedTemplateId = requestedDemoTemplateId();
 
 // Drop the `?demo` query from the URL without a reload, so refreshing after a
 // signup request doesn't drop the visitor back into the sandbox.
@@ -112,6 +115,7 @@ const App: React.FC = () => {
                     onLogout={handleRequestSignup}
                     demo
                     onRequestSignup={handleRequestSignup}
+                    initialTemplateId={requestedTemplateId}
                 />
             </div>
         );

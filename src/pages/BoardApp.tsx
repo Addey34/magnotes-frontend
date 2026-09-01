@@ -108,12 +108,14 @@ interface BoardAppProps {
     // hidden, and a banner nudges toward creating an account.
     demo?: boolean;
     onRequestSignup?: () => void;
+    initialTemplateId?: string;
 }
 
 const BoardApp: React.FC<BoardAppProps> = ({
     onLogout,
     demo = false,
     onRequestSignup,
+    initialTemplateId,
 }) => {
     const { t, lang } = useT();
     const boardTemplates = useMemo(() => getBoardTemplates(lang), [lang]);
@@ -1046,8 +1048,17 @@ const BoardApp: React.FC<BoardAppProps> = ({
     useEffect(() => {
         if (onboardingRef.current !== 'creating' || !activeTabId) return;
         onboardingRef.current = 'done';
-        renameTab(activeTabId, lang === 'en' ? 'Welcome' : 'Bienvenue');
-        applyTemplate(WELCOME_TEMPLATE_ID);
+        const requestedTemplate = boardTemplates.find(
+            (template) => template.id === initialTemplateId
+        );
+        const template =
+            requestedTemplate ??
+            boardTemplates.find((item) => item.id === WELCOME_TEMPLATE_ID);
+        renameTab(
+            activeTabId,
+            template?.label ?? (lang === 'en' ? 'Welcome' : 'Bienvenue')
+        );
+        applyTemplate(template?.id ?? WELCOME_TEMPLATE_ID);
     }, [activeTabId]);
 
     const commands: PaletteCommand[] = [
