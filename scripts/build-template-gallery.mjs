@@ -184,16 +184,24 @@ export async function buildTemplateGallery(out, analytics = {}) {
             );
         }
     }
-    const urls = ['/', '/templates/', '/en/templates/'];
+    const urls = ['/', '/en/', '/templates/', '/en/templates/'];
     for (const lang of ['fr', 'en']) {
         for (const template of localized[lang]) {
             urls.push(pathFor(lang, `${template.id}/`));
         }
     }
+    // Home pages (FR/EN) rank highest, gallery indexes next, template detail
+    // pages last — based on URL shape rather than array position, so adding
+    // more localized entries above can't silently mis-rank later ones.
+    const priorityFor = (url) => {
+        if (url === '/' || url === '/en/') return '1.0';
+        if (url.endsWith('/templates/')) return '0.9';
+        return '0.8';
+    };
     const sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls
         .map(
-            (url, index) =>
-                `  <url><loc>${ORIGIN}${url}</loc><changefreq>weekly</changefreq><priority>${index === 0 ? '1.0' : index < 3 ? '0.9' : '0.8'}</priority></url>`
+            (url) =>
+                `  <url><loc>${ORIGIN}${url}</loc><changefreq>weekly</changefreq><priority>${priorityFor(url)}</priority></url>`
         )
         .join('\n')}\n</urlset>\n`;
     writeFileSync(resolve(out, 'sitemap.xml'), sitemap);

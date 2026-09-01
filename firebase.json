@@ -39,6 +39,15 @@
                 ]
             },
             {
+                "source": "/en/",
+                "headers": [
+                    {
+                        "key": "Content-Security-Policy",
+                        "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' https://analytics-magnotes.adrianguichard.dev; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://analytics-magnotes.adrianguichard.dev"
+                    }
+                ]
+            },
+            {
                 "source": "/app/assets/**",
                 "headers": [
                     {
