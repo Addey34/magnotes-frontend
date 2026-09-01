@@ -2,6 +2,7 @@
 
 import { act, renderHook, waitFor } from '@testing-library/react';
 import {
+    createPostIt,
     deletePostIt,
     duplicatePostIt,
     fetchPostIts,
@@ -58,6 +59,9 @@ describe('usePostIts rollbacks', () => {
     >;
     const mockedRestore = restorePostIt as jest.MockedFunction<
         typeof restorePostIt
+    >;
+    const mockedCreate = createPostIt as jest.MockedFunction<
+        typeof createPostIt
     >;
 
     beforeEach(() => {
@@ -172,6 +176,51 @@ describe('usePostIts rollbacks', () => {
 
         expect(mockedRestore).toHaveBeenCalledWith(card);
         expect(result.current.postIts).toEqual([secondCard, card]);
+    });
+
+    it('undoes and redoes card creation', async () => {
+        const created: PostIt = { ...secondCard, x: 48, y: 48 };
+        mockedCreate.mockResolvedValue(created);
+        mockedDelete.mockResolvedValue(undefined);
+        mockedRestore.mockResolvedValue(created);
+        const { result } = renderHook(() =>
+            usePostIts('tab-1', jest.fn(), jest.fn())
+        );
+        await waitFor(() => expect(result.current.postIts).toEqual([card]));
+
+        await act(async () => result.current.addPostIt());
+        expect(result.current.postIts).toEqual([card, created]);
+        expect(result.current.canUndo).toBe(true);
+
+        await act(async () => result.current.undo());
+        expect(mockedDelete).toHaveBeenCalledWith(created._id);
+        expect(result.current.postIts).toEqual([card]);
+        expect(result.current.canRedo).toBe(true);
+
+        await act(async () => result.current.redo());
+        expect(mockedRestore).toHaveBeenCalledWith(created);
+        expect(result.current.postIts).toEqual([card, created]);
+    });
+
+    it('undoes and redoes moving a card to another board', async () => {
+        mockedUpdate.mockResolvedValue(undefined);
+        const { result } = renderHook(() =>
+            usePostIts('tab-1', jest.fn(), jest.fn())
+        );
+        await waitFor(() => expect(result.current.postIts).toEqual([card]));
+
+        await act(async () =>
+            result.current.movePostItToTab('card-1', 'tab-2')
+        );
+        expect(result.current.postIts).toEqual([]);
+        expect(result.current.canUndo).toBe(true);
+
+        await act(async () => result.current.undo());
+        expect(result.current.postIts).toEqual([card]);
+        expect(result.current.canRedo).toBe(true);
+
+        await act(async () => result.current.redo());
+        expect(result.current.postIts).toEqual([]);
     });
 
     it('does not retry a failed initial load on every render', async () => {

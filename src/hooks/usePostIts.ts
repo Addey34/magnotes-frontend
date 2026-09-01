@@ -124,7 +124,33 @@ export const usePostIts = (
         // Track explicit user intent. Template/onboarding cards use
         // addTemplateCards and deliberately never emit this event.
         trackProductEvent('card_created');
-        history.clear();
+
+        const addLocal = () =>
+            setPostItsByTab((current) => ({
+                ...current,
+                [activeTabId]: [...(current[activeTabId] || []), postIt],
+            }));
+        const removeLocal = () =>
+            setPostItsByTab((current) => ({
+                ...current,
+                [activeTabId]: (current[activeTabId] || []).filter(
+                    (card) => card._id !== postIt._id
+                ),
+            }));
+
+        // The restore endpoint re-inserts with the original id, so redo can
+        // bring the exact same card back — creation is no longer a history
+        // barrier.
+        history.record({
+            undo: async () => {
+                removeLocal();
+                await deletePostIt(postIt._id);
+            },
+            redo: async () => {
+                addLocal();
+                await restorePostIt(postIt);
+            },
+        });
     };
 
     // Insert a template's cards into the active board. The create endpoint only
@@ -534,7 +560,50 @@ export const usePostIts = (
             onMutationError?.();
             return;
         }
-        history.clear();
+
+        const moveLocal = (fromTabId: string, toTabId: string, card: PostIt) =>
+            setPostItsByTab((current) => ({
+                ...current,
+                [fromTabId]: (current[fromTabId] || []).filter(
+                    (c) => c._id !== postItId
+                ),
+                ...(current[toTabId]
+                    ? { [toTabId]: [...current[toTabId], card] }
+                    : {}),
+            }));
+
+        history.record({
+            undo: async () => {
+                moveLocal(targetTabId, activeTabId, postIt);
+                await persistPostIt(
+                    postItId,
+                    {
+                        tabId: activeTabId,
+                        stackId: postIt.stackId ?? null,
+                        stackOrder: postIt.stackOrder ?? null,
+                        x: postIt.x,
+                        y: postIt.y,
+                        zIndex: postIt.zIndex,
+                    },
+                    movedPostIt.updatedAt
+                );
+            },
+            redo: async () => {
+                moveLocal(activeTabId, targetTabId, movedPostIt);
+                await persistPostIt(
+                    postItId,
+                    {
+                        tabId: targetTabId,
+                        stackId: null,
+                        stackOrder: null,
+                        x: movedPostIt.x,
+                        y: movedPostIt.y,
+                        zIndex: movedPostIt.zIndex,
+                    },
+                    postIt.updatedAt
+                );
+            },
+        });
     };
 
     const removePostIt = async (
