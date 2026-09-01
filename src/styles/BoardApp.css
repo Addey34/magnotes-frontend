@@ -4091,6 +4091,25 @@
     opacity: 0.6;
 }
 
+.feedback-dialog__textarea {
+    background: var(--control-bg, rgba(255, 255, 255, 0.04));
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+    border-radius: 10px;
+    color: var(--text-main);
+    font: inherit;
+    margin-bottom: 12px;
+    min-height: 110px;
+    padding: 10px 12px;
+    resize: vertical;
+    width: 100%;
+}
+
+.feedback-dialog__error {
+    color: #f87171;
+    font-size: 13px;
+    margin: -4px 0 12px;
+}
+
 /* Pillar 2 — view switcher + Kanban + Agenda views */
 .board-view-switch {
     background: var(--control-bg);

@@ -323,6 +323,11 @@ export const DICTIONARY = {
         fr: 'Lien public en lecture seule',
         en: 'Read-only public link',
     },
+    'app.menu.feedback': { fr: 'Envoyer un avis', en: 'Send feedback' },
+    'app.menu.feedback.sub': {
+        fr: 'Une remarque, une idée, un bug',
+        en: 'A remark, an idea, a bug',
+    },
     'app.menu.deleteAccount': {
         fr: 'Supprimer mon compte',
         en: 'Delete my account',
@@ -380,6 +385,33 @@ export const DICTIONARY = {
     'share.revoke': { fr: 'Désactiver le partage', en: 'Disable sharing' },
     'share.enable': { fr: 'Activer le partage', en: 'Enable sharing' },
     'share.enabling': { fr: 'Activation…', en: 'Enabling…' },
+
+    // --- feedback dialog -------------------------------------------------------
+    'feedback.title': { fr: 'Envoyer un avis', en: 'Send feedback' },
+    'feedback.close': { fr: 'Fermer', en: 'Close' },
+    'feedback.aria': {
+        fr: "Envoyer un avis à l'équipe",
+        en: 'Send feedback to the team',
+    },
+    'feedback.hint': {
+        fr: 'Une remarque, une idée, un bug ? Écrivez-nous, on lit tout.',
+        en: 'A remark, an idea, a bug? Write to us, we read everything.',
+    },
+    'feedback.placeholder': {
+        fr: 'Votre message…',
+        en: 'Your message…',
+    },
+    'feedback.textareaAria': { fr: 'Votre message', en: 'Your message' },
+    'feedback.send': { fr: 'Envoyer', en: 'Send' },
+    'feedback.sending': { fr: 'Envoi…', en: 'Sending…' },
+    'feedback.thanks': {
+        fr: 'Merci ! Votre message a bien été envoyé.',
+        en: 'Thanks! Your message has been sent.',
+    },
+    'feedback.error': {
+        fr: "Échec de l'envoi. Réessayez dans un instant.",
+        en: 'Failed to send. Please try again in a moment.',
+    },
 
     // --- command palette commands & groups ----------------------------------
     'app.cmd.newCard': { fr: 'Nouveau post-it', en: 'New sticky note' },

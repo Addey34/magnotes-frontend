@@ -17,6 +17,7 @@ import {
     MoonIcon,
     PlusIcon,
     CalendarDaysIcon,
+    ChatBubbleLeftRightIcon,
     ClockIcon,
     ShareIcon,
     Squares2X2Icon,
@@ -83,6 +84,7 @@ import {
     setBoardShare,
     updatePostIt,
 } from '../services/boardApi';
+import FeedbackDialog from '../components/feedback/FeedbackDialog';
 import ShareDialog from '../components/share/ShareDialog';
 import NotificationCenter from '../components/ui/NotificationCenter';
 import { PostIt, PostItSaveUpdate, PostItStatus } from '../types/boardTypes';
@@ -181,6 +183,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
     const [sidebarHovered, setSidebarHovered] = useState(false);
     const sidebarHoverTimerRef = useRef<number | null>(null);
     const [shareDialogOpen, setShareDialogOpen] = useState(false);
+    const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false);
     const [appearanceOpen, setAppearanceOpen] = useState(false);
     const appearanceRef = useRef<HTMLDivElement | null>(null);
     const importInputRef = useRef<HTMLInputElement | null>(null);
@@ -450,6 +453,11 @@ const BoardApp: React.FC<BoardAppProps> = ({
         if (!activeTab) return;
         closeBrandMenu();
         setShareDialogOpen(true);
+    };
+
+    const openFeedbackDialog = () => {
+        closeBrandMenu();
+        setFeedbackDialogOpen(true);
     };
 
     // Toggle the public read-only share for the active board, then sync the
@@ -1449,6 +1457,21 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                             <button
                                                 type="button"
                                                 role="menuitem"
+                                                onClick={openFeedbackDialog}
+                                            >
+                                                <ChatBubbleLeftRightIcon />
+                                                <span>
+                                                    {t('app.menu.feedback')}
+                                                    <small>
+                                                        {t(
+                                                            'app.menu.feedback.sub'
+                                                        )}
+                                                    </small>
+                                                </span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                role="menuitem"
                                                 className="is-danger"
                                                 onClick={openDeleteDialog}
                                             >
@@ -2259,6 +2282,13 @@ const BoardApp: React.FC<BoardAppProps> = ({
                     tab={activeTab}
                     onToggleShare={handleToggleShare}
                     onClose={() => setShareDialogOpen(false)}
+                />
+            )}
+
+            {feedbackDialogOpen && (
+                <FeedbackDialog
+                    context={view}
+                    onClose={() => setFeedbackDialogOpen(false)}
                 />
             )}
 
