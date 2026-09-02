@@ -292,7 +292,11 @@
     gap: 4px;
     left: 10px;
     padding: 6px;
-    position: absolute;
+    /* fixed, not absolute: .board-brand (its positioned ancestor) has
+       overflow:hidden to clip its own width transition, which would also
+       clip an absolutely-positioned dropdown child. Escaping to the
+       viewport avoids that clip. */
+    position: fixed;
     top: 52px;
     width: 220px;
     z-index: 160;
@@ -876,12 +880,6 @@
         color-mix(in srgb, var(--accent-strong) 68%, transparent);
 }
 
-.board-app.is-sidebar-expanded .board-sidebar .board-tab:hover,
-.board-app.is-sidebar-expanded .board-sidebar .board-tab-add:hover,
-.board-app.is-sidebar-expanded .board-sidebar .sidebar-command:hover {
-    transform: translateX(2px);
-}
-
 .sidebar-command.is-danger:hover {
     background: rgba(251, 113, 133, 0.09);
     color: var(--danger);
@@ -1024,6 +1022,15 @@
     justify-content: flex-end;
     min-width: 0;
     overflow: hidden;
+}
+
+/* overflow:hidden above truncates the toolbar so it never forces a
+   scrollbar at narrow widths, but it also clips any absolutely-positioned
+   dropdown living inside it (e.g. the appearance panel). Let it escape
+   while that dropdown is open. */
+.board-topbar-tools:has(.board-appearance-trigger.is-open),
+.board-topbar-tools:has(.board-color-filter[open]) {
+    overflow: visible;
 }
 
 .board-workspace > .mobile-board-actions,

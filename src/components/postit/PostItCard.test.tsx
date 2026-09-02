@@ -147,6 +147,65 @@ describe('PostItCard rendering', () => {
         expect(container.querySelector('.post-it-content-view')).toBeNull();
     });
 
+    it('keeps the textarea mounted past the first keystroke on an empty card', () => {
+        // Regression: an empty card renders the textarea via
+        // `!postIt.content.trim()` rather than `isEditingContent`. Without
+        // marking isEditingContent on focus, the first keystroke (content
+        // becomes non-empty, as the controlled `postIt` prop is updated by
+        // the parent on every change) used to flip that condition back to
+        // false and swap the textarea for the read-only view mid-typing,
+        // dropping focus and silently discarding every keystroke after the
+        // first — the parent re-renders with the new prop the same way
+        // BoardApp does after onLocalChange.
+        const postIt = makeCard({ content: '' });
+        const props: Omit<React.ComponentProps<typeof PostItCard>, 'postIt'> = {
+            tabs: [tab],
+            activeTabId: 'tab-1',
+            saveState: savedState,
+            dropIntent: null,
+            zoom: 1,
+            linkingSourceId: null,
+            onNavigateToCard: jest.fn(),
+            onLocalChange: jest.fn(),
+            onAutosave: jest.fn(),
+            onFocus: jest.fn(),
+            onDragStateChange: jest.fn(),
+            onMove: jest.fn(),
+            onMoveToTab: jest.fn(),
+            onUnstack: jest.fn(),
+            onDuplicate: jest.fn(),
+            onDelete: jest.fn(),
+            onStartLink: jest.fn(),
+            onLinkTarget: jest.fn(),
+        };
+
+        const { container, rerender } = render(
+            <PostItCard postIt={postIt} {...props} />,
+            { wrapper: LangProvider }
+        );
+
+        const textarea = container.querySelector<HTMLTextAreaElement>(
+            'textarea.post-it-content'
+        )!;
+        expect(textarea).toBeInTheDocument();
+        fireEvent.focus(textarea);
+
+        rerender(
+            <PostItCard postIt={{ ...postIt, content: 'h' }} {...props} />
+        );
+        expect(
+            container.querySelector('textarea.post-it-content')
+        ).toBeInTheDocument();
+
+        rerender(
+            <PostItCard postIt={{ ...postIt, content: 'hello' }} {...props} />
+        );
+        expect(
+            container.querySelector('textarea.post-it-content')
+        ).toBeInTheDocument();
+        expect(container.querySelector('.post-it-content-view')).toBeNull();
+    });
+
     it('toggles a checklist item through onAutosave', () => {
         const { container, onAutosave } = renderCard();
 

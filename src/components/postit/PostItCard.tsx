@@ -1190,7 +1190,10 @@ const PostItCard: React.FC<PostItCardProps> = ({
                     onChange={(event) =>
                         updateText('content', event.target.value)
                     }
-                    onFocus={() => onFocus(postIt._id)}
+                    onFocus={() => {
+                        onFocus(postIt._id);
+                        setIsEditingContent(true);
+                    }}
                     onBlur={() => setIsEditingContent(false)}
                     aria-label={t('card.content.aria')}
                     placeholder={t('card.content.placeholder')}
