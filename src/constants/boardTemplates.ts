@@ -50,7 +50,7 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
             {
                 title: 'Ctrl+K ouvre la palette',
                 content:
-                    'Recherche sur tous vos tableaux, capture rapide d’une note, changement de vue, insertion de modèles — tout est à un raccourci.',
+                    'Recherche sur tous vos tableaux, capture rapide d’une note, changement de vue, insertion de modèles : tout est à un raccourci.',
                 color: '#e9d5ff',
                 x: 568,
                 y: 0,
@@ -80,7 +80,7 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
             {
                 title: 'Reliez vos idées',
                 content:
-                    'Citez une carte avec [[Bienvenue sur MagNotes 👋]] — elle devient cliquable sous cette carte. Le bouton lien crée aussi des flèches entre cartes.',
+                    'Citez une carte avec [[Bienvenue sur MagNotes 👋]]. Elle devient cliquable sous cette carte. Le bouton lien crée aussi des flèches entre cartes.',
                 color: '#fbcfe8',
                 x: 284,
                 y: 214,

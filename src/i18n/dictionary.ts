@@ -582,7 +582,7 @@ export const DICTIONARY = {
     'app.mobileActions.palette': { fr: 'Rechercher', en: 'Search' },
     'app.mobileActions.fit': { fr: 'Cadrer', en: 'Fit' },
     'app.newCard.title': {
-        fr: 'Nouveau post-it — ou double-clic sur le tableau',
+        fr: 'Nouveau post-it (ou double-clic sur le tableau)',
         en: 'New sticky note — or double-click the board',
     },
     'app.board.default': { fr: 'Tableau', en: 'Board' },
@@ -721,7 +721,7 @@ export const DICTIONARY = {
     'public.createMine': { fr: 'Créer mon tableau', en: 'Create my board' },
     'public.madeWith.pre': { fr: 'Créé avec', en: 'Made with' },
     'public.madeWith.post': {
-        fr: '— créer le mien →',
+        fr: ', créer le mien →',
         en: '— make mine →',
     },
 
