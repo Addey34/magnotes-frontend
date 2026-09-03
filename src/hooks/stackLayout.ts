@@ -18,9 +18,28 @@
 
 import { PostIt, PostItStack } from '../types/boardTypes';
 
-/** Fan step between two consecutive cards of an expanded stack. */
-export const STACK_EXPAND_OFFSET_X = 34;
-export const STACK_EXPAND_OFFSET_Y = 28;
+/**
+ * Fan step between two consecutive cards of an expanded stack.
+ *
+ * Two things have to fit in the vertical step, or the fan is unusable — every
+ * card but the front one becomes a sliver you can neither read nor aim at:
+ *
+ *  - CARD_HEADER_BAND (~43px): 13px card padding, a 14px/1.2 title line with
+ *    2px of padding either side, then the header rule's 6px padding, 1px border
+ *    and 2px margin. Below this the card's own title is sliced in half.
+ *  - CARD_TOOLS_OVERHANG (30px): `.post-it-hover-tools` is pinned at top:-30px,
+ *    so a card claims pointer hits from 30px ABOVE its own top edge. Measured on
+ *    a live fan: with a 50px step a card only owned its first ~18px, the next
+ *    card having already taken everything below that.
+ *
+ * The step must clear both (43 + 30), rounded up to the grid. Both steps are
+ * multiples of GRID_SIZE and a stack's origin is grid snapped (see settleStack),
+ * so every fanned card lands on a grid line too.
+ */
+export const CARD_HEADER_BAND = 43;
+export const CARD_TOOLS_OVERHANG = 30;
+export const STACK_EXPAND_OFFSET_X = 30;
+export const STACK_EXPAND_OFFSET_Y = 80;
 
 /** Vertical clearance between the stack widget and the first fanned card. */
 export const STACK_FAN_TOP_GAP = 190;
@@ -55,28 +74,6 @@ export function fanPosition(
         x: stack.x + order * STACK_EXPAND_OFFSET_X,
         y: stack.y + STACK_FAN_TOP_GAP + order * STACK_EXPAND_OFFSET_Y,
     };
-}
-
-/**
- * The one card of a stack that is raised above its siblings by a click. Ties on
- * raw zIndex are broken deterministically (highest stackOrder, then id) so two
- * cards can never claim the same top slot and overlap unresolvably.
- */
-function focusedSiblingId(siblings: PostIt[]): string | null {
-    let best: PostIt | null = null;
-    for (const card of siblings) {
-        if (
-            !best ||
-            card.zIndex > best.zIndex ||
-            (card.zIndex === best.zIndex &&
-                ((card.stackOrder || 0) > (best.stackOrder || 0) ||
-                    ((card.stackOrder || 0) === (best.stackOrder || 0) &&
-                        card._id > best._id)))
-        ) {
-            best = card;
-        }
-    }
-    return best?._id ?? null;
 }
 
 /** True when a card belongs to a stack that is currently collapsed shut. */
@@ -120,15 +117,19 @@ export function layoutBoardCards(
             continue;
         }
 
-        const siblings = cards.filter((item) => item.stackId === card.stackId);
         const order = fanOrder(card);
-        const isFocused = focusedSiblingId(siblings) === card._id;
 
         laidOut.push({
             ...card,
             ...fanPosition(stack, order),
-            zIndex:
-                EXPANDED_STACK_Z_BASE + (isFocused ? siblings.length : order),
+            // Paint order follows fan order, strictly. Clicking a card used to
+            // raise it above ALL its siblings, which buried the card right
+            // after it: that one's header was covered by the raised card and
+            // its body by the next, leaving it with zero clickable pixels —
+            // genuinely impossible to select or edit. In a cascade the only
+            // arrangement where every card keeps a reachable header band is the
+            // fan's own order, so nothing overrides it.
+            zIndex: EXPANDED_STACK_Z_BASE + order,
         });
     }
 

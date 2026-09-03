@@ -1,5 +1,8 @@
 import { PostIt, PostItStack } from '../types/boardTypes';
+import { GRID_SIZE } from './useDragGrid';
 import {
+    CARD_HEADER_BAND,
+    CARD_TOOLS_OVERHANG,
     EXPANDED_STACK_Z_BASE,
     STACK_EXPAND_OFFSET_X,
     STACK_EXPAND_OFFSET_Y,
@@ -38,6 +41,32 @@ const makeStack = (overrides: Partial<PostItStack> = {}): PostItStack => ({
     createdAt: now,
     updatedAt: now,
     ...overrides,
+});
+
+describe('fan geometry', () => {
+    it('leaves every card title both visible and clickable', () => {
+        // The step must clear the card's own header band AND the next card's
+        // 30px upward pointer reach (its hover-tools sit at top:-30px). Verified
+        // on a live fan: a 50px step cleared the header on paper but the next
+        // card still owned everything past the first ~18px, so the title was
+        // visible and unclickable — the fan looked fixed and was not.
+        expect(STACK_EXPAND_OFFSET_Y - CARD_TOOLS_OVERHANG).toBeGreaterThan(
+            CARD_HEADER_BAND
+        );
+    });
+
+    it('keeps the whole fan on the position grid', () => {
+        // A stack's origin is grid snapped, so grid-multiple steps land every
+        // fanned card on a grid line as well.
+        expect(STACK_EXPAND_OFFSET_X % GRID_SIZE).toBe(0);
+        expect(STACK_EXPAND_OFFSET_Y % GRID_SIZE).toBe(0);
+        expect(STACK_FAN_TOP_GAP % GRID_SIZE).toBe(0);
+    });
+
+    it('clears the stack widget before the first card', () => {
+        // The widget is 150px tall; the fan must start below it, not on top.
+        expect(STACK_FAN_TOP_GAP).toBeGreaterThan(150);
+    });
 });
 
 describe('layoutBoardCards', () => {
@@ -147,22 +176,31 @@ describe('layoutBoardCards', () => {
         expect(laidOut.zIndex).toBeGreaterThan(busyFreeCard.zIndex);
     });
 
-    it('gives the top slot to exactly one card when siblings tie on zIndex', () => {
-        // A tie used to make every tied sibling claim the same top z-index, so
-        // they overlapped unresolvably and clicks landed unpredictably.
+    it('paints strictly by fan order, whatever a card has been clicked', () => {
+        // Regression: a click used to raise the focused card above ALL its
+        // siblings. That buried the card right after it — header covered by the
+        // raised card, body covered by the next one — leaving it with zero
+        // clickable pixels. Measured on a live fan: the middle card became
+        // completely unselectable. Raw zIndex must not disturb the cascade.
         const stack = makeStack();
         const cards = [
-            makeCard('a', { stackId: 'stack-1', stackOrder: 1, zIndex: 5 }),
-            makeCard('b', { stackId: 'stack-1', stackOrder: 2, zIndex: 5 }),
-            makeCard('c', { stackId: 'stack-1', stackOrder: 3, zIndex: 5 }),
+            makeCard('a', { stackId: 'stack-1', stackOrder: 1, zIndex: 1 }),
+            // Clicked most recently, so its raw zIndex is the highest.
+            makeCard('b', { stackId: 'stack-1', stackOrder: 2, zIndex: 9999 }),
+            makeCard('c', { stackId: 'stack-1', stackOrder: 3, zIndex: 2 }),
         ];
 
         const zIndexes = layoutBoardCards(cards, [stack]).map(
             (card) => card.zIndex
         );
 
-        expect(new Set(zIndexes).size).toBe(zIndexes.length);
-        const top = EXPANDED_STACK_Z_BASE + cards.length;
-        expect(zIndexes.filter((z) => z === top)).toHaveLength(1);
+        expect(zIndexes).toEqual([
+            EXPANDED_STACK_Z_BASE,
+            EXPANDED_STACK_Z_BASE + 1,
+            EXPANDED_STACK_Z_BASE + 2,
+        ]);
+        // Each card sits above the one before it and below the one after it, so
+        // every card keeps an exposed band no sibling can steal.
+        expect([...zIndexes].sort((a, b) => a - b)).toEqual(zIndexes);
     });
 });
