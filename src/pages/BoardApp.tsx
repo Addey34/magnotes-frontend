@@ -98,6 +98,11 @@ import '../styles/BoardApp.css';
 
 const STACK_EXPAND_OFFSET_X = 34;
 const STACK_EXPAND_OFFSET_Y = 28;
+// Any regular card's zIndex is a small sequential counter (see
+// getNextZIndex), so this floor guarantees an expanded stack's fanned cards
+// always paint above every ordinary card on the board, not just their own
+// stack siblings.
+const EXPANDED_STACK_Z_BASE = 1_000_000;
 // Nominal collapsed-stack footprint used for viewport culling.
 const STACK_CULL_WIDTH = 240;
 const STACK_CULL_HEIGHT = 200;
@@ -566,9 +571,17 @@ const BoardApp: React.FC<BoardAppProps> = ({
                         ...postIt,
                         x: stack.x + order * STACK_EXPAND_OFFSET_X,
                         y: stack.y + 190 + order * STACK_EXPAND_OFFSET_Y,
-                        zIndex: isFocusedInStack
-                            ? maxSiblingZ + stackSiblings.length
-                            : postIt.zIndex + order,
+                        // Flat, large offset (not just "above this stack's own
+                        // siblings") — an expanded stack's fanned cards land at
+                        // the stack's position, which very often overlaps an
+                        // unrelated free card on a busy board. Without this,
+                        // whichever card happened to have the higher raw
+                        // zIndex (e.g. more recently touched) would win,
+                        // silently swallowing clicks meant for the fanned
+                        // card — the card looked "impossible to edit".
+                        zIndex:
+                            EXPANDED_STACK_Z_BASE +
+                            (isFocusedInStack ? stackSiblings.length : order),
                     };
                 }),
         [cardMatchesFilters, postIts, stacks]
