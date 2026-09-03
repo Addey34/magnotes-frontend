@@ -131,6 +131,37 @@ describe('usePostIts rollbacks', () => {
         });
     });
 
+    it('dissolves a stack back to a free card when only one member is left', async () => {
+        // Regression: unstacking the second-to-last member used to leave a
+        // "1 note" stack widget behind instead of a plain free card.
+        mockedUpdate.mockResolvedValue(undefined);
+        const stackedFirst: PostIt = {
+            ...card,
+            stackId: 'stack-1',
+            stackOrder: 1,
+        };
+        const stackedSecond: PostIt = {
+            ...secondCard,
+            stackId: 'stack-1',
+            stackOrder: 2,
+        };
+        mockedFetch.mockResolvedValue([stackedFirst, stackedSecond]);
+        const { result } = renderHook(() =>
+            usePostIts('tab-1', jest.fn(), jest.fn())
+        );
+        await waitFor(() => expect(result.current.postIts).toHaveLength(2));
+
+        await act(async () => result.current.unstackPostIt('card-2'));
+
+        expect(mockedUpdate).toHaveBeenCalledWith(
+            'card-1',
+            expect.objectContaining({ stackId: null, stackOrder: null })
+        );
+        expect(
+            result.current.postIts.find((item) => item._id === 'card-1')
+        ).toEqual(expect.objectContaining({ stackId: null, stackOrder: null }));
+    });
+
     it('restores a card and its local links when deletion fails', async () => {
         mockedDelete.mockRejectedValue(new Error('network'));
         const onMutationError = jest.fn();

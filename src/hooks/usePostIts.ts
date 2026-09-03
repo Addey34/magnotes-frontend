@@ -351,6 +351,26 @@ export const usePostIts = (
         return computeDropIntent(moved, candidates);
     };
 
+    // A stack of 1 card is not a stack — when removing a member leaves a
+    // single sibling behind, dissolve it back into a plain free card instead
+    // of leaving a "1 note" stack widget on the board.
+    const buildStackDissolveChanges = (
+        currentCards: PostIt[],
+        stackId: string,
+        excludingId: string
+    ): CardChange[] => {
+        const remaining = currentCards.filter(
+            (card) => card.stackId === stackId && card._id !== excludingId
+        );
+        if (remaining.length !== 1) return [];
+        return [
+            buildCardChange(remaining[0], {
+                stackId: null,
+                stackOrder: null,
+            }),
+        ];
+    };
+
     const settlePostIt = async (
         postItId: string,
         x: number,
@@ -427,6 +447,14 @@ export const usePostIts = (
             return;
         }
 
+        const dissolveChanges = movedCard.stackId
+            ? buildStackDissolveChanges(
+                  currentCards,
+                  movedCard.stackId,
+                  postItId
+              )
+            : [];
+
         if (intent?.type === 'dock') {
             await commitChanges([
                 buildCardChange(movedCard, {
@@ -435,6 +463,7 @@ export const usePostIts = (
                     x: intent.x,
                     y: intent.y,
                 }),
+                ...dissolveChanges,
             ]);
             return;
         }
@@ -446,6 +475,7 @@ export const usePostIts = (
                 x: finalX,
                 y: finalY,
             }),
+            ...dissolveChanges,
         ]);
     };
 
@@ -454,9 +484,9 @@ export const usePostIts = (
 
         const currentCards = postItsByTab[activeTabId] || [];
         const postIt = currentCards.find((card) => card._id === postItId);
-        if (!postIt) return;
+        if (!postIt || !postIt.stackId) return;
 
-        await commitChanges([
+        const changes = [
             buildCardChange(postIt, {
                 stackId: null,
                 stackOrder: null,
@@ -464,7 +494,14 @@ export const usePostIts = (
                 y: postIt.y,
                 zIndex: getNextZIndex(currentCards),
             }),
-        ]);
+            ...buildStackDissolveChanges(
+                currentCards,
+                postIt.stackId,
+                postItId
+            ),
+        ];
+
+        await commitChanges(changes);
     };
 
     // Reorder a card within its stack. `reorder` returns the contiguous
