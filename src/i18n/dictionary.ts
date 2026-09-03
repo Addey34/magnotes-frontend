@@ -881,6 +881,10 @@ export const DICTIONARY = {
     'card.styles': { fr: 'Styles', en: 'Styles' },
     'card.font.aria': { fr: 'Police du texte', en: 'Text font' },
     'card.unstack': { fr: 'Sortir de la pile', en: 'Remove from stack' },
+    'card.stack.bringToFront': {
+        fr: 'Mettre au premier plan',
+        en: 'Bring to front',
+    },
     'card.moveToPage': { fr: 'Déplacer vers une page', en: 'Move to a page' },
     'card.section.status': { fr: 'Statut', en: 'Status' },
     'card.section.priority': { fr: 'Priorité', en: 'Priority' },

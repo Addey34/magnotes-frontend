@@ -67,7 +67,10 @@ const makeCard = (overrides: Partial<PostIt> = {}): PostIt => ({
     ...overrides,
 });
 
-const renderCard = (cardOverrides: Partial<PostIt> = {}) => {
+const renderCard = (
+    cardOverrides: Partial<PostIt> = {},
+    propOverrides: { canPromote?: boolean } = {}
+) => {
     const postIt = makeCard(cardOverrides);
     const onNavigateToCard = jest.fn();
     const onLocalChange = jest.fn();
@@ -77,6 +80,7 @@ const renderCard = (cardOverrides: Partial<PostIt> = {}) => {
     const onMove = jest.fn();
     const onMoveToTab = jest.fn();
     const onUnstack = jest.fn();
+    const onPromote = jest.fn();
     const onDuplicate = jest.fn();
     const onDelete = jest.fn();
     const onStartLink = jest.fn();
@@ -99,6 +103,8 @@ const renderCard = (cardOverrides: Partial<PostIt> = {}) => {
             onMove={onMove}
             onMoveToTab={onMoveToTab}
             onUnstack={onUnstack}
+            onPromote={onPromote}
+            canPromote={propOverrides.canPromote}
             onDuplicate={onDuplicate}
             onDelete={onDelete}
             onStartLink={onStartLink}
@@ -116,6 +122,7 @@ const renderCard = (cardOverrides: Partial<PostIt> = {}) => {
         onFocus,
         onDragStateChange,
         onMove,
+        onPromote,
     };
 };
 
@@ -173,6 +180,7 @@ describe('PostItCard rendering', () => {
             onMove: jest.fn(),
             onMoveToTab: jest.fn(),
             onUnstack: jest.fn(),
+            onPromote: jest.fn(),
             onDuplicate: jest.fn(),
             onDelete: jest.fn(),
             onStartLink: jest.fn(),
@@ -318,5 +326,38 @@ describe('PostItCard resize', () => {
                 height: postIt.height + 20,
             })
         );
+    });
+});
+
+describe('PostItCard bring-to-front', () => {
+    it('offers no bring-to-front control on an ordinary card', () => {
+        const { container } = renderCard();
+
+        expect(container.querySelector('.post-it-stack-front')).toBeNull();
+    });
+
+    it('brings a fanned card to the front without starting a drag', () => {
+        // The control lives in the header row because that band is the only
+        // part of a fanned card the cascade always leaves reachable. Clicking
+        // it must promote the card, not grab it: the pointer-down that precedes
+        // the click also opens a drag on the card body.
+        const { postIt, container, onPromote, onLocalChange, onMove } =
+            renderCard(
+                { stackId: 'stack-1', stackOrder: 1 },
+                { canPromote: true }
+            );
+
+        const button = container.querySelector<HTMLButtonElement>(
+            '.post-it-stack-front'
+        )!;
+        expect(button).toBeInTheDocument();
+
+        firePointer(button, 'pointerdown', { clientX: 0, clientY: 0 });
+        firePointer(window, 'pointermove', { clientX: 40, clientY: 40 });
+        fireEvent.click(button);
+
+        expect(onPromote).toHaveBeenCalledWith(postIt._id);
+        expect(onLocalChange).not.toHaveBeenCalled();
+        expect(onMove).not.toHaveBeenCalled();
     });
 });

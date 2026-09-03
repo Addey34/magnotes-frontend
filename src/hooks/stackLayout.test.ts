@@ -7,6 +7,7 @@ import {
     STACK_EXPAND_OFFSET_X,
     STACK_EXPAND_OFFSET_Y,
     STACK_FAN_TOP_GAP,
+    canBringToFront,
     isCardHidden,
     layoutBoardCards,
     resolveCardRect,
@@ -66,6 +67,37 @@ describe('fan geometry', () => {
     it('clears the stack widget before the first card', () => {
         // The widget is 150px tall; the fan must start below it, not on top.
         expect(STACK_FAN_TOP_GAP).toBeGreaterThan(150);
+    });
+});
+
+describe('canBringToFront', () => {
+    const first = makeCard('a', { stackId: 'stack-1', stackOrder: 1 });
+    const middle = makeCard('b', { stackId: 'stack-1', stackOrder: 2 });
+    const front = makeCard('c', { stackId: 'stack-1', stackOrder: 3 });
+    const free = makeCard('free');
+    const other = makeCard('d', { stackId: 'stack-2', stackOrder: 9 });
+    const fan = [first, middle, front, free, other];
+
+    it('offers the affordance to every card the fan covers', () => {
+        expect(canBringToFront(first, fan)).toBe(true);
+        expect(canBringToFront(middle, fan)).toBe(true);
+    });
+
+    it('hides it on the card that is already fully visible', () => {
+        // Promoting the front card is a no-op write; no button, no confusion.
+        expect(canBringToFront(front, fan)).toBe(false);
+    });
+
+    it('hides it on a card that is not stacked at all', () => {
+        expect(canBringToFront(free, fan)).toBe(false);
+    });
+
+    it('never counts a member of another stack as a card in front', () => {
+        expect(canBringToFront(front, [front, other])).toBe(false);
+    });
+
+    it('hides it on a lone stack member', () => {
+        expect(canBringToFront(first, [first])).toBe(false);
     });
 });
 

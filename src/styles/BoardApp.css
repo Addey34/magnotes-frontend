@@ -2117,6 +2117,41 @@
     font-weight: 650;
 }
 
+/*
+ * "Bring to front" for a card fanned out in an expanded stack. It lives in the
+ * header row because that band is the only part of a fanned card guaranteed to
+ * stay reachable (see stackLayout.ts). Height is capped at 18px — under the
+ * 14px/1.2 title line it sits next to — so it cannot grow CARD_HEADER_BAND and
+ * invalidate the fan step.
+ */
+.post-it-stack-front {
+    align-items: center;
+    background: rgba(15, 23, 42, 0.06);
+    border: 0;
+    border-radius: 5px;
+    color: rgba(15, 23, 42, 0.55);
+    cursor: pointer;
+    display: flex;
+    flex: 0 0 auto;
+    height: 18px;
+    justify-content: center;
+    padding: 0;
+    transition:
+        background 0.15s ease,
+        color 0.15s ease;
+    width: 18px;
+}
+
+.post-it-stack-front:hover {
+    background: rgba(15, 23, 42, 0.14);
+    color: rgba(15, 23, 42, 0.85);
+}
+
+.post-it-stack-front svg {
+    height: 12px;
+    width: 12px;
+}
+
 .post-it-content {
     flex: 1;
     line-height: 1.48;

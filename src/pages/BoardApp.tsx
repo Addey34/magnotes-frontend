@@ -94,7 +94,11 @@ import { useT } from '../i18n/LangContext';
 import { LanguageSwitch } from '../i18n/LanguageSwitch';
 import { useNotifications } from '../hooks/useNotifications';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
-import { layoutBoardCards, resolveCardRect } from '../hooks/stackLayout';
+import {
+    canBringToFront,
+    layoutBoardCards,
+    resolveCardRect,
+} from '../hooks/stackLayout';
 import '../styles/BoardApp.css';
 
 // Nominal collapsed-stack footprint used for viewport culling.
@@ -2194,6 +2198,11 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                     onMove={handleMove}
                                     onMoveToTab={movePostItToTab}
                                     onUnstack={handleUnstackCard}
+                                    onPromote={promoteInStack}
+                                    canPromote={canBringToFront(
+                                        postIt,
+                                        postIts
+                                    )}
                                     onDuplicate={clonePostIt}
                                     onDelete={handleDeleteCard}
                                     onStartLink={handleStartLink}

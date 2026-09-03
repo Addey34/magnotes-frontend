@@ -3,6 +3,7 @@ import {
     ArrowTopRightOnSquareIcon,
     ArrowPathIcon,
     CheckCircleIcon,
+    ChevronDoubleUpIcon,
     DocumentDuplicateIcon,
     LinkIcon,
     PhotoIcon,
@@ -78,6 +79,13 @@ interface PostItCardProps {
     onMove: (postItId: string, x: number, y: number) => void;
     onMoveToTab: (postItId: string, targetTabId: string) => void;
     onUnstack: (postItId: string) => void;
+    /** Bring this card to the front of its expanded stack fan. */
+    onPromote: (postItId: string) => void;
+    /**
+     * False when the card is not stacked, or is already its fan's front card —
+     * the affordance only appears where it has something to do.
+     */
+    canPromote?: boolean;
     onDuplicate: (postItId: string) => void;
     onDelete: (postItId: string) => void;
     onStartLink: (postItId: string) => void;
@@ -103,6 +111,8 @@ const PostItCard: React.FC<PostItCardProps> = ({
     onMove,
     onMoveToTab,
     onUnstack,
+    onPromote,
+    canPromote,
     onDuplicate,
     onDelete,
     onStartLink,
@@ -1158,6 +1168,17 @@ const PostItCard: React.FC<PostItCardProps> = ({
                         fontSize: textSize + 1,
                     }}
                 />
+                {canPromote && (
+                    <button
+                        type="button"
+                        className="post-it-stack-front"
+                        onClick={() => onPromote(postIt._id)}
+                        title={t('card.stack.bringToFront')}
+                        aria-label={t('card.stack.bringToFront')}
+                    >
+                        <ChevronDoubleUpIcon />
+                    </button>
+                )}
                 <span className="post-it-date">{dateLabel}</span>
             </div>
 

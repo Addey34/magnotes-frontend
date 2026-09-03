@@ -76,6 +76,26 @@ export function fanPosition(
     };
 }
 
+/**
+ * True when the card sits in a stack and is not already its front-most member.
+ *
+ * The fan leaves only its last card fully readable — every earlier one is
+ * covered from just below its header band down by the next. So bringing a card
+ * forward means making it last in fan order (`promoteInStack`), never lifting it
+ * out of the cascade: the cascade is what guarantees each sibling keeps a
+ * clickable header band of its own.
+ *
+ * Pass the tab's full card list, not a filtered one: a search hiding a sibling
+ * must not make a middle card look like the front of its fan.
+ */
+export function canBringToFront(card: PostIt, cards: PostIt[]): boolean {
+    if (!card.stackId) return false;
+    const order = fanOrder(card);
+    return cards.some(
+        (item) => item.stackId === card.stackId && fanOrder(item) > order
+    );
+}
+
 /** True when a card belongs to a stack that is currently collapsed shut. */
 export function isCardHidden(card: PostIt, stacks: PostItStack[]): boolean {
     if (!card.stackId) return false;
