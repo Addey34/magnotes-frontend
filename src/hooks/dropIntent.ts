@@ -1,5 +1,3 @@
-import { snapToGrid } from './useDragGrid';
-
 /**
  * Pure geometry for the drop-intent engine. Given a moved card and the other
  * cards on the board, decide whether the drop should stack (centered drop),
@@ -41,8 +39,7 @@ export function getOverlap(
 
 export function computeDropIntent(
     moved: DropRect,
-    candidates: DropRect[],
-    snap: (value: number) => number = snapToGrid
+    candidates: DropRect[]
 ): DropIntent {
     let bestStack: { targetId: string; distance: number } | null = null;
     let bestDock: {
@@ -130,8 +127,15 @@ export function computeDropIntent(
                 bestDock = {
                     targetId: target._id,
                     distance: dock.distance,
-                    x: snap(dock.x),
-                    y: snap(dock.y),
+                    // Deliberately NOT re-snapped to the global grid: dock.x/y
+                    // are already the exact coordinate that touches the
+                    // target's edge. Card width/height (e.g. 220/150) aren't
+                    // multiples of GRID_SIZE (24), so rounding this to the
+                    // grid used to shift every dock a few pixels off the
+                    // target, leaving a visible gap or overlap instead of a
+                    // clean edge-to-edge touch.
+                    x: dock.x,
+                    y: dock.y,
                 };
             }
         }

@@ -348,7 +348,7 @@ export const usePostIts = (
         };
 
         const candidates = currentCards.filter((card) => card._id !== postItId);
-        return computeDropIntent(moved, candidates, snapToGrid);
+        return computeDropIntent(moved, candidates);
     };
 
     const settlePostIt = async (

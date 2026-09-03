@@ -5,10 +5,6 @@ import {
     STACK_CENTER_DISTANCE,
 } from './dropIntent';
 
-// Identity snap keeps dock coordinates exact so assertions read cleanly;
-// a dedicated test covers that the real snap function is applied.
-const noSnap = (value: number) => value;
-
 const card = (
     _id: string,
     x: number,
@@ -29,19 +25,19 @@ describe('getOverlap', () => {
 
 describe('computeDropIntent', () => {
     it('returns null when there are no candidates', () => {
-        expect(computeDropIntent(card('a', 0, 0), [], noSnap)).toBeNull();
+        expect(computeDropIntent(card('a', 0, 0), [])).toBeNull();
     });
 
     it('ignores the moved card if it appears among the candidates', () => {
         const moved = card('a', 0, 0);
-        expect(computeDropIntent(moved, [moved], noSnap)).toBeNull();
+        expect(computeDropIntent(moved, [moved])).toBeNull();
     });
 
     describe('stacking', () => {
         it('stacks when centers coincide', () => {
             const moved = card('a', 0, 0);
             const target = card('b', 0, 0);
-            expect(computeDropIntent(moved, [target], noSnap)).toEqual({
+            expect(computeDropIntent(moved, [target])).toEqual({
                 type: 'stack',
                 targetId: 'b',
             });
@@ -50,7 +46,7 @@ describe('computeDropIntent', () => {
         it('stacks when the center is just inside the threshold', () => {
             const target = card('b', 0, 0); // center (110, 75)
             const moved = card('a', STACK_CENTER_DISTANCE - 1, 0);
-            expect(computeDropIntent(moved, [target], noSnap)).toEqual({
+            expect(computeDropIntent(moved, [target])).toEqual({
                 type: 'stack',
                 targetId: 'b',
             });
@@ -59,7 +55,7 @@ describe('computeDropIntent', () => {
         it('does not stack once the center is beyond the threshold', () => {
             const target = card('b', 0, 0);
             const moved = card('a', STACK_CENTER_DISTANCE + 5, 0);
-            const intent = computeDropIntent(moved, [target], noSnap);
+            const intent = computeDropIntent(moved, [target]);
             expect(intent?.type).not.toBe('stack');
         });
 
@@ -67,7 +63,7 @@ describe('computeDropIntent', () => {
             const near = card('near', 5, 0);
             const far = card('far', 300, 300);
             const moved = card('a', 0, 0);
-            expect(computeDropIntent(moved, [far, near], noSnap)).toEqual({
+            expect(computeDropIntent(moved, [far, near])).toEqual({
                 type: 'stack',
                 targetId: 'near',
             });
@@ -78,9 +74,7 @@ describe('computeDropIntent', () => {
             // stack must win.
             const moved = card('a', 0, 0);
             const target = card('b', 0, 0);
-            expect(computeDropIntent(moved, [target], noSnap)?.type).toBe(
-                'stack'
-            );
+            expect(computeDropIntent(moved, [target])?.type).toBe('stack');
         });
     });
 
@@ -88,7 +82,7 @@ describe('computeDropIntent', () => {
         it('docks to the right edge with full vertical overlap', () => {
             const target = card('b', 0, 0); // right edge at x=220
             const moved = card('a', 220, 0);
-            expect(computeDropIntent(moved, [target], noSnap)).toEqual({
+            expect(computeDropIntent(moved, [target])).toEqual({
                 type: 'dock',
                 targetId: 'b',
                 x: 220,
@@ -99,7 +93,7 @@ describe('computeDropIntent', () => {
         it('docks below with horizontal overlap', () => {
             const target = card('b', 0, 0); // bottom edge at y=150
             const moved = card('a', 0, 150);
-            expect(computeDropIntent(moved, [target], noSnap)).toEqual({
+            expect(computeDropIntent(moved, [target])).toEqual({
                 type: 'dock',
                 targetId: 'b',
                 x: 0,
@@ -111,24 +105,27 @@ describe('computeDropIntent', () => {
             const target = card('b', 0, 0);
             // Slide the moved card far down so overlap < 45% of height.
             const moved = card('a', 220, 130);
-            const intent = computeDropIntent(moved, [target], noSnap);
+            const intent = computeDropIntent(moved, [target]);
             expect(intent).toBeNull();
         });
 
         it('does not dock when the edge is beyond the distance threshold', () => {
             const target = card('b', 0, 0);
             const moved = card('a', 300, 0); // right edge gap of 80 > 42
-            expect(computeDropIntent(moved, [target], noSnap)).toBeNull();
+            expect(computeDropIntent(moved, [target])).toBeNull();
         });
 
-        it('applies the snap function to dock coordinates', () => {
-            const target = card('b', 0, 0);
-            const moved = card('a', 220, 0);
-            const snapTo100 = (v: number) => Math.round(v / 100) * 100;
-            expect(computeDropIntent(moved, [target], snapTo100)).toEqual({
+        it('keeps the exact touching coordinate, not rounded to the grid', () => {
+            // Card width (220) isn't a multiple of GRID_SIZE (24); re-snapping
+            // this to the grid used to leave a gap/overlap instead of a clean
+            // edge-to-edge touch. The target itself doesn't need to be
+            // grid-aligned either — 7 is deliberately off-grid here.
+            const target = card('b', 7, 0);
+            const moved = card('a', 227, 0);
+            expect(computeDropIntent(moved, [target])).toEqual({
                 type: 'dock',
                 targetId: 'b',
-                x: 200,
+                x: 227,
                 y: 0,
             });
         });
