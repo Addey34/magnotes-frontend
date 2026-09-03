@@ -3,6 +3,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { deleteStack, fetchStacks, updateStack } from '../services/boardApi';
 import { PostItStack } from '../types/boardTypes';
+import { snapToGrid } from './useDragGrid';
 import { useStacks } from './useStacks';
 
 jest.mock('../services/boardApi', () => ({
@@ -58,8 +59,8 @@ describe('useStacks rollbacks', () => {
         await act(async () => result.current.settleStack('stack-1', 37, 53));
 
         expect(mockedUpdate).toHaveBeenCalledWith('stack-1', {
-            x: 48,
-            y: 48,
+            x: snapToGrid(37),
+            y: snapToGrid(53),
         });
         expect(result.current.stacks[0]).toMatchObject({ x: 24, y: 48 });
         expect(onMutationError).toHaveBeenCalledTimes(1);
