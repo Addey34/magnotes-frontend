@@ -20,7 +20,12 @@ export type DropIntent =
     | { type: 'dock'; targetId: string; x: number; y: number }
     | null;
 
-export const STACK_CENTER_DISTANCE = 38;
+// Distance (px, board space) between the moved card's center and a target's
+// center within which dropping triggers a stack. Deliberately generous — a
+// casual "drop roughly on top of another card" drag should stack; forcing
+// near pixel-perfect centering (the old 38px value, a fraction of a 220x150
+// card) made stacking feel unreliable.
+export const STACK_CENTER_DISTANCE = 70;
 export const DOCK_EDGE_DISTANCE = 42;
 export const DOCK_OVERLAP_RATIO = 0.45;
 export const DOCK_GAP = 0;
