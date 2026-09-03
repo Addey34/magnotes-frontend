@@ -151,7 +151,7 @@ describe('usePostIts rollbacks', () => {
         );
         await waitFor(() => expect(result.current.postIts).toHaveLength(2));
 
-        await act(async () => result.current.unstackPostIt('card-2'));
+        await act(async () => result.current.unstackPostIt('card-2', []));
 
         expect(mockedUpdate).toHaveBeenCalledWith(
             'card-1',
@@ -160,6 +160,96 @@ describe('usePostIts rollbacks', () => {
         expect(
             result.current.postIts.find((item) => item._id === 'card-1')
         ).toEqual(expect.objectContaining({ stackId: null, stackOrder: null }));
+    });
+
+    it('ignores the phantom rectangles left behind by a moved stack', async () => {
+        // Regression: a stack's members keep the coordinates they were given
+        // when stacked, and settleStack never rewrites them. After the stack is
+        // dragged elsewhere, those stale rectangles sat on empty board space as
+        // invisible drop magnets — a card dropped there was swallowed into the
+        // pile and disappeared from the canvas.
+        mockedUpdate.mockResolvedValue(undefined);
+        const hidden: PostIt = {
+            ...card,
+            _id: 'hidden-1',
+            stackId: 'stack-1',
+            stackOrder: 1,
+            x: 400,
+            y: 200,
+        };
+        const free: PostIt = { ...secondCard, x: 1000, y: 600 };
+        mockedFetch.mockResolvedValue([hidden, free]);
+        // The stack has since been dragged far away from (400, 200).
+        const movedStack: PostItStack = {
+            _id: 'stack-1',
+            userId: 'user-1',
+            tabId: 'tab-1',
+            x: 430,
+            y: 800,
+            collapsed: true,
+            createdAt: card.createdAt,
+            updatedAt: card.updatedAt,
+        };
+        const createStackAt = jest.fn();
+        const { result } = renderHook(() =>
+            usePostIts('tab-1', jest.fn(), jest.fn())
+        );
+        await waitFor(() => expect(result.current.postIts).toHaveLength(2));
+
+        // Drop the free card right onto the vacated (400, 200) spot.
+        expect(
+            result.current.getDropIntent('card-2', [movedStack], 400, 200)
+        ).toBeNull();
+
+        await act(async () =>
+            result.current.settlePostIt(
+                'card-2',
+                400,
+                200,
+                [movedStack],
+                createStackAt
+            )
+        );
+
+        expect(createStackAt).not.toHaveBeenCalled();
+        expect(
+            result.current.postIts.find((item) => item._id === 'card-2')
+        ).toMatchObject({ stackId: null, x: 400, y: 200 });
+    });
+
+    it('does not re-absorb a card nudged within its own expanded stack fan', async () => {
+        // Fan siblings sit one 34px step apart — inside the stack radius — so
+        // without excluding them a card could never be pulled out of its own
+        // pile: every drop landed back on a sibling and re-stacked.
+        const stack: PostItStack = {
+            _id: 'stack-1',
+            userId: 'user-1',
+            tabId: 'tab-1',
+            x: 400,
+            y: 200,
+            collapsed: false,
+            createdAt: card.createdAt,
+            updatedAt: card.updatedAt,
+        };
+        mockedFetch.mockResolvedValue([
+            { ...card, stackId: 'stack-1', stackOrder: 1, x: 400, y: 200 },
+            {
+                ...secondCard,
+                stackId: 'stack-1',
+                stackOrder: 2,
+                x: 400,
+                y: 200,
+            },
+        ]);
+        const { result } = renderHook(() =>
+            usePostIts('tab-1', jest.fn(), jest.fn())
+        );
+        await waitFor(() => expect(result.current.postIts).toHaveLength(2));
+
+        // Sibling "card-1" is drawn at (400, 390); drop card-2 right on it.
+        expect(
+            result.current.getDropIntent('card-2', [stack], 400, 390)
+        ).toBeNull();
     });
 
     it('restores a card and its local links when deletion fails', async () => {

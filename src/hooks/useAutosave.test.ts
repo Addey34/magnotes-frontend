@@ -145,4 +145,63 @@ describe('useAutosave', () => {
         expect(save).toHaveBeenCalledTimes(1);
         expect(result.current.saveState.status).toBe('error');
     });
+
+    it('flags the fields edited while a save was in flight as stale', async () => {
+        // Regression: the caller applies the server's echo of the saved card to
+        // local state. The echo reflects the card as it was *sent*, so applying
+        // `content` after the user kept typing rewound the textarea and ate the
+        // characters typed since — "it drops letters when I type fast".
+        let resolveSave: (value: unknown) => void = () => {};
+        const save = jest
+            .fn()
+            .mockImplementationOnce(
+                () => new Promise((resolve) => (resolveSave = resolve))
+            )
+            // The follow-up write the unmount flush drains; it must not reject
+            // and spam the console with a bogus autosave failure.
+            .mockResolvedValue({ content: 'Bonjour' });
+        const onSaved = jest.fn<void, [string, unknown, string[]]>();
+        const { result } = renderHook(() =>
+            useAutosave(save, 500, undefined, onSaved)
+        );
+
+        await act(async () => {
+            result.current.scheduleSave('card-1', { content: 'Bonj' });
+            jest.advanceTimersByTime(500);
+            // Let the serialising promise chain reach the actual save call.
+            await Promise.resolve();
+        });
+        expect(save).toHaveBeenCalledTimes(1);
+
+        // The request is in flight; the user keeps typing.
+        act(() => {
+            result.current.scheduleSave('card-1', { content: 'Bonjour' });
+        });
+
+        await act(async () => {
+            resolveSave({ content: 'Bonj' });
+            await Promise.resolve();
+            await Promise.resolve();
+        });
+
+        expect(onSaved).toHaveBeenCalledTimes(1);
+        expect(onSaved.mock.calls[0][2]).toContain('content');
+    });
+
+    it('reports no stale fields when nothing was typed during the save', async () => {
+        const save = jest.fn().mockResolvedValue({ content: 'Bonjour' });
+        const onSaved = jest.fn<void, [string, unknown, string[]]>();
+        const { result } = renderHook(() =>
+            useAutosave(save, 500, undefined, onSaved)
+        );
+
+        act(() => {
+            result.current.scheduleSave('card-1', { content: 'Bonjour' });
+            jest.advanceTimersByTime(500);
+        });
+        await act(async () => Promise.resolve());
+
+        expect(onSaved).toHaveBeenCalledTimes(1);
+        expect(onSaved.mock.calls[0][2]).toEqual([]);
+    });
 });

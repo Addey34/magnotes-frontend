@@ -94,15 +94,9 @@ import { useT } from '../i18n/LangContext';
 import { LanguageSwitch } from '../i18n/LanguageSwitch';
 import { useNotifications } from '../hooks/useNotifications';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { layoutBoardCards, resolveCardRect } from '../hooks/stackLayout';
 import '../styles/BoardApp.css';
 
-const STACK_EXPAND_OFFSET_X = 34;
-const STACK_EXPAND_OFFSET_Y = 28;
-// Any regular card's zIndex is a small sequential counter (see
-// getNextZIndex), so this floor guarantees an expanded stack's fanned cards
-// always paint above every ordinary card on the board, not just their own
-// stack siblings.
-const EXPANDED_STACK_Z_BASE = 1_000_000;
 // Nominal collapsed-stack footprint used for viewport culling.
 const STACK_CULL_WIDTH = 240;
 const STACK_CULL_HEIGHT = 200;
@@ -312,10 +306,23 @@ const BoardApp: React.FC<BoardAppProps> = ({
         500,
         notifySaveError,
         useCallback(
-            (postItId: string, savedPostIt: PostIt | undefined) => {
-                if (savedPostIt) {
-                    patchPostItLocal(postItId, savedPostIt);
-                }
+            (
+                postItId: string,
+                savedPostIt: PostIt | undefined,
+                staleKeys: string[]
+            ) => {
+                if (!savedPostIt) return;
+                // Never let the server's echo overwrite a field the user has
+                // edited since the request left: that reverts the textarea
+                // mid-sentence. `updatedAt` is always taken — the optimistic
+                // concurrency check on the next save depends on it.
+                const echo = Object.fromEntries(
+                    Object.entries(savedPostIt).filter(
+                        ([key]) =>
+                            key === 'updatedAt' || !staleKeys.includes(key)
+                    )
+                ) as Partial<PostIt>;
+                patchPostItLocal(postItId, echo);
             },
             [patchPostItLocal]
         )
@@ -396,7 +403,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
     };
     const normalizedSearch = searchTerm.trim().toLowerCase();
     const draggingDropIntent = draggingPostItId
-        ? getDropIntent(draggingPostItId)
+        ? getDropIntent(draggingPostItId, stacks)
         : null;
 
     useEffect(() => {
@@ -539,52 +546,12 @@ const BoardApp: React.FC<BoardAppProps> = ({
     // result counter and empty-search state stay accurate off-screen.
     const laidOutPostIts = useMemo(
         () =>
-            postIts
-                .filter((postIt) => {
-                    if (!cardMatchesFilters(postIt)) return false;
-                    if (!postIt.stackId) return true;
-                    const stack = stacks.find(
-                        (item) => item._id === postIt.stackId
-                    );
-                    return !stack || !stack.collapsed;
-                })
-                .map((postIt) => {
-                    if (!postIt.stackId) return postIt;
-                    const stack = stacks.find(
-                        (item) => item._id === postIt.stackId
-                    );
-                    if (!stack || stack.collapsed) return postIt;
-                    const order = Math.max(0, (postIt.stackOrder || 1) - 1);
-                    // The focused card (highest raw zIndex in the stack)
-                    // must visually sit on top regardless of its stackOrder
-                    // position — override its z-index offset to be strictly
-                    // above all siblings.
-                    const stackSiblings = postIts.filter(
-                        (c) => c.stackId === postIt.stackId
-                    );
-                    const maxSiblingZ = stackSiblings.reduce(
-                        (max, c) => Math.max(max, c.zIndex),
-                        0
-                    );
-                    const isFocusedInStack = postIt.zIndex === maxSiblingZ;
-                    return {
-                        ...postIt,
-                        x: stack.x + order * STACK_EXPAND_OFFSET_X,
-                        y: stack.y + 190 + order * STACK_EXPAND_OFFSET_Y,
-                        // Flat, large offset (not just "above this stack's own
-                        // siblings") — an expanded stack's fanned cards land at
-                        // the stack's position, which very often overlaps an
-                        // unrelated free card on a busy board. Without this,
-                        // whichever card happened to have the higher raw
-                        // zIndex (e.g. more recently touched) would win,
-                        // silently swallowing clicks meant for the fanned
-                        // card — the card looked "impossible to edit".
-                        zIndex:
-                            EXPANDED_STACK_Z_BASE +
-                            (isFocusedInStack ? stackSiblings.length : order),
-                    };
-                }),
-        [cardMatchesFilters, postIts, stacks]
+            layoutBoardCards(postIts, stacks, {
+                // Keep the dragged card on the pointer instead of snapping it
+                // back into the fan on every move.
+                draggingCardId: draggingPostItId,
+            }).filter(cardMatchesFilters),
+        [cardMatchesFilters, draggingPostItId, postIts, stacks]
     );
 
     const matchedStacks = useMemo(
@@ -808,18 +775,49 @@ const BoardApp: React.FC<BoardAppProps> = ({
             setPendingFocusId(null);
             return;
         }
+        // Frame where the card is really drawn. A stacked card's stored x/y is
+        // its stack's origin as of the last stacking, so framing that directly
+        // would scroll to empty space; a card hidden in a collapsed stack has no
+        // rectangle of its own and is framed through its stack widget instead.
+        const drawn = resolveCardRect(card._id, postIts, stacks);
+        const stack = card.stackId
+            ? stacks.find((item) => item._id === card.stackId)
+            : undefined;
+        const target = drawn
+            ? {
+                  minX: drawn.x,
+                  minY: drawn.y,
+                  maxX: drawn.x + drawn.width,
+                  maxY: drawn.y + drawn.height,
+              }
+            : stack
+              ? {
+                    minX: stack.x,
+                    minY: stack.y,
+                    maxX: stack.x + STACK_CULL_WIDTH,
+                    maxY: stack.y + STACK_CULL_HEIGHT,
+                }
+              : null;
+        if (!target) {
+            setPendingFocusId(null);
+            return;
+        }
+
         const frame = requestAnimationFrame(() => {
             focusPostIt(card._id);
-            focusBounds({
-                minX: card.x,
-                minY: card.y,
-                maxX: card.x + card.width,
-                maxY: card.y + card.height,
-            });
+            focusBounds(target);
             setPendingFocusId(null);
         });
         return () => cancelAnimationFrame(frame);
-    }, [view, pendingFocusId, isLoading, postIts, focusPostIt, focusBounds]);
+    }, [
+        view,
+        pendingFocusId,
+        isLoading,
+        postIts,
+        stacks,
+        focusPostIt,
+        focusBounds,
+    ]);
 
     const createPostItInView = (
         position?: { x: number; y: number },
@@ -859,6 +857,9 @@ const BoardApp: React.FC<BoardAppProps> = ({
     const handleMoveStack = async (stackId: string, x: number, y: number) => {
         await settleStack(stackId, x, y);
     };
+
+    const handleUnstackCard = (postItId: string) =>
+        unstackPostIt(postItId, stacks);
 
     // Delete a card and, undoably, its connections: snapshot the touching links
     // before deletion, drop them from the local cache, and re-create them on undo.
@@ -2192,7 +2193,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                     onDragStateChange={setDraggingPostItId}
                                     onMove={handleMove}
                                     onMoveToTab={movePostItToTab}
-                                    onUnstack={unstackPostIt}
+                                    onUnstack={handleUnstackCard}
                                     onDuplicate={clonePostIt}
                                     onDelete={handleDeleteCard}
                                     onStartLink={handleStartLink}

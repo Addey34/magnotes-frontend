@@ -16,6 +16,7 @@ import {
 } from '../types/boardTypes';
 import { snapToGrid } from './useDragGrid';
 import { computeDropIntent, DropIntent } from './dropIntent';
+import { layoutBoardCards, resolveCardRect } from './stackLayout';
 import { buildCardChange, CardChange, isNoOpChange } from './historyCommands';
 import { useHistory } from './useHistory';
 import {
@@ -330,8 +331,22 @@ export const usePostIts = (
         }
     };
 
+    /**
+     * Drop targets are resolved from where cards are actually *drawn*, never
+     * from their stored coordinates. A stacked card is persisted at its stack's
+     * origin and is not rewritten when that stack moves, so its stored rectangle
+     * is a phantom: an invisible drop magnet sitting on empty board space. Cards
+     * dropped there used to be swallowed into a collapsed pile and vanish.
+     *
+     * Two groups are excluded on top of that:
+     *  - members of a collapsed stack, which are drawn nowhere at all;
+     *  - the dragged card's own stack siblings, which sit one fan step (34px)
+     *    away — well inside the stack radius — so a card could never be nudged
+     *    out of its own fan without being instantly re-absorbed.
+     */
     const getDropIntent = (
         postItId: string,
+        stacks: PostItStack[],
         x?: number,
         y?: number
     ): DropIntent => {
@@ -347,7 +362,13 @@ export const usePostIts = (
             y: y ?? source.y,
         };
 
-        const candidates = currentCards.filter((card) => card._id !== postItId);
+        const candidates = layoutBoardCards(currentCards, stacks, {
+            draggingCardId: postItId,
+        }).filter(
+            (card) =>
+                card._id !== postItId &&
+                !(source.stackId && card.stackId === source.stackId)
+        );
         return computeDropIntent(moved, candidates);
     };
 
@@ -386,7 +407,7 @@ export const usePostIts = (
         const movedCard = currentCards.find((card) => card._id === postItId);
         if (!movedCard) return;
 
-        const intent = getDropIntent(postItId, finalX, finalY);
+        const intent = getDropIntent(postItId, stacks, finalX, finalY);
 
         if (intent?.type === 'stack') {
             const targetCard = currentCards.find(
@@ -479,19 +500,30 @@ export const usePostIts = (
         ]);
     };
 
-    const unstackPostIt = async (postItId: string) => {
+    const unstackPostIt = async (postItId: string, stacks: PostItStack[]) => {
         if (!activeTabId) return;
 
         const currentCards = postItsByTab[activeTabId] || [];
         const postIt = currentCards.find((card) => card._id === postItId);
         if (!postIt || !postIt.stackId) return;
 
+        // Release the card next to where the user actually sees it. Its stored
+        // x/y points at the stack's origin as of the last time it was stacked,
+        // so using that directly would drop the card at a stale position — off
+        // near wherever the stack used to be.
+        const stack = stacks.find((item) => item._id === postIt.stackId);
+        const drawn = resolveCardRect(postItId, currentCards, stacks);
+        const origin = drawn ?? {
+            x: stack?.x ?? postIt.x,
+            y: stack?.y ?? postIt.y,
+        };
+
         const changes = [
             buildCardChange(postIt, {
                 stackId: null,
                 stackOrder: null,
-                x: postIt.x + 264,
-                y: postIt.y,
+                x: origin.x + 264,
+                y: origin.y,
                 zIndex: getNextZIndex(currentCards),
             }),
             ...buildStackDissolveChanges(

@@ -10,7 +10,7 @@ export const useAutosave = <T extends object, TResult = void>(
     save: (id: string, updates: T) => Promise<TResult>,
     delay = 500,
     onError?: (error: unknown) => void,
-    onSaved?: (id: string, result: TResult) => void
+    onSaved?: (id: string, result: TResult, staleKeys: string[]) => void
 ) => {
     const pending = useRef<Record<string, PendingSave<T>>>({});
     const failed = useRef<Record<string, T>>({});
@@ -52,7 +52,16 @@ export const useAutosave = <T extends object, TResult = void>(
             .catch(() => undefined)
             .then(() => saveRef.current(id, updatesToSave))
             .then((result) => {
-                onSavedRef.current?.(id, result);
+                // Fields the user has kept editing while this request was in
+                // flight. The response echoes the card as it was *sent*, so
+                // applying those keys would rewind the textarea to an older
+                // value and swallow everything typed since — the "it drops
+                // letters when I type fast" bug.
+                const staleKeys = Object.keys({
+                    ...(pending.current[id]?.updates || {}),
+                    ...(failed.current[id] || {}),
+                });
+                onSavedRef.current?.(id, result, staleKeys);
                 if (mounted.current) {
                     setSaveState({ status: 'saved', postItId: id });
                 }
