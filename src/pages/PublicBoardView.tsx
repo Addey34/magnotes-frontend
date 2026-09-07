@@ -1,7 +1,8 @@
 import * as React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { fetchPublicBoard } from '../services/boardApi';
-import { PublicBoard } from '../types/boardTypes';
+import { PostIt, PublicBoard } from '../types/boardTypes';
+import { spreadStacks } from '../hooks/stackLayout';
 import { linkAnchors } from '../utils/connectionGeometry';
 import { renderMarkdown } from '../utils/markdownRender';
 import { TranslationKey } from '../i18n/dictionary';
@@ -42,10 +43,17 @@ const PublicBoardView: React.FC<{ token: string }> = ({ token }) => {
         };
     }, [token]);
 
+    // Every card at the position it is really drawn at — stacks laid out flat.
+    // The canvas box, the arrows and the cards all read from this one list, so
+    // they cannot disagree.
+    const cards = useMemo<PostIt[]>(
+        () => (board ? spreadStacks(board.postIts, board.stacks) : []),
+        [board]
+    );
+
     // Bounding box of all cards → canvas size and the offset that shifts the
     // (possibly negative) board coordinates into a positive scroll space.
     const layout = useMemo(() => {
-        const cards = board?.postIts ?? [];
         if (cards.length === 0) {
             return { offsetX: 0, offsetY: 0, width: 800, height: 600 };
         }
@@ -59,13 +67,13 @@ const PublicBoardView: React.FC<{ token: string }> = ({ token }) => {
             width: maxX - minX + CANVAS_PADDING * 2,
             height: maxY - minY + CANVAS_PADDING * 2,
         };
-    }, [board]);
+    }, [cards]);
 
     const cardById = useMemo(() => {
-        const map = new Map<string, PublicBoard['postIts'][number]>();
-        for (const card of board?.postIts ?? []) map.set(card._id, card);
+        const map = new Map<string, PostIt>();
+        for (const card of cards) map.set(card._id, card);
         return map;
-    }, [board]);
+    }, [cards]);
 
     if (status === 'loading') {
         return (
@@ -165,7 +173,7 @@ const PublicBoardView: React.FC<{ token: string }> = ({ token }) => {
                         })}
                     </svg>
 
-                    {board.postIts.map((card) => (
+                    {cards.map((card) => (
                         <article
                             key={card._id}
                             className="public-card"

@@ -1,13 +1,17 @@
 import React, { RefObject, useEffect, useMemo, useState } from 'react';
-import { PostIt, PostItStack } from '../../types/boardTypes';
+import { PostIt } from '../../types/boardTypes';
 import { useT } from '../../i18n/LangContext';
 
 interface BoardMinimapProps {
     canvasRef: RefObject<HTMLDivElement>;
     offset: { x: number; y: number };
     zoom: number;
+    /**
+     * Cards as they are actually drawn (`layoutBoardCards`), never the raw
+     * board state: a stacked card is stored at its stack's origin, so raw
+     * coordinates would scatter dots over board space nothing occupies.
+     */
     postIts: PostIt[];
-    stacks: PostItStack[];
 }
 
 const WIDTH = 164;
@@ -19,7 +23,6 @@ const BoardMinimap: React.FC<BoardMinimapProps> = ({
     offset,
     zoom,
     postIts,
-    stacks,
 }) => {
     const { t } = useT();
     const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
@@ -54,12 +57,6 @@ const BoardMinimap: React.FC<BoardMinimapProps> = ({
                 width: postIt.width,
                 height: postIt.height,
             })),
-            ...stacks.map((stack) => ({
-                x: stack.x,
-                y: stack.y,
-                width: 240,
-                height: 180,
-            })),
         ];
         const minX = Math.min(...items.map((item) => item.x));
         const minY = Math.min(...items.map((item) => item.y));
@@ -76,7 +73,7 @@ const BoardMinimap: React.FC<BoardMinimapProps> = ({
             height: Math.max(2, item.height * scale),
         });
         return { viewport: mapRect(viewport), mapRect };
-    }, [offset.x, offset.y, postIts, stacks, viewportSize, zoom]);
+    }, [offset.x, offset.y, postIts, viewportSize, zoom]);
 
     if (!geometry) return null;
 
@@ -90,18 +87,6 @@ const BoardMinimap: React.FC<BoardMinimapProps> = ({
                         ...geometry.mapRect(postIt),
                         backgroundColor: postIt.color,
                     }}
-                />
-            ))}
-            {stacks.map((stack) => (
-                <span
-                    key={stack._id}
-                    className="board-minimap-stack"
-                    style={geometry.mapRect({
-                        x: stack.x,
-                        y: stack.y,
-                        width: 240,
-                        height: 180,
-                    })}
                 />
             ))}
             <span

@@ -3,7 +3,10 @@ import {
     ArrowTopRightOnSquareIcon,
     ArrowPathIcon,
     CheckCircleIcon,
-    ChevronDoubleUpIcon,
+    ChevronDoubleLeftIcon,
+    ChevronLeftIcon,
+    ChevronRightIcon,
+    ChevronDoubleRightIcon,
     DocumentDuplicateIcon,
     LinkIcon,
     PhotoIcon,
@@ -31,6 +34,7 @@ import {
     TEXT_COLORS,
 } from '../../constants/boardDefaults';
 import { useDismiss } from '../../hooks/useDismiss';
+import { CardStackView, STACK_TAB_STEP } from '../../hooks/stackLayout';
 import { DropIntent } from '../../hooks/usePostIts';
 import CardDetailModal from './CardDetailModal';
 import { renderMarkdown } from '../../utils/markdownRender';
@@ -79,13 +83,18 @@ interface PostItCardProps {
     onMove: (postItId: string, x: number, y: number) => void;
     onMoveToTab: (postItId: string, targetTabId: string) => void;
     onUnstack: (postItId: string) => void;
-    /** Bring this card to the front of its expanded stack fan. */
-    onPromote: (postItId: string) => void;
     /**
-     * False when the card is not stacked, or is already its fan's front card —
-     * the affordance only appears where it has something to do.
+     * The role this card plays inside its stack, or null/undefined for a free
+     * card. It decides the whole stack behaviour of the card: deck edges and
+     * click-to-unfold for a pile, a side tab and click-to-select for a covered
+     * fan card. See `buildStackViews`.
      */
-    canPromote?: boolean;
+    stackView?: CardStackView | null;
+    /** Fold or unfold the stack this card belongs to. */
+    onToggleStack: (stackId: string, collapsed: boolean) => void;
+    /** Bring this card to the front of its fan — a click on its side tab. */
+    onSelectInStack: (postItId: string) => void;
+    onStepInStack: (postItId: string, direction: 1 | -1) => void;
     onDuplicate: (postItId: string) => void;
     onDelete: (postItId: string) => void;
     onStartLink: (postItId: string) => void;
@@ -111,8 +120,10 @@ const PostItCard: React.FC<PostItCardProps> = ({
     onMove,
     onMoveToTab,
     onUnstack,
-    onPromote,
-    canPromote,
+    stackView,
+    onToggleStack,
+    onSelectInStack,
+    onStepInStack,
     onDuplicate,
     onDelete,
     onStartLink,
@@ -207,6 +218,20 @@ const PostItCard: React.FC<PostItCardProps> = ({
 
     const intentClass =
         isDragging && dropIntent ? `has-${dropIntent.type}-intent` : '';
+
+    // A folded pile prints the cards underneath as offset paper edges rather
+    // than mounting them: they own no pixels, so they cannot be clicked, catch
+    // a drop, or cost a render. `pile-depth-N` picks the matching box-shadow
+    // ladder, `--pile-edge-N` gives each edge the real colour of its card.
+    const cardName = postIt.title || t('app.untitled');
+    const pileEdges = stackView?.role === 'pile' ? stackView.underColors : [];
+    const stackClass = stackView
+        ? {
+              pile: `is-stacked is-pile pile-depth-${pileEdges.length}`,
+              'fan-front': 'is-stacked is-fan-front',
+              'fan-tab': 'is-stacked is-fan-tab',
+          }[stackView.role]
+        : '';
     const currentTab = tabs.find((tab) => tab._id === activeTabId);
     const isLinkSource = linkingSourceId === postIt._id;
     const isLinkTargetCandidate = Boolean(linkingSourceId) && !isLinkSource;
@@ -281,6 +306,17 @@ const PostItCard: React.FC<PostItCardProps> = ({
                     initialX + (upEvent.clientX - startX) / zoom,
                     initialY + (upEvent.clientY - startY) / zoom
                 );
+                return;
+            }
+            // A click that never turned into a drag is the stack gesture:
+            // open a folded pile, or pick the card whose tab was clicked. It
+            // has to happen here rather than on pointer-down, because both
+            // outcomes move this card and would yank it out from under a drag
+            // that was only just starting.
+            if (stackView?.role === 'pile') {
+                onToggleStack(stackView.stackId, false);
+            } else if (stackView?.role === 'fan-tab') {
+                onSelectInStack(postIt._id);
             }
         };
 
@@ -585,14 +621,24 @@ const PostItCard: React.FC<PostItCardProps> = ({
     return (
         <article
             ref={cardRef}
-            className={`post-it-card finish-${postIt.finish || 'flat'} ${isDragging ? 'is-dragging' : ''} ${isHovered ? 'is-hovered' : ''} ${stylePanel ? 'has-open-style-panel' : ''} ${intentClass} ${isLinkSource ? 'is-link-source' : ''} ${isLinkTargetCandidate ? 'is-link-target' : ''} ${selected ? 'is-selected' : ''} ${isDropTarget ? 'is-drop-target' : ''}`}
-            style={{
-                backgroundColor: postIt.color,
-                transform: `translate(${postIt.x}px, ${postIt.y}px) rotate(${rotation}deg)`,
-                width: postIt.width,
-                minHeight: postIt.height,
-                zIndex: postIt.zIndex,
-            }}
+            className={`post-it-card finish-${postIt.finish || 'flat'} ${isDragging ? 'is-dragging' : ''} ${isHovered ? 'is-hovered' : ''} ${stylePanel ? 'has-open-style-panel' : ''} ${intentClass} ${isLinkSource ? 'is-link-source' : ''} ${isLinkTargetCandidate ? 'is-link-target' : ''} ${selected ? 'is-selected' : ''} ${isDropTarget ? 'is-drop-target' : ''} ${stackClass}`}
+            style={
+                {
+                    backgroundColor: postIt.color,
+                    transform: `translate(${postIt.x}px, ${postIt.y}px) rotate(${rotation}deg)`,
+                    width: postIt.width,
+                    minHeight: postIt.height,
+                    zIndex: postIt.zIndex,
+                    '--stack-tab-step': `${STACK_TAB_STEP}px`,
+                    // The fan tab's vertical label lives in CSS but has to be
+                    // legible on this card's own colour, so it reads the card's
+                    // ink rather than a fixed dark grey.
+                    '--card-ink': textColor,
+                    '--pile-edge-1': pileEdges[0],
+                    '--pile-edge-2': pileEdges[1],
+                    '--pile-edge-3': pileEdges[2],
+                } as React.CSSProperties
+            }
             onPointerDown={handlePointerDown}
             onPointerEnter={() => setIsHovered(true)}
             onPointerLeave={() => setIsHovered(false)}
@@ -606,11 +652,35 @@ const PostItCard: React.FC<PostItCardProps> = ({
         >
             {isDragging && dropIntent && (
                 <div className="drop-intent-badge">
-                    {dropIntent.type === 'stack' ? 'Empiler' : 'Coller'}
+                    {dropIntent.type === 'stack'
+                        ? t('card.drop.stack')
+                        : t('card.drop.dock')}
                 </div>
             )}
 
             <div className="post-it-surface-glow" />
+
+            {/* The tab of a card covered by its fan. It overlays exactly the
+                band the next card leaves free, so every click that can reach
+                this card lands here instead of on the text underneath — a
+                click picks the card, a drag still pulls it out of the pile. */}
+            {stackView?.role === 'fan-tab' && (
+                <span
+                    className="post-it-fan-tab"
+                    role="button"
+                    tabIndex={0}
+                    title={t('stack.select', { title: cardName })}
+                    aria-label={t('stack.select', { title: cardName })}
+                    onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            onSelectInStack(postIt._id);
+                        }
+                    }}
+                >
+                    <span className="post-it-fan-tab-title">{cardName}</span>
+                </span>
+            )}
 
             {/* Combined drag + rotate handle — drag to move, rotate gesture
                 on pointer-hold offset from center, click to step +15°. */}
@@ -1168,15 +1238,34 @@ const PostItCard: React.FC<PostItCardProps> = ({
                         fontSize: textSize + 1,
                     }}
                 />
-                {canPromote && (
+                {stackView && stackView.role !== 'fan-tab' && (
                     <button
                         type="button"
-                        className="post-it-stack-front"
-                        onClick={() => onPromote(postIt._id)}
-                        title={t('card.stack.bringToFront')}
-                        aria-label={t('card.stack.bringToFront')}
+                        className="post-it-stack-badge"
+                        onClick={() =>
+                            onToggleStack(
+                                stackView.stackId,
+                                stackView.role === 'fan-front'
+                            )
+                        }
+                        title={
+                            stackView.role === 'pile'
+                                ? t('stack.fanOut', { n: stackView.count })
+                                : t('stack.fold')
+                        }
+                        aria-label={
+                            stackView.role === 'pile'
+                                ? t('stack.fanOut', { n: stackView.count })
+                                : t('stack.fold')
+                        }
+                        aria-expanded={stackView.role === 'fan-front'}
                     >
-                        <ChevronDoubleUpIcon />
+                        {stackView.role === 'pile' ? (
+                            <ChevronDoubleLeftIcon />
+                        ) : (
+                            <ChevronDoubleRightIcon />
+                        )}
+                        <span>{stackView.count}</span>
                     </button>
                 )}
                 <span className="post-it-date">{dateLabel}</span>
@@ -1224,10 +1313,19 @@ const PostItCard: React.FC<PostItCardProps> = ({
                 <div
                     className="post-it-content post-it-content-view markdown-body app-scrollbar"
                     onClick={() => {
+                        // On a folded pile the body is the surface you click to
+                        // open the stack (see the pointer-up gesture). Dropping
+                        // into the editor at the same time would fan the pile
+                        // out AND steal the caret on a single click.
+                        if (stackView?.role === 'pile') return;
                         onFocus(postIt._id);
                         setIsEditingContent(true);
                     }}
-                    title={t('card.clickToEdit')}
+                    title={
+                        stackView?.role === 'pile'
+                            ? t('stack.fanOut', { n: stackView.count })
+                            : t('card.clickToEdit')
+                    }
                     style={{ color: textColor, fontFamily, fontSize: textSize }}
                 >
                     {renderMarkdown(postIt.content)}
@@ -1360,6 +1458,43 @@ const PostItCard: React.FC<PostItCardProps> = ({
                         {currentTab?.name || t('app.board.default')}
                     </span>
                     <span className="post-it-status">{statusLabel}</span>
+                    {stackView && stackView.role !== 'fan-tab' && (
+                        <span
+                            className="post-it-stack-rank"
+                            title={t('stack.position', {
+                                n: stackView.position,
+                                total: stackView.count,
+                            })}
+                        >
+                            <button
+                                type="button"
+                                onClick={() => onStepInStack(postIt._id, -1)}
+                                disabled={stackView.position <= 1}
+                                aria-label={t('stack.stepBack')}
+                                title={t('stack.stepBack')}
+                            >
+                                <ChevronLeftIcon />
+                            </button>
+                            <span
+                                className="post-it-stack-rank-value"
+                                aria-label={t('stack.position', {
+                                    n: stackView.position,
+                                    total: stackView.count,
+                                })}
+                            >
+                                {stackView.position}/{stackView.count}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => onStepInStack(postIt._id, 1)}
+                                disabled={stackView.position >= stackView.count}
+                                aria-label={t('stack.stepForward')}
+                                title={t('stack.stepForward')}
+                            >
+                                <ChevronRightIcon />
+                            </button>
+                        </span>
+                    )}
                 </div>
             </footer>
 

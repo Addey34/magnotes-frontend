@@ -198,7 +198,7 @@ describe('usePostIts rollbacks', () => {
 
         // Drop the free card right onto the vacated (400, 200) spot.
         expect(
-            result.current.getDropIntent('card-2', [movedStack], 400, 200)
+            result.current.getDropIntent('card-2', [movedStack], {}, 400, 200)
         ).toBeNull();
 
         await act(async () =>
@@ -218,7 +218,7 @@ describe('usePostIts rollbacks', () => {
     });
 
     it('does not re-absorb a card nudged within its own expanded stack fan', async () => {
-        // Fan siblings sit one 34px step apart — inside the stack radius — so
+        // Fan siblings sit one tab step apart — inside the stack radius — so
         // without excluding them a card could never be pulled out of its own
         // pile: every drop landed back on a sibling and re-stacked.
         const stack: PostItStack = {
@@ -246,9 +246,9 @@ describe('usePostIts rollbacks', () => {
         );
         await waitFor(() => expect(result.current.postIts).toHaveLength(2));
 
-        // Sibling "card-1" is drawn at (400, 390); drop card-2 right on it.
+        // Sibling "card-1" is drawn at (360, 200); drop card-2 right on it.
         expect(
-            result.current.getDropIntent('card-2', [stack], 400, 390)
+            result.current.getDropIntent('card-2', [stack], {}, 360, 200)
         ).toBeNull();
     });
 
@@ -342,6 +342,276 @@ describe('usePostIts rollbacks', () => {
 
         await act(async () => result.current.redo());
         expect(result.current.postIts).toEqual([]);
+    });
+
+    it('gives a card dropped on a pile a slot no sibling already holds', async () => {
+        // Regression: the new order was "member count + 1". Pulling a card out
+        // of a stack leaves a gap behind (three cards left holding 2, 3 and 4),
+        // so counting handed the newcomer an order another card already had —
+        // two cards fighting for the same slot in the fan.
+        const stack: PostItStack = {
+            _id: 'stack-1',
+            userId: 'user-1',
+            tabId: 'tab-1',
+            x: 400,
+            y: 200,
+            collapsed: true,
+            createdAt: card.createdAt,
+            updatedAt: card.updatedAt,
+        };
+        mockedFetch.mockResolvedValue([
+            { ...card, stackId: 'stack-1', stackOrder: 2, x: 400, y: 200 },
+            { ...secondCard, x: 900, y: 700 },
+        ]);
+        mockedUpdate.mockImplementation(async (id, updates) => ({
+            ...card,
+            _id: id,
+            ...updates,
+        }));
+        const { result } = renderHook(() =>
+            usePostIts('tab-1', jest.fn(), jest.fn())
+        );
+        await waitFor(() => expect(result.current.postIts).toHaveLength(2));
+
+        // Drop the free card straight onto the folded pile.
+        await act(async () =>
+            result.current.settlePostIt('card-2', 400, 200, [stack], jest.fn())
+        );
+
+        const orders = result.current.postIts
+            .filter((item) => item.stackId === 'stack-1')
+            .map((item) => item.stackOrder);
+        expect(orders).toEqual([2, 3]);
+        expect(new Set(orders).size).toBe(orders.length);
+    });
+
+    it('dissolves the stack when deleting a card leaves one member behind', async () => {
+        // A stack of one is not a pile: it wears a "1" badge and its body eats
+        // the first click to fan out a stack with nothing to fan, so the note
+        // needs two clicks to edit. Deleting a member has to free the survivor
+        // just like unstacking does.
+        mockedUpdate.mockResolvedValue(undefined);
+        mockedDelete.mockResolvedValue(undefined);
+        mockedRestore.mockResolvedValue(card);
+        mockedFetch.mockResolvedValue([
+            { ...card, stackId: 'stack-1', stackOrder: 1 },
+            { ...secondCard, stackId: 'stack-1', stackOrder: 2 },
+        ]);
+        const { result } = renderHook(() =>
+            usePostIts('tab-1', jest.fn(), jest.fn())
+        );
+        await waitFor(() => expect(result.current.postIts).toHaveLength(2));
+
+        await act(async () => result.current.removePostIt('card-2'));
+
+        expect(result.current.postIts).toEqual([
+            expect.objectContaining({
+                _id: 'card-1',
+                stackId: null,
+                stackOrder: null,
+            }),
+        ]);
+
+        // One Ctrl+Z puts back both the card and the pile it belonged to.
+        await act(async () => result.current.undo());
+        expect(
+            result.current.postIts.find((item) => item._id === 'card-1')
+        ).toEqual(
+            expect.objectContaining({ stackId: 'stack-1', stackOrder: 1 })
+        );
+    });
+
+    it('dissolves the stack when a member is moved to another board', async () => {
+        mockedUpdate.mockResolvedValue(undefined);
+        mockedFetch.mockResolvedValue([
+            { ...card, stackId: 'stack-1', stackOrder: 1 },
+            { ...secondCard, stackId: 'stack-1', stackOrder: 2 },
+        ]);
+        const { result } = renderHook(() =>
+            usePostIts('tab-1', jest.fn(), jest.fn())
+        );
+        await waitFor(() => expect(result.current.postIts).toHaveLength(2));
+
+        await act(async () =>
+            result.current.movePostItToTab('card-2', 'tab-2')
+        );
+
+        expect(result.current.postIts).toEqual([
+            expect.objectContaining({
+                _id: 'card-1',
+                stackId: null,
+                stackOrder: null,
+            }),
+        ]);
+    });
+
+    it('places the copy of a stacked card beside where that card is drawn', async () => {
+        // Regression: the copy is created server-side at "source.x + 24", and a
+        // stacked card's stored x/y is its stack's origin as of the last time it
+        // was stacked. Duplicating a card in a stack that had moved since sent
+        // the copy to where the stack used to be, often off-screen.
+        const stack: PostItStack = {
+            _id: 'stack-1',
+            userId: 'user-1',
+            tabId: 'tab-1',
+            x: 400,
+            y: 200,
+            collapsed: true,
+            createdAt: card.createdAt,
+            updatedAt: card.updatedAt,
+        };
+        // card.x/y is (12, 24): the phantom the stack left behind.
+        mockedFetch.mockResolvedValue([
+            { ...card, stackId: 'stack-1', stackOrder: 1 },
+        ]);
+        mockedDuplicate.mockResolvedValue({
+            ...secondCard,
+            x: card.x + 24,
+            y: card.y + 24,
+        });
+        mockedUpdate.mockResolvedValue(undefined);
+        const { result } = renderHook(() =>
+            usePostIts('tab-1', jest.fn(), jest.fn())
+        );
+        await waitFor(() => expect(result.current.postIts).toHaveLength(1));
+
+        await act(async () => result.current.clonePostIt('card-1', [stack]));
+
+        expect(
+            result.current.postIts.find((item) => item._id === 'card-2')
+        ).toMatchObject({ x: 424, y: 224 });
+        expect(mockedUpdate).toHaveBeenCalledWith('card-2', {
+            expectedUpdatedAt: secondCard.updatedAt,
+            x: 424,
+            y: 224,
+        });
+    });
+
+    it('leaves the copy of a free card exactly where the server put it', async () => {
+        const copy: PostIt = { ...secondCard, x: card.x + 24, y: card.y + 24 };
+        mockedDuplicate.mockResolvedValue(copy);
+        const { result } = renderHook(() =>
+            usePostIts('tab-1', jest.fn(), jest.fn())
+        );
+        await waitFor(() => expect(result.current.postIts).toEqual([card]));
+
+        await act(async () => result.current.clonePostIt('card-1'));
+
+        expect(result.current.postIts).toEqual([card, copy]);
+        expect(mockedUpdate).not.toHaveBeenCalled();
+    });
+
+    it('merges a dropped pile into the target stack, its notes landing on top', async () => {
+        // Dragging a folded pile moves the whole stack, so this is the only
+        // gesture that can join two piles — without it a pile could only ever
+        // be taken apart one card at a time.
+        mockedUpdate.mockResolvedValue(undefined);
+        const target: PostItStack = {
+            _id: 'stack-target',
+            userId: 'user-1',
+            tabId: 'tab-1',
+            x: 400,
+            y: 200,
+            collapsed: true,
+            createdAt: card.createdAt,
+            updatedAt: card.updatedAt,
+        };
+        const source: PostItStack = { ...target, _id: 'stack-source', x: 900 };
+        mockedFetch.mockResolvedValue([
+            {
+                ...card,
+                _id: 'in-target',
+                stackId: 'stack-target',
+                stackOrder: 3,
+            },
+            {
+                ...card,
+                _id: 'moving-a',
+                stackId: 'stack-source',
+                stackOrder: 1,
+            },
+            {
+                ...card,
+                _id: 'moving-b',
+                stackId: 'stack-source',
+                stackOrder: 2,
+            },
+        ]);
+        const { result } = renderHook(() =>
+            usePostIts('tab-1', jest.fn(), jest.fn())
+        );
+        await waitFor(() => expect(result.current.postIts).toHaveLength(3));
+
+        await act(async () =>
+            result.current.mergeStackInto(
+                'stack-source',
+                'in-target',
+                [target, source],
+                jest.fn()
+            )
+        );
+
+        const merged = result.current.postIts
+            .filter((item) => item.stackId === 'stack-target')
+            .map((item) => [item._id, item.stackOrder]);
+        // Slots continue past the target's highest (3), and the incoming pile
+        // keeps its own order.
+        expect(merged).toEqual([
+            ['in-target', 3],
+            ['moving-a', 4],
+            ['moving-b', 5],
+        ]);
+        expect(
+            result.current.postIts.some(
+                (item) => item.stackId === 'stack-source'
+            )
+        ).toBe(false);
+    });
+
+    it('creates a stack when a pile is dropped on a free card', async () => {
+        mockedUpdate.mockResolvedValue(undefined);
+        const source: PostItStack = {
+            _id: 'stack-source',
+            userId: 'user-1',
+            tabId: 'tab-1',
+            x: 900,
+            y: 200,
+            collapsed: true,
+            createdAt: card.createdAt,
+            updatedAt: card.updatedAt,
+        };
+        mockedFetch.mockResolvedValue([
+            { ...secondCard, x: 400, y: 200 },
+            {
+                ...card,
+                _id: 'moving-a',
+                stackId: 'stack-source',
+                stackOrder: 1,
+            },
+        ]);
+        const created: PostItStack = { ...source, _id: 'stack-new', x: 400 };
+        const createStackAt = jest.fn().mockResolvedValue(created);
+        const { result } = renderHook(() =>
+            usePostIts('tab-1', jest.fn(), jest.fn())
+        );
+        await waitFor(() => expect(result.current.postIts).toHaveLength(2));
+
+        await act(async () =>
+            result.current.mergeStackInto(
+                'stack-source',
+                'card-2',
+                [source],
+                createStackAt
+            )
+        );
+
+        expect(createStackAt).toHaveBeenCalledWith(400, 200);
+        expect(
+            result.current.postIts.map((item) => [item._id, item.stackOrder])
+        ).toEqual([
+            ['card-2', 1],
+            ['moving-a', 2],
+        ]);
     });
 
     it('does not retry a failed initial load on every render', async () => {

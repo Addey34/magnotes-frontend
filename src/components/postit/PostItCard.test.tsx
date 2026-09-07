@@ -4,6 +4,7 @@ import '@testing-library/jest-dom';
 import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import { LangProvider } from '../../i18n/LangContext';
+import { CardStackView } from '../../hooks/stackLayout';
 import { BoardTab, PostIt, SaveState } from '../../types/boardTypes';
 import PostItCard from './PostItCard';
 
@@ -67,9 +68,21 @@ const makeCard = (overrides: Partial<PostIt> = {}): PostIt => ({
     ...overrides,
 });
 
+const stackView = (
+    role: CardStackView['role'],
+    overrides: Partial<CardStackView> = {}
+): CardStackView => ({
+    stackId: 'stack-1',
+    role,
+    count: 3,
+    position: 1,
+    underColors: [],
+    ...overrides,
+});
+
 const renderCard = (
     cardOverrides: Partial<PostIt> = {},
-    propOverrides: { canPromote?: boolean } = {}
+    propOverrides: { stackView?: CardStackView } = {}
 ) => {
     const postIt = makeCard(cardOverrides);
     const onNavigateToCard = jest.fn();
@@ -80,7 +93,9 @@ const renderCard = (
     const onMove = jest.fn();
     const onMoveToTab = jest.fn();
     const onUnstack = jest.fn();
-    const onPromote = jest.fn();
+    const onToggleStack = jest.fn();
+    const onSelectInStack = jest.fn();
+    const onStepInStack = jest.fn();
     const onDuplicate = jest.fn();
     const onDelete = jest.fn();
     const onStartLink = jest.fn();
@@ -103,8 +118,10 @@ const renderCard = (
             onMove={onMove}
             onMoveToTab={onMoveToTab}
             onUnstack={onUnstack}
-            onPromote={onPromote}
-            canPromote={propOverrides.canPromote}
+            stackView={propOverrides.stackView}
+            onToggleStack={onToggleStack}
+            onSelectInStack={onSelectInStack}
+            onStepInStack={onStepInStack}
             onDuplicate={onDuplicate}
             onDelete={onDelete}
             onStartLink={onStartLink}
@@ -122,7 +139,9 @@ const renderCard = (
         onFocus,
         onDragStateChange,
         onMove,
-        onPromote,
+        onToggleStack,
+        onSelectInStack,
+        onStepInStack,
     };
 };
 
@@ -180,7 +199,9 @@ describe('PostItCard rendering', () => {
             onMove: jest.fn(),
             onMoveToTab: jest.fn(),
             onUnstack: jest.fn(),
-            onPromote: jest.fn(),
+            onToggleStack: jest.fn(),
+            onSelectInStack: jest.fn(),
+            onStepInStack: jest.fn(),
             onDuplicate: jest.fn(),
             onDelete: jest.fn(),
             onStartLink: jest.fn(),
@@ -329,35 +350,118 @@ describe('PostItCard resize', () => {
     });
 });
 
-describe('PostItCard bring-to-front', () => {
-    it('offers no bring-to-front control on an ordinary card', () => {
-        const { container } = renderCard();
+describe('PostItCard stack chrome', () => {
+    it('wears no stack chrome at all on a free card', () => {
+        const { card, container } = renderCard();
 
-        expect(container.querySelector('.post-it-stack-front')).toBeNull();
+        expect(container.querySelector('.post-it-stack-badge')).toBeNull();
+        expect(container.querySelector('.post-it-fan-tab')).toBeNull();
+        expect(card.className).not.toContain('is-stacked');
     });
 
-    it('brings a fanned card to the front without starting a drag', () => {
-        // The control lives in the header row because that band is the only
-        // part of a fanned card the cascade always leaves reachable. Clicking
-        // it must promote the card, not grab it: the pointer-down that precedes
-        // the click also opens a drag on the card body.
-        const { postIt, container, onPromote, onLocalChange, onMove } =
-            renderCard(
-                { stackId: 'stack-1', stackOrder: 1 },
-                { canPromote: true }
-            );
+    it('prints the pile depth and the colours of the cards underneath', () => {
+        // The deck edges are drawn by the front card, so the buried members
+        // cost no DOM and can never catch a click meant for the top card.
+        const { card } = renderCard(
+            { stackId: 'stack-1', stackOrder: 3 },
+            {
+                stackView: stackView('pile', {
+                    position: 3,
+                    underColors: ['#bbbbbb', '#aaaaaa'],
+                }),
+            }
+        );
 
-        const button = container.querySelector<HTMLButtonElement>(
-            '.post-it-stack-front'
-        )!;
-        expect(button).toBeInTheDocument();
+        expect(card.className).toContain('is-pile');
+        expect(card.className).toContain('pile-depth-2');
+        expect(card.style.getPropertyValue('--pile-edge-1')).toBe('#bbbbbb');
+        expect(card.style.getPropertyValue('--pile-edge-2')).toBe('#aaaaaa');
+    });
 
-        firePointer(button, 'pointerdown', { clientX: 0, clientY: 0 });
-        firePointer(window, 'pointermove', { clientX: 40, clientY: 40 });
-        fireEvent.click(button);
+    it('opens the pile on a click, and not on a drag', () => {
+        // A pile is opened by clicking it — the gesture the user reaches for
+        // first. It has to fire on pointer-up though: opening on pointer-down
+        // would move this very card out from under a drag just beginning.
+        const { card, onToggleStack, onMove } = renderCard(
+            { stackId: 'stack-1', stackOrder: 3 },
+            { stackView: stackView('pile', { position: 3 }) }
+        );
 
-        expect(onPromote).toHaveBeenCalledWith(postIt._id);
-        expect(onLocalChange).not.toHaveBeenCalled();
+        firePointer(card, 'pointerdown', { clientX: 10, clientY: 10 });
+        firePointer(window, 'pointerup', { clientX: 10, clientY: 10 });
+
+        expect(onToggleStack).toHaveBeenCalledWith('stack-1', false);
         expect(onMove).not.toHaveBeenCalled();
+    });
+
+    it('drags the pile instead of opening it once the pointer moves', () => {
+        const { card, onToggleStack, onMove } = renderCard(
+            { stackId: 'stack-1', stackOrder: 3 },
+            { stackView: stackView('pile', { position: 3 }) }
+        );
+
+        firePointer(card, 'pointerdown', { clientX: 10, clientY: 10 });
+        firePointer(window, 'pointermove', { clientX: 90, clientY: 60 });
+        firePointer(window, 'pointerup', { clientX: 90, clientY: 60 });
+
+        expect(onMove).toHaveBeenCalled();
+        expect(onToggleStack).not.toHaveBeenCalled();
+    });
+
+    it('brings a covered fan card to the front when its tab is clicked', () => {
+        const { postIt, container, onSelectInStack, onMove } = renderCard(
+            { stackId: 'stack-1', stackOrder: 1 },
+            { stackView: stackView('fan-tab') }
+        );
+
+        const tab = container.querySelector<HTMLElement>('.post-it-fan-tab')!;
+        expect(tab).toBeInTheDocument();
+
+        firePointer(tab, 'pointerdown', { clientX: 10, clientY: 10 });
+        firePointer(window, 'pointerup', { clientX: 10, clientY: 10 });
+
+        expect(onSelectInStack).toHaveBeenCalledWith(postIt._id);
+        expect(onMove).not.toHaveBeenCalled();
+    });
+
+    it('still lets a covered card be dragged out of the fan', () => {
+        // The tab overlays the only band the card owns, so if it swallowed the
+        // drag there would be no way left to pull that card out of the pile.
+        const { postIt, container, onSelectInStack, onMove } = renderCard(
+            { stackId: 'stack-1', stackOrder: 1 },
+            { stackView: stackView('fan-tab') }
+        );
+
+        const tab = container.querySelector<HTMLElement>('.post-it-fan-tab')!;
+        firePointer(tab, 'pointerdown', { clientX: 10, clientY: 10 });
+        firePointer(window, 'pointermove', { clientX: 200, clientY: 300 });
+        firePointer(window, 'pointerup', { clientX: 200, clientY: 300 });
+
+        expect(onMove).toHaveBeenCalledWith(postIt._id, 290, 370);
+        expect(onSelectInStack).not.toHaveBeenCalled();
+    });
+
+    it('folds an open stack from the badge of its front card', () => {
+        const { container, onToggleStack } = renderCard(
+            { stackId: 'stack-1', stackOrder: 3 },
+            { stackView: stackView('fan-front', { position: 3 }) }
+        );
+
+        const badge = container.querySelector<HTMLButtonElement>(
+            '.post-it-stack-badge'
+        )!;
+        expect(badge).toHaveTextContent('3');
+        fireEvent.click(badge);
+
+        expect(onToggleStack).toHaveBeenCalledWith('stack-1', true);
+    });
+
+    it('keeps the badge off a covered card, where it could not be reached', () => {
+        const { container } = renderCard(
+            { stackId: 'stack-1', stackOrder: 1 },
+            { stackView: stackView('fan-tab') }
+        );
+
+        expect(container.querySelector('.post-it-stack-badge')).toBeNull();
     });
 });

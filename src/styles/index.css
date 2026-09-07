@@ -103,16 +103,6 @@ select:focus-visible {
     background: var(--primary-dark);
 }
 
-.btn-secondary {
-    background: var(--secondary);
-    color: var(--light);
-}
-
-.btn-logout {
-    background: var(--danger);
-    color: var(--light);
-}
-
 /* Language switch (FR/EN) — shared across the auth screen and board menu. */
 .lang-switch {
     display: inline-flex;

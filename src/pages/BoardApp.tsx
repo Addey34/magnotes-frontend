@@ -43,7 +43,6 @@ import CommandPalette, {
 } from '../components/command/CommandPalette';
 import ConnectionsLayer from '../components/connections/ConnectionsLayer';
 import PostItCard from '../components/postit/PostItCard';
-import PostItStackCard from '../components/stacks/PostItStackCard';
 import BoardTabs from '../components/tabs/BoardTabs';
 import KanbanView from '../components/views/KanbanView';
 import AgendaView from '../components/views/AgendaView';
@@ -87,7 +86,12 @@ import {
 import FeedbackDialog from '../components/feedback/FeedbackDialog';
 import ShareDialog from '../components/share/ShareDialog';
 import NotificationCenter from '../components/ui/NotificationCenter';
-import { PostIt, PostItSaveUpdate, PostItStatus } from '../types/boardTypes';
+import {
+    PostIt,
+    PostItSaveUpdate,
+    PostItStatus,
+    PostItUpdate,
+} from '../types/boardTypes';
 import { Box } from '../utils/connectionGeometry';
 import { buildMentionGraph } from '../utils/mentionGraph';
 import { useT } from '../i18n/LangContext';
@@ -95,15 +99,13 @@ import { LanguageSwitch } from '../i18n/LanguageSwitch';
 import { useNotifications } from '../hooks/useNotifications';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import {
-    canBringToFront,
+    LayoutOptions,
+    buildStackViews,
     layoutBoardCards,
     resolveCardRect,
 } from '../hooks/stackLayout';
 import '../styles/BoardApp.css';
 
-// Nominal collapsed-stack footprint used for viewport culling.
-const STACK_CULL_WIDTH = 240;
-const STACK_CULL_HEIGHT = 200;
 const DARK_CANVAS_BACKGROUND = '#0d0f1d';
 const LIGHT_CANVAS_BACKGROUND = '#f4f6f9';
 
@@ -166,7 +168,6 @@ const BoardApp: React.FC<BoardAppProps> = ({
     const [draggingPostItId, setDraggingPostItId] = useState<string | null>(
         null
     );
-    const [draggingStackId, setDraggingStackId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [colorFilter, setColorFilter] = useState<string | null>(null);
     const [colorFilterOpen, setColorFilterOpen] = useState(false);
@@ -274,7 +275,9 @@ const BoardApp: React.FC<BoardAppProps> = ({
         getDropIntent,
         settlePostIt,
         unstackPostIt,
+        mergeStackInto,
         promoteInStack,
+        stepInStack,
         movePostItToTab,
         removePostIt,
         clonePostIt,
@@ -406,10 +409,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
         });
     };
     const normalizedSearch = searchTerm.trim().toLowerCase();
-    const draggingDropIntent = draggingPostItId
-        ? getDropIntent(draggingPostItId, stacks)
-        : null;
-
+    const hasActiveFilters = Boolean(normalizedSearch || colorFilter);
     useEffect(() => {
         localStorage.setItem('magnotes-theme', theme);
     }, [theme]);
@@ -545,30 +545,81 @@ const BoardApp: React.FC<BoardAppProps> = ({
         [canvasSize, offset, zoom]
     );
 
-    // Filter + lay out the cards that match the active search/color filters
-    // (stack-expanded positions applied). Independent of the viewport, so the
-    // result counter and empty-search state stay accurate off-screen.
-    const laidOutPostIts = useMemo(
-        () =>
-            layoutBoardCards(postIts, stacks, {
-                // Keep the dragged card on the pointer instead of snapping it
-                // back into the fan on every move.
-                draggingCardId: draggingPostItId,
-            }).filter(cardMatchesFilters),
-        [cardMatchesFilters, draggingPostItId, postIts, stacks]
+    // How the board is drawn right now. Every geometry consumer — rendering,
+    // drop targets, framing, the minimap — reads the board through these same
+    // options, so none of them can disagree about where a card is.
+    const layoutOptions = useMemo<LayoutOptions>(
+        () => ({
+            // Keep the dragged card on the pointer instead of snapping it back
+            // into the fan on every move.
+            draggingCardId: draggingPostItId,
+            // A search that leaves its match folded inside a pile is a search
+            // that lies: while a filter is active every stack opens up.
+            revealCollapsed: hasActiveFilters,
+        }),
+        [draggingPostItId, hasActiveFilters]
     );
 
-    const matchedStacks = useMemo(
-        () =>
-            stacks.filter((stack) =>
-                postIts.some(
-                    (postIt) =>
-                        postIt.stackId === stack._id &&
-                        cardMatchesFilters(postIt)
-                )
-            ),
-        [cardMatchesFilters, postIts, stacks]
+    // Filter + lay out the cards that match the active search/color filters
+    // (pile and fan positions applied). Independent of the viewport, so the
+    // result counter and empty-search state stay accurate off-screen.
+    const drawnPostIts = useMemo(
+        () => layoutBoardCards(postIts, stacks, layoutOptions),
+        [layoutOptions, postIts, stacks]
     );
+
+    const laidOutPostIts = useMemo(
+        () => drawnPostIts.filter(cardMatchesFilters),
+        [cardMatchesFilters, drawnPostIts]
+    );
+
+    // The stack role of every drawn card, keyed by id: what chrome it wears and
+    // what a click on it means. The filters decide which members are on the
+    // board, so they decide the roles too; geometry stays keyed to the full
+    // stack (see `drawnPostIts`) so filtering never makes the fan shuffle its
+    // slots under the user.
+    const stackViews = useMemo(
+        () =>
+            buildStackViews(
+                postIts,
+                stacks,
+                layoutOptions,
+                new Set(laidOutPostIts.map((card) => card._id))
+            ),
+        [laidOutPostIts, layoutOptions, postIts, stacks]
+    );
+
+    // The front card of a folded pile *is* the pile: dragging it has to move
+    // the stack's own coordinates, or the deck edges and the buried members
+    // would stay behind while the top card walked away.
+    const pileStackIdOf = useCallback(
+        (postItId: string) => {
+            const view = stackViews.get(postItId);
+            return view?.role === 'pile' ? view.stackId : null;
+        },
+        [stackViews]
+    );
+
+    const draggingPileStackId = draggingPostItId
+        ? pileStackIdOf(draggingPostItId)
+        : null;
+
+    // A dragged pile's front card keeps its stored coordinates while the stack
+    // moves under it, so the intent has to be read from the live stack origin
+    // instead — from the card's own x/y it would be a phantom, pointing at
+    // wherever the pile used to be.
+    const draggingPileStack = draggingPileStackId
+        ? stacks.find((stack) => stack._id === draggingPileStackId)
+        : null;
+    const draggingDropIntent = draggingPostItId
+        ? getDropIntent(
+              draggingPostItId,
+              stacks,
+              layoutOptions,
+              draggingPileStack?.x,
+              draggingPileStack?.y
+          )
+        : null;
 
     // Board-space boxes of the laid-out cards, keyed by id — drives the
     // connection arrows (uses filtered/stack-resolved positions, not culling,
@@ -649,43 +700,17 @@ const BoardApp: React.FC<BoardAppProps> = ({
         [laidOutPostIts, viewBounds, draggingPostItId]
     );
 
-    const visibleStacks = useMemo(
-        () =>
-            viewBounds
-                ? matchedStacks.filter(
-                      (stack) =>
-                          stack._id === draggingStackId ||
-                          isRectVisible(
-                              {
-                                  x: stack.x,
-                                  y: stack.y,
-                                  width: STACK_CULL_WIDTH,
-                                  height: STACK_CULL_HEIGHT,
-                              },
-                              viewBounds
-                          )
-                  )
-                : matchedStacks,
-        [draggingStackId, matchedStacks, viewBounds]
-    );
-
     const contentBounds = useMemo<BoardBounds | null>(() => {
-        const freeCards = postIts.filter((postIt) => !postIt.stackId);
-        if (freeCards.length === 0 && stacks.length === 0) return null;
-        const bounds = [
-            ...freeCards.map((postIt) => ({
-                minX: postIt.x,
-                minY: postIt.y,
-                maxX: postIt.x + postIt.width,
-                maxY: postIt.y + postIt.height,
-            })),
-            ...stacks.map((stack) => ({
-                minX: stack.x,
-                minY: stack.y,
-                maxX: stack.x + 240,
-                maxY: stack.y + 180,
-            })),
-        ];
+        // Drawn rectangles only. Stacked cards are stored at their stack's
+        // origin, so measuring the board from raw coordinates used to size it
+        // from positions nothing occupies.
+        if (drawnPostIts.length === 0) return null;
+        const bounds = drawnPostIts.map((postIt) => ({
+            minX: postIt.x,
+            minY: postIt.y,
+            maxX: postIt.x + postIt.width,
+            maxY: postIt.y + postIt.height,
+        }));
         return bounds.reduce(
             (current, item) => ({
                 minX: Math.min(current.minX, item.minX),
@@ -695,7 +720,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
             }),
             bounds[0]
         );
-    }, [postIts, stacks]);
+    }, [drawnPostIts]);
 
     useViewportPersistence({
         activeTabId,
@@ -781,31 +806,27 @@ const BoardApp: React.FC<BoardAppProps> = ({
         }
         // Frame where the card is really drawn. A stacked card's stored x/y is
         // its stack's origin as of the last stacking, so framing that directly
-        // would scroll to empty space; a card hidden in a collapsed stack has no
-        // rectangle of its own and is framed through its stack widget instead.
-        const drawn = resolveCardRect(card._id, postIts, stacks);
+        // would scroll to empty space. Resolving against a fully revealed
+        // layout also gives a rectangle for a card buried in a folded pile —
+        // and since "go to this card" has to end with the card on screen, the
+        // pile hiding it is opened rather than scrolled to.
         const stack = card.stackId
             ? stacks.find((item) => item._id === card.stackId)
             : undefined;
-        const target = drawn
-            ? {
-                  minX: drawn.x,
-                  minY: drawn.y,
-                  maxX: drawn.x + drawn.width,
-                  maxY: drawn.y + drawn.height,
-              }
-            : stack
-              ? {
-                    minX: stack.x,
-                    minY: stack.y,
-                    maxX: stack.x + STACK_CULL_WIDTH,
-                    maxY: stack.y + STACK_CULL_HEIGHT,
-                }
-              : null;
-        if (!target) {
+        const drawn = resolveCardRect(card._id, postIts, stacks, {
+            revealCollapsed: true,
+        });
+        if (!drawn) {
             setPendingFocusId(null);
             return;
         }
+        if (stack?.collapsed) toggleStack(stack._id, false);
+        const target = {
+            minX: drawn.x,
+            minY: drawn.y,
+            maxX: drawn.x + drawn.width,
+            maxY: drawn.y + drawn.height,
+        };
 
         const frame = requestAnimationFrame(() => {
             focusPostIt(card._id);
@@ -819,6 +840,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
         isLoading,
         postIts,
         stacks,
+        toggleStack,
         focusPostIt,
         focusBounds,
     ]);
@@ -854,12 +876,44 @@ const BoardApp: React.FC<BoardAppProps> = ({
         });
     };
 
-    const handleMove = async (postItId: string, x: number, y: number) => {
-        await settlePostIt(postItId, x, y, stacks, addStack);
+    // A drag of a folded pile's front card is a drag of the stack. Splitting it
+    // here — rather than inside the card — keeps PostItCard ignorant of stacks:
+    // it reports "this card moved to x,y" and the board decides what moved.
+    const handleCardLocalChange = (postItId: string, updates: PostItUpdate) => {
+        const stackId = pileStackIdOf(postItId);
+        if (stackId && updates.x !== undefined && updates.y !== undefined) {
+            const { x, y, ...rest } = updates;
+            patchStackLocal(stackId, { x, y });
+            if (Object.keys(rest).length > 0) patchPostItLocal(postItId, rest);
+            return;
+        }
+        patchPostItLocal(postItId, updates);
     };
 
-    const handleMoveStack = async (stackId: string, x: number, y: number) => {
-        await settleStack(stackId, x, y);
+    const handleMove = async (postItId: string, x: number, y: number) => {
+        const stackId = pileStackIdOf(postItId);
+        if (stackId) {
+            // Dropping a folded pile onto another card merges the two: the
+            // pile's notes join that card's stack, in the order they already
+            // had, on top of what is there.
+            const intent = getDropIntent(postItId, stacks, layoutOptions, x, y);
+            if (intent?.type === 'stack') {
+                await mergeStackInto(
+                    stackId,
+                    intent.targetId,
+                    stacks,
+                    addStack
+                );
+                return;
+            }
+            if (intent?.type === 'dock') {
+                await settleStack(stackId, intent.x, intent.y);
+                return;
+            }
+            await settleStack(stackId, x, y);
+            return;
+        }
+        await settlePostIt(postItId, x, y, stacks, addStack, layoutOptions);
     };
 
     const handleUnstackCard = (postItId: string) =>
@@ -900,27 +954,61 @@ const BoardApp: React.FC<BoardAppProps> = ({
         clearCardSelection();
     };
 
+    // The copy lands next to where the source is drawn, so the clone needs the
+    // same stack geometry the board is rendered with.
+    const handleDuplicateCard = (postItId: string) =>
+        clonePostIt(postItId, stacks, layoutOptions);
+
     const duplicateSelectedCards = () => {
-        selectedCardIds.forEach((id) => clonePostIt(id));
+        selectedCardIds.forEach((id) => handleDuplicateCard(id));
     };
 
     const selectAllCards = () => {
         setSelectedCardIds(new Set(visiblePostIts.map((card) => card._id)));
     };
 
+    // An open fan is a browsing state, not a place to leave the board in: it
+    // spreads a stack over several card widths and stops it moving as one
+    // object. Clicking the board or pressing Échap folds every pile back, so
+    // the stack is grab-and-move again without hunting for its fold control.
+    // Piles held open by a search are untouched — their stored flag already
+    // says folded, only `revealCollapsed` is opening them.
+    // Only stacks that still hold cards count as piles. Dissolving or merging
+    // one empties its record without deleting it (undo has to be able to put
+    // the members back into that same stack id), and counting those would tell
+    // the user they own piles that are drawn nowhere.
+    const stackCount = useMemo(
+        () =>
+            stacks.filter((stack) =>
+                postIts.some((card) => card.stackId === stack._id)
+            ).length,
+        [postIts, stacks]
+    );
+
+    const openStacks = useMemo(
+        () => stacks.filter((stack) => !stack.collapsed),
+        [stacks]
+    );
+
+    const foldOpenStacks = useCallback(() => {
+        openStacks.forEach((stack) => toggleStack(stack._id, true));
+    }, [openStacks, toggleStack]);
+
     const handleCanvasPointerDown = (
         event: React.PointerEvent<HTMLDivElement>
     ) => {
         if (
             (event.target as HTMLElement).closest(
-                '.post-it-card, .post-it-stack-card, button, input, textarea, select'
+                '.post-it-card, button, input, textarea, select'
             )
         )
             return;
-        // Clicking empty canvas deselects any link/card and cancels link mode.
+        // Clicking empty canvas deselects any link/card, cancels link mode and
+        // folds any pile left open.
         setSelectedLinkId(null);
         setLinkingSourceId(null);
         clearCardSelection();
+        foldOpenStacks();
         startPan(event);
     };
 
@@ -929,7 +1017,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
     ) => {
         if (
             (event.target as HTMLElement).closest(
-                '.post-it-card, .post-it-stack-card, button, input, textarea, select'
+                '.post-it-card, button, input, textarea, select'
             )
         )
             return;
@@ -1256,11 +1344,18 @@ const BoardApp: React.FC<BoardAppProps> = ({
         onZoomOut: zoomOut,
         onFrameContent: () => focusBounds(contentBounds),
         onCommandPalette: () => setCommandPaletteOpen(true),
-        onEscape: selectedCardIds.size > 0 ? clearCardSelection : undefined,
+        onEscape:
+            selectedCardIds.size > 0 || openStacks.length > 0
+                ? () => {
+                      clearCardSelection();
+                      foldOpenStacks();
+                  }
+                : undefined,
     });
 
-    const resultCount = laidOutPostIts.length + matchedStacks.length;
-    const hasActiveFilters = Boolean(normalizedSearch || colorFilter);
+    // Every matching card is drawn while a filter is active (piles open up),
+    // so the laid-out list is the honest match count on its own.
+    const resultCount = laidOutPostIts.length;
     // Only offer colours that actually appear on the board (plus the active
     // filter, so it stays togglable even after its last card is removed).
     const usedColors = useMemo(() => {
@@ -1299,7 +1394,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
 
     return (
         <main
-            className={`board-app ${theme} ${activeBoardThemeClass} ${
+            className={`board-app mn-palette ${theme} ${activeBoardThemeClass} ${
                 sidebarOpen ? 'is-sidebar-expanded' : ''
             } ${demo ? 'has-demo-banner' : ''}`.trim()}
         >
@@ -1665,9 +1760,8 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                 {postIts.length} {t('app.unit.note')}
                                 {postIts.length > 1
                                     ? t('app.plural')
-                                    : ''} / {stacks.length}{' '}
-                                {t('app.unit.stack')}
-                                {stacks.length > 1 ? t('app.plural') : ''}
+                                    : ''} / {stackCount} {t('app.unit.stack')}
+                                {stackCount > 1 ? t('app.plural') : ''}
                             </p>
                         </div>
                     </div>
@@ -2145,26 +2239,6 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                     setSelectedLinkId(null);
                                 }}
                             />
-                            {visibleStacks.map((stack) => (
-                                <PostItStackCard
-                                    key={stack._id}
-                                    stack={stack}
-                                    cards={postIts.filter(
-                                        (postIt) => postIt.stackId === stack._id
-                                    )}
-                                    zoom={zoom}
-                                    onToggle={toggleStack}
-                                    onPromote={promoteInStack}
-                                    onFocus={(postItId) =>
-                                        handleFocusCard(postItId)
-                                    }
-                                    onLocalMove={(stackId, x, y) =>
-                                        patchStackLocal(stackId, { x, y })
-                                    }
-                                    onMove={handleMoveStack}
-                                    onDragStateChange={setDraggingStackId}
-                                />
-                            ))}
                             {visiblePostIts.map((postIt) => (
                                 <PostItCard
                                     key={postIt._id}
@@ -2191,19 +2265,18 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                     mentionView={mentionGraph[postIt._id]}
                                     selected={selectedCardIds.has(postIt._id)}
                                     onNavigateToCard={openCardOnCanvas}
-                                    onLocalChange={patchPostItLocal}
+                                    onLocalChange={handleCardLocalChange}
                                     onAutosave={scheduleSave}
                                     onFocus={handleFocusCard}
                                     onDragStateChange={setDraggingPostItId}
                                     onMove={handleMove}
                                     onMoveToTab={movePostItToTab}
                                     onUnstack={handleUnstackCard}
-                                    onPromote={promoteInStack}
-                                    canPromote={canBringToFront(
-                                        postIt,
-                                        postIts
-                                    )}
-                                    onDuplicate={clonePostIt}
+                                    stackView={stackViews.get(postIt._id)}
+                                    onToggleStack={toggleStack}
+                                    onSelectInStack={promoteInStack}
+                                    onStepInStack={stepInStack}
+                                    onDuplicate={handleDuplicateCard}
                                     onDelete={handleDeleteCard}
                                     onStartLink={handleStartLink}
                                     onLinkTarget={handleLinkTarget}
@@ -2211,55 +2284,76 @@ const BoardApp: React.FC<BoardAppProps> = ({
                             ))}
                         </div>
 
-                        {selectedCardIds.size > 0 && (
-                            <div className="board-selection-bar" role="toolbar">
-                                <span className="board-selection-count">
-                                    {t('app.selection.count', {
-                                        n: selectedCardIds.size,
-                                    })}
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={duplicateSelectedCards}
-                                    title={`${t('app.selection.duplicate')} (Ctrl+D)`}
-                                >
-                                    <DocumentDuplicateIcon />
-                                    <span>{t('app.selection.duplicate')}</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    className="is-danger"
-                                    onClick={deleteSelectedCards}
-                                    title={`${t('app.selection.delete')} (Suppr)`}
-                                >
-                                    <TrashIcon />
-                                    <span>{t('app.selection.delete')}</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    className="board-selection-clear"
-                                    onClick={clearCardSelection}
-                                    title={`${t('app.selection.clear')} (Échap)`}
-                                    aria-label={t('app.selection.clear')}
-                                >
-                                    <XMarkIcon />
-                                </button>
+                        {/* One bottom bar. Contextual controls accumulate in
+                            the middle slot and the minimap holds the end slot,
+                            so nothing on the bottom edge can overlap. */}
+                        <div className="board-bottom-dock">
+                            <div
+                                className="board-bottom-dock-side"
+                                aria-hidden="true"
+                            />
+                            <div className="board-bottom-dock-main">
+                                {selectedCardIds.size > 0 && (
+                                    <div
+                                        className="board-selection-bar"
+                                        role="toolbar"
+                                    >
+                                        <span className="board-selection-count">
+                                            {t('app.selection.count', {
+                                                n: selectedCardIds.size,
+                                            })}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={duplicateSelectedCards}
+                                            title={`${t('app.selection.duplicate')} (Ctrl+D)`}
+                                        >
+                                            <DocumentDuplicateIcon />
+                                            <span>
+                                                {t('app.selection.duplicate')}
+                                            </span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="is-danger"
+                                            onClick={deleteSelectedCards}
+                                            title={`${t('app.selection.delete')} (Suppr)`}
+                                        >
+                                            <TrashIcon />
+                                            <span>
+                                                {t('app.selection.delete')}
+                                            </span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="board-selection-clear"
+                                            onClick={clearCardSelection}
+                                            title={`${t('app.selection.clear')} (Échap)`}
+                                            aria-label={t(
+                                                'app.selection.clear'
+                                            )}
+                                        >
+                                            <XMarkIcon />
+                                        </button>
+                                    </div>
+                                )}
                             </div>
-                        )}
-                        <BoardMinimap
-                            canvasRef={canvasRef}
-                            offset={offset}
-                            zoom={zoom}
-                            postIts={postIts}
-                            stacks={stacks}
-                        />
+                            <div className="board-bottom-dock-side">
+                                <BoardMinimap
+                                    canvasRef={canvasRef}
+                                    offset={offset}
+                                    zoom={zoom}
+                                    postIts={drawnPostIts}
+                                />
+                            </div>
+                        </div>
                     </div>
                 ) : (
                     <div className="board-alt-view app-scrollbar">
                         {isLoading ? (
                             <div className="board-loading">
                                 <span className="loading-dot" />
-                                Chargement du tableau
+                                {t('app.loading')}
                             </div>
                         ) : view === 'kanban' ? (
                             <KanbanView

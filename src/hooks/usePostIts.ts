@@ -16,12 +16,18 @@ import {
 } from '../types/boardTypes';
 import { snapToGrid } from './useDragGrid';
 import { computeDropIntent, DropIntent } from './dropIntent';
-import { layoutBoardCards, resolveCardRect } from './stackLayout';
+import {
+    LayoutOptions,
+    layoutBoardCards,
+    resolveCardRect,
+    stackMembers,
+} from './stackLayout';
 import { buildCardChange, CardChange, isNoOpChange } from './historyCommands';
 import { useHistory } from './useHistory';
 import {
     bringCardToFront,
     sendCardToBack,
+    stepCardInStack,
     StackOrderChange,
 } from './stackOrdering';
 import { TemplateCardPayload } from '../utils/boardTemplate';
@@ -339,14 +345,19 @@ export const usePostIts = (
      * dropped there used to be swallowed into a collapsed pile and vanish.
      *
      * Two groups are excluded on top of that:
-     *  - members of a collapsed stack, which are drawn nowhere at all;
-     *  - the dragged card's own stack siblings, which sit one fan step (34px)
-     *    away — well inside the stack radius — so a card could never be nudged
-     *    out of its own fan without being instantly re-absorbed.
+     *  - the buried members of a folded pile, which are drawn nowhere at all;
+     *  - the dragged card's own stack siblings, which sit one tab step away —
+     *    well inside the stack radius — so a card could never be nudged out of
+     *    its own fan without being instantly re-absorbed.
+     *
+     * `layout` must be the options the board is actually drawn with (a search
+     * unfolds every pile, for instance), or the drop targets and the pixels
+     * would disagree again.
      */
     const getDropIntent = (
         postItId: string,
         stacks: PostItStack[],
+        layout: LayoutOptions = {},
         x?: number,
         y?: number
     ): DropIntent => {
@@ -363,6 +374,7 @@ export const usePostIts = (
         };
 
         const candidates = layoutBoardCards(currentCards, stacks, {
+            ...layout,
             draggingCardId: postItId,
         }).filter(
             (card) =>
@@ -371,6 +383,22 @@ export const usePostIts = (
         );
         return computeDropIntent(moved, candidates);
     };
+
+    /**
+     * The first stackOrder no member of `stackId` already holds.
+     *
+     * One past the highest order in the pile, never "member count + 1": a card
+     * pulled out of a stack leaves a gap behind (three cards left holding 2, 3
+     * and 4), so counting would hand the newcomer an order another card
+     * already has — two cards fighting for the same slot in the fan.
+     */
+    const nextStackOrderIn = (cards: PostIt[], stackId: string) =>
+        cards
+            .filter((card) => card.stackId === stackId)
+            .reduce(
+                (highest, card) => Math.max(highest, card.stackOrder ?? 0),
+                0
+            ) + 1;
 
     // A stack of 1 card is not a stack — when removing a member leaves a
     // single sibling behind, dissolve it back into a plain free card instead
@@ -397,7 +425,8 @@ export const usePostIts = (
         x: number,
         y: number,
         stacks: PostItStack[],
-        createStackAt: (x: number, y: number) => Promise<PostItStack | null>
+        createStackAt: (x: number, y: number) => Promise<PostItStack | null>,
+        layout: LayoutOptions = {}
     ) => {
         if (!activeTabId) return;
 
@@ -407,7 +436,7 @@ export const usePostIts = (
         const movedCard = currentCards.find((card) => card._id === postItId);
         if (!movedCard) return;
 
-        const intent = getDropIntent(postItId, stacks, finalX, finalY);
+        const intent = getDropIntent(postItId, stacks, layout, finalX, finalY);
 
         if (intent?.type === 'stack') {
             const targetCard = currentCards.find(
@@ -424,14 +453,12 @@ export const usePostIts = (
 
             if (!stack) return;
 
-            const stackedCards = currentCards.filter(
-                (card) => card.stackId === stack._id
-            );
-            // A new stack is created from the target card, which has not been
-            // assigned the fresh stack id in local state yet. Count it
-            // explicitly so the moved card becomes the second item instead of
-            // receiving the same order as the target.
-            const nextStackOrder = existingStack ? stackedCards.length + 1 : 2;
+            // A brand new stack is created from the target card, which has
+            // not been given the fresh stack id in local state yet, so its own
+            // order (1) is accounted for explicitly.
+            const nextStackOrder = existingStack
+                ? nextStackOrderIn(currentCards, stack._id)
+                : 2;
 
             if (!existingStack) {
                 // A brand new stack was created to hold these cards. Stack
@@ -498,6 +525,69 @@ export const usePostIts = (
             }),
             ...dissolveChanges,
         ]);
+    };
+
+    /**
+     * Drop a whole pile onto another card: every member of `sourceStackId`
+     * joins the target's stack, keeping its internal order and landing on top
+     * of what is already there.
+     *
+     * Dragging a folded pile moves the stack as one object, so this is the
+     * gesture that merges two piles — without it a pile could only ever be
+     * taken apart card by card. The source stack is left empty rather than
+     * deleted, so undo can put its members back into it.
+     */
+    const mergeStackInto = async (
+        sourceStackId: string,
+        targetCardId: string,
+        stacks: PostItStack[],
+        createStackAt: (x: number, y: number) => Promise<PostItStack | null>
+    ) => {
+        if (!activeTabId) return;
+
+        const currentCards = postItsByTab[activeTabId] || [];
+        const target = currentCards.find((card) => card._id === targetCardId);
+        if (!target || target.stackId === sourceStackId) return;
+
+        const movers = stackMembers(currentCards, sourceStackId);
+        if (movers.length === 0) return;
+
+        const existingStack = stacks.find(
+            (stack) => stack._id === target.stackId
+        );
+        // A free target has no stack yet. Its stored rectangle is real (it is
+        // not stacked), so it can anchor the new one.
+        const stack =
+            existingStack || (await createStackAt(target.x, target.y));
+        if (!stack) return;
+
+        let order = existingStack
+            ? nextStackOrderIn(currentCards, stack._id)
+            : 2;
+        const changes = movers.map((card) =>
+            buildCardChange(card, {
+                stackId: stack._id,
+                stackOrder: order++,
+                x: stack.x,
+                y: stack.y,
+            })
+        );
+
+        if (!existingStack) {
+            // Creating a stack is not cleanly reversible (a recreated stack
+            // gets a fresh id), so this gesture is a history barrier.
+            await savePostIt(target._id, {
+                stackId: stack._id,
+                stackOrder: 1,
+                x: stack.x,
+                y: stack.y,
+            });
+            await applyChanges(changes, 'after');
+            history.clear();
+            return;
+        }
+
+        await commitChanges(changes);
     };
 
     const unstackPostIt = async (postItId: string, stacks: PostItStack[]) => {
@@ -577,12 +667,24 @@ export const usePostIts = (
     const sendToBackInStack = (postItId: string) =>
         reorderInStack(postItId, sendCardToBack);
 
+    /** Move a card one slot up (`1`) or down (`-1`) inside its own stack. */
+    const stepInStack = (postItId: string, direction: 1 | -1) =>
+        reorderInStack(postItId, (cards, id) =>
+            stepCardInStack(cards, id, direction)
+        );
+
     const movePostItToTab = async (postItId: string, targetTabId: string) => {
         if (!activeTabId || activeTabId === targetTabId) return;
 
         const sourceCards = postItsByTab[activeTabId] || [];
         const postIt = sourceCards.find((card) => card._id === postItId);
         if (!postIt) return;
+
+        // Same rule as a deletion: the card leaves its stack behind, and a stack
+        // of one is not a stack.
+        const dissolveChanges = postIt.stackId
+            ? buildStackDissolveChanges(sourceCards, postIt.stackId, postItId)
+            : [];
 
         const targetCards = postItsByTab[targetTabId] || [];
         const movedPostIt: PostIt = {
@@ -630,6 +732,12 @@ export const usePostIts = (
             return;
         }
 
+        if (dissolveChanges.length > 0) {
+            await applyChanges(dissolveChanges, 'after').catch(() => {
+                onMutationError?.();
+            });
+        }
+
         const moveLocal = (fromTabId: string, toTabId: string, card: PostIt) =>
             setPostItsByTab((current) => ({
                 ...current,
@@ -656,9 +764,11 @@ export const usePostIts = (
                     },
                     movedPostIt.updatedAt
                 );
+                await applyChanges(dissolveChanges, 'before');
             },
             redo: async () => {
                 moveLocal(activeTabId, targetTabId, movedPostIt);
+                await applyChanges(dissolveChanges, 'after');
                 await persistPostIt(
                     postItId,
                     {
@@ -691,6 +801,18 @@ export const usePostIts = (
         // undo can re-create them.
         const relatedLinks = linkEffects?.snapshot() ?? [];
 
+        // Deleting a member can leave a lone sibling behind. A one-card stack is
+        // not a pile: it wears a "1" badge and its body swallows the first click
+        // to fan out a stack that has nothing to fan, so the note takes two
+        // clicks to edit. Free the survivor in the same undo step.
+        const dissolveChanges = deletedCard.stackId
+            ? buildStackDissolveChanges(
+                  postItsByTab[tabId] || [],
+                  deletedCard.stackId,
+                  postItId
+              )
+            : [];
+
         const removeLocal = () => {
             setPostItsByTab((current) => ({
                 ...current,
@@ -716,12 +838,25 @@ export const usePostIts = (
             return;
         }
 
+        // The card is gone server-side by now, so the dissolve is committed on
+        // its own: if it fails the board simply keeps a one-card stack, which is
+        // cosmetic, and rolling the deletion back would be a worse lie.
+        if (dissolveChanges.length > 0) {
+            try {
+                await applyChanges(dissolveChanges, 'after');
+            } catch {
+                applyChanges(dissolveChanges, 'before').catch(() => undefined);
+                onMutationError?.();
+            }
+        }
+
         // The restore endpoint re-inserts with the original id, so deletion is
         // now reversible instead of a history barrier.
         history.record({
             undo: async () => {
                 restoreLocal();
                 await restorePostIt(deletedCard);
+                await applyChanges(dissolveChanges, 'before');
                 if (relatedLinks.length > 0) {
                     await linkEffects?.restore(relatedLinks);
                 }
@@ -729,19 +864,51 @@ export const usePostIts = (
             redo: async () => {
                 removeLocal();
                 await deletePostIt(postItId);
+                await applyChanges(dissolveChanges, 'after');
             },
         });
     };
 
-    const clonePostIt = async (postItId: string) => {
+    const clonePostIt = async (
+        postItId: string,
+        stacks: PostItStack[] = [],
+        layout: LayoutOptions = {}
+    ) => {
         if (!activeTabId) return;
 
-        const postIt = await duplicatePostIt(postItId);
+        const currentCards = postItsByTab[activeTabId] || [];
+        const source = currentCards.find((card) => card._id === postItId);
+
+        // The copy is created server-side from the source's stored coordinates,
+        // which for a stacked card are its stack's origin as of the last time it
+        // was stacked — a phantom. Duplicating a card in a stack that has moved
+        // since dropped the copy wherever the stack used to be, sometimes far
+        // off-screen. Place it beside the rectangle the user is looking at.
+        const drawn = source?.stackId
+            ? resolveCardRect(postItId, currentCards, stacks, layout)
+            : null;
+
+        const created = await duplicatePostIt(postItId);
+        const position = drawn ? { x: drawn.x + 24, y: drawn.y + 24 } : null;
+
         setPostItsByTab((current) => ({
             ...current,
-            [activeTabId]: [...(current[activeTabId] || []), postIt],
+            [activeTabId]: [
+                ...(current[activeTabId] || []),
+                position ? { ...created, ...position } : created,
+            ],
         }));
         history.clear();
+
+        if (position) {
+            try {
+                await persistPostIt(created._id, position, created.updatedAt);
+            } catch {
+                // The copy exists and is shown where it belongs; only its stored
+                // position is stale. Rewriting it to the phantom would be worse.
+                onMutationError?.();
+            }
+        }
     };
 
     useEffect(() => {
@@ -771,8 +938,10 @@ export const usePostIts = (
         getDropIntent,
         settlePostIt,
         unstackPostIt,
+        mergeStackInto,
         promoteInStack,
         sendToBackInStack,
+        stepInStack,
         movePostItToTab,
         removePostIt,
         clonePostIt,

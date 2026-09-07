@@ -51,19 +51,23 @@ const AppearancePanel: React.FC<AppearancePanelProps> = ({
                             )}
                             aria-pressed={effectiveTheme === theme.id}
                         >
+                            {/* The swatch carries the preset's own class and
+                                the shared palette derivation, so it renders
+                                from the same formula as the board and follows
+                                the current light/dark mode. */}
                             <span
-                                className="appearance-theme-preview"
+                                className={`appearance-theme-preview mn-palette board-theme-${theme.id}`}
                                 aria-hidden="true"
                             >
                                 <span
-                                    style={{ background: theme.preview[0] }}
+                                    style={{ background: 'var(--surface)' }}
                                 />
                                 <span
-                                    style={{ background: theme.preview[1] }}
+                                    style={{ background: 'var(--canvas-bg)' }}
                                 />
                                 <span
                                     className="appearance-theme-accent"
-                                    style={{ background: theme.preview[2] }}
+                                    style={{ background: 'var(--accent)' }}
                                 />
                             </span>
                             <span className="appearance-theme-label">

@@ -70,6 +70,24 @@ describe('demoBoard store', () => {
         expect(copy.tags).toEqual(['keep']);
     });
 
+    it('duplicates a stacked card as a free card, like the API does', async () => {
+        // Demo mode used to copy stackId/stackOrder along with the rest, so the
+        // copy was filed straight back into the pile — invisible, and holding a
+        // stackOrder its source already had. The API creates a free card.
+        const tab = await demo.createTab('A', '#111');
+        const card = await demo.createPostIt(baseCardInput(tab._id));
+        const stack = await demo.createStack({ tabId: tab._id, x: 0, y: 0 });
+        await demo.updatePostIt(card._id, {
+            stackId: stack._id,
+            stackOrder: 1,
+        });
+
+        const copy = await demo.duplicatePostIt(card._id);
+
+        expect(copy.stackId).toBeNull();
+        expect(copy.stackOrder).toBeNull();
+    });
+
     it('deletes a card and its connections', async () => {
         const tab = await demo.createTab('A', '#111');
         const a = await demo.createPostIt(baseCardInput(tab._id));

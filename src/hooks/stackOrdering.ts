@@ -65,3 +65,31 @@ export function sendCardToBack(
     const rest = ordered.filter((card) => card._id !== id);
     return renumber([moved, ...rest]);
 }
+
+/**
+ * Move a card one slot toward the front (`1`) or the back (`-1`) of its stack,
+ * by swapping it with its neighbour.
+ *
+ * This is the fine-grained counterpart to `bringCardToFront`: on a folded pile
+ * stepping the top card back is how you leaf through the stack one note at a
+ * time without unfolding it. Returns an empty list when the card is already at
+ * that end, so the caller can disable the control rather than fire a no-op
+ * write.
+ */
+export function stepCardInStack(
+    cards: StackCard[],
+    id: string,
+    direction: 1 | -1
+): StackOrderChange[] {
+    const ordered = sortStackCards(cards);
+    const index = ordered.findIndex((card) => card._id === id);
+    if (index === -1) return [];
+
+    const swapWith = index + direction;
+    if (swapWith < 0 || swapWith >= ordered.length) return [];
+
+    const next = [...ordered];
+    next[index] = ordered[swapWith];
+    next[swapWith] = ordered[index];
+    return renumber(next);
+}

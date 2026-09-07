@@ -749,8 +749,8 @@ export const DICTIONARY = {
     },
     'theme.clair.label': { fr: 'Épuré', en: 'Clean' },
     'theme.clair.desc': {
-        fr: 'Suit le thème clair ou sombre de l’application.',
-        en: 'Follows the app’s light or dark theme.',
+        fr: 'Neutre, sans teinte : la couleur d’accent d’origine.',
+        en: 'Neutral, untinted — the original accent colour.',
     },
     'theme.frigo.label': { fr: 'Frigo', en: 'Fridge' },
     'theme.frigo.desc': {
@@ -759,8 +759,8 @@ export const DICTIONARY = {
     },
     'theme.magnetique.label': { fr: 'Magnétique', en: 'Magnetic' },
     'theme.magnetique.desc': {
-        fr: 'Tableau d’atelier sombre à pastille aimantée.',
-        en: 'Dark workshop board with a magnetic dot.',
+        fr: 'Tableau d’atelier bleu acier à pastille aimantée.',
+        en: 'Steel-blue workshop board with a magnetic dot.',
     },
     'theme.liege.label': { fr: 'Liège', en: 'Cork' },
     'theme.liege.desc': {
@@ -769,8 +769,8 @@ export const DICTIONARY = {
     },
     'theme.ardoise.label': { fr: 'Ardoise', en: 'Slate' },
     'theme.ardoise.desc': {
-        fr: 'Tableau noir à la craie, contrastes doux.',
-        en: 'Chalk blackboard with soft contrasts.',
+        fr: 'Ardoise verte et craie, contrastes doux.',
+        en: 'Green slate and chalk, soft contrasts.',
     },
 
     // --- board tabs (sidebar) -----------------------------------------------
@@ -793,18 +793,29 @@ export const DICTIONARY = {
         en: 'Delete “{name}” and all its notes?',
     },
     'tabs.newBoard': { fr: 'Nouveau tableau', en: 'New board' },
-    'stack.previewAria': {
-        fr: 'Aperçu des notes de la pile',
-        en: 'Preview of the stack’s notes',
+    'stack.fanOut': {
+        fr: 'Étaler la pile ({n} notes)',
+        en: 'Fan out the stack ({n} notes)',
     },
-    'stack.show': { fr: 'Afficher la pile', en: 'Show the stack' },
-    'stack.collapse': { fr: 'Replier la pile', en: 'Collapse the stack' },
-    'stack.promote': {
-        fr: 'Mettre « {title} » au sommet',
-        en: 'Bring “{title}” to the top',
+    'stack.fold': { fr: 'Replier la pile', en: 'Fold the stack back' },
+    'stack.select': {
+        fr: 'Mettre « {title} » au premier plan',
+        en: 'Bring “{title}” to the front',
     },
-    'stack.emptyPreview': { fr: 'Pile de notes', en: 'Note stack' },
-    'stack.emptyCard': { fr: 'Note vide', en: 'Empty note' },
+    'card.drop.stack': { fr: 'Empiler', en: 'Stack' },
+    'card.drop.dock': { fr: 'Coller', en: 'Snap' },
+    'stack.position': {
+        fr: 'Note {n} sur {total} dans la pile',
+        en: 'Note {n} of {total} in the stack',
+    },
+    'stack.stepBack': {
+        fr: 'Reculer d’un rang dans la pile',
+        en: 'Move one slot back in the stack',
+    },
+    'stack.stepForward': {
+        fr: 'Avancer d’un rang dans la pile',
+        en: 'Move one slot forward in the stack',
+    },
 
     // --- common --------------------------------------------------------------
     'common.close': { fr: 'Fermer', en: 'Close' },
@@ -881,10 +892,6 @@ export const DICTIONARY = {
     'card.styles': { fr: 'Styles', en: 'Styles' },
     'card.font.aria': { fr: 'Police du texte', en: 'Text font' },
     'card.unstack': { fr: 'Sortir de la pile', en: 'Remove from stack' },
-    'card.stack.bringToFront': {
-        fr: 'Mettre au premier plan',
-        en: 'Bring to front',
-    },
     'card.moveToPage': { fr: 'Déplacer vers une page', en: 'Move to a page' },
     'card.section.status': { fr: 'Statut', en: 'Status' },
     'card.section.priority': { fr: 'Priorité', en: 'Priority' },

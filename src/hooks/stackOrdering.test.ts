@@ -2,6 +2,7 @@ import {
     bringCardToFront,
     sendCardToBack,
     sortStackCards,
+    stepCardInStack,
     stackCardsFrontToBack,
     StackCard,
 } from './stackOrdering';
@@ -75,5 +76,39 @@ describe('sendCardToBack', () => {
 
     it('returns no changes when already at the back', () => {
         expect(sendCardToBack(cards, 'a')).toEqual([]);
+    });
+});
+
+describe('stepCardInStack', () => {
+    it('swaps a card with the one in front of it', () => {
+        expect(stepCardInStack(cards, 'a', 1)).toEqual([
+            { id: 'b', stackOrder: 1 },
+            { id: 'a', stackOrder: 2 },
+        ]);
+    });
+
+    it('swaps a card with the one behind it', () => {
+        expect(stepCardInStack(cards, 'c', -1)).toEqual([
+            { id: 'c', stackOrder: 2 },
+            { id: 'b', stackOrder: 3 },
+        ]);
+    });
+
+    it('leafs through a folded pile: the top card steps back, the next shows', () => {
+        const changes = stepCardInStack(cards, 'c', -1);
+        const after = cards.map((card) => {
+            const change = changes.find((item) => item.id === card._id);
+            return change ? { ...card, stackOrder: change.stackOrder } : card;
+        });
+        expect(sortStackCards(after).at(-1)?._id).toBe('b');
+    });
+
+    it('does nothing at either end of the stack', () => {
+        expect(stepCardInStack(cards, 'c', 1)).toEqual([]);
+        expect(stepCardInStack(cards, 'a', -1)).toEqual([]);
+    });
+
+    it('ignores a card that is not in the stack', () => {
+        expect(stepCardInStack(cards, 'ghost', 1)).toEqual([]);
     });
 });

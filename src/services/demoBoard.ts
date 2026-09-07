@@ -296,6 +296,12 @@ export async function duplicatePostIt(postItId: string): Promise<PostIt> {
     void updatedAt;
     return createPostItFull(store, {
         ...rest,
+        // The copy comes out free, exactly like the API's duplicate endpoint:
+        // inheriting the membership would file it straight back into the pile,
+        // invisible, on a stackOrder its source already holds. The caller places
+        // it next to where the source is actually drawn.
+        stackId: null,
+        stackOrder: null,
         x: source.x + 24,
         y: source.y + 24,
     });
@@ -361,7 +367,11 @@ export async function createStack(
         x: input.x,
         y: input.y,
         ...(input.name !== undefined ? { name: input.name } : {}),
-        collapsed: false,
+        // Folded, like the API does (PostItStackService): dropping a card on
+        // another makes a pile, and the pile is what the user then clicks to
+        // fan it out. Demo mode used to create it open, so the same gesture
+        // gave two different results depending on the backend.
+        collapsed: true,
         createdAt: timestamp,
         updatedAt: timestamp,
     };

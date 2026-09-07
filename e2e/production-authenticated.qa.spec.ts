@@ -305,10 +305,12 @@ test.describe('authenticated production gestures', () => {
             });
             await page.mouse.move(stackStart.x, stackStart.y, { steps: 4 });
             await page.mouse.up();
-            await expect(page.locator('.post-it-stack-card')).toHaveCount(1);
+            // A stack has no widget of its own: it is drawn as a folded pile,
+            // i.e. the front card alone wearing the deck edges.
+            await expect(page.locator('.post-it-card.is-pile')).toHaveCount(1);
             await page.reload();
             await expect(page.locator('.board-app')).toBeVisible();
-            await expect(page.locator('.post-it-stack-card')).toHaveCount(1);
+            await expect(page.locator('.post-it-card.is-pile')).toHaveCount(1);
         } finally {
             if (deleteAccount && !page.isClosed()) {
                 await page.goto('/app/?analytics=off');
