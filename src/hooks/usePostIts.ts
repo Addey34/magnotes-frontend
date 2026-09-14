@@ -115,14 +115,20 @@ export const usePostIts = (
             }
         );
 
-        const postIt = await createPostIt({
-            tabId: activeTabId,
-            ...DEFAULT_POST_IT,
-            ...(options?.color ? { color: options.color } : {}),
-            ...(options?.title ? { title: options.title } : {}),
-            x: position.x,
-            y: position.y,
-        });
+        let postIt: PostIt;
+        try {
+            postIt = await createPostIt({
+                tabId: activeTabId,
+                ...DEFAULT_POST_IT,
+                ...(options?.color ? { color: options.color } : {}),
+                ...(options?.title ? { title: options.title } : {}),
+                x: position.x,
+                y: position.y,
+            });
+        } catch {
+            onMutationError?.();
+            return;
+        }
 
         setPostItsByTab((current) => ({
             ...current,
@@ -166,9 +172,16 @@ export const usePostIts = (
     const addTemplateCards = async (cards: TemplateCardPayload[]) => {
         if (!activeTabId || cards.length === 0) return;
 
+        let hadFailure = false;
         for (const card of cards) {
             const { status, checklist, tags, dueDate, ...base } = card;
-            const created = await createPostIt(base);
+            let created: PostIt;
+            try {
+                created = await createPostIt(base);
+            } catch {
+                hadFailure = true;
+                continue;
+            }
             if (!created?._id) continue;
 
             // Show the persisted card immediately, before the task-fields patch,
@@ -206,9 +219,11 @@ export const usePostIts = (
                     }));
                 } catch {
                     // Keep the base card; its task metadata just stays unset.
+                    hadFailure = true;
                 }
             }
         }
+        if (hadFailure) onMutationError?.();
         history.clear();
     };
 
@@ -220,6 +235,29 @@ export const usePostIts = (
             [activeTabId]: (current[activeTabId] || []).map((postIt) =>
                 postIt._id === postItId ? { ...postIt, ...updates } : postIt
             ),
+        }));
+    };
+
+    const rollbackPostItLocal = (
+        postItId: string,
+        optimistic: PostItUpdate,
+        previous: PostItUpdate
+    ) => {
+        if (!activeTabId) return;
+        setPostItsByTab((current) => ({
+            ...current,
+            [activeTabId]: (current[activeTabId] || []).map((postIt) => {
+                if (postIt._id !== postItId) return postIt;
+                const reverted = { ...postIt };
+                for (const key of Object.keys(optimistic) as Array<
+                    keyof PostItUpdate
+                >) {
+                    if (Object.is(postIt[key], optimistic[key])) {
+                        Object.assign(reverted, { [key]: previous[key] });
+                    }
+                }
+                return reverted;
+            }),
         }));
     };
 
@@ -237,7 +275,27 @@ export const usePostIts = (
             ...updates,
             expectedUpdatedAt: expectedUpdatedAt ?? current?.updatedAt,
         });
-        if (saved) patchPostItLocal(postItId, saved);
+        if (saved && activeTabId) {
+            // PATCH responses contain the whole server card. Merge only the
+            // fields this request actually wrote (plus its fresh version): an
+            // older response must not rewind unrelated edits made while it was
+            // in flight.
+            setPostItsByTab((state) => ({
+                ...state,
+                [activeTabId]: (state[activeTabId] || []).map((postIt) => {
+                    if (postIt._id !== postItId) return postIt;
+                    const merged = { ...postIt, updatedAt: saved.updatedAt };
+                    for (const key of Object.keys(updates) as Array<
+                        keyof PostItUpdate
+                    >) {
+                        if (Object.is(postIt[key], updates[key])) {
+                            Object.assign(merged, { [key]: saved[key] });
+                        }
+                    }
+                    return merged;
+                }),
+            }));
+        }
         return saved;
     };
 
@@ -252,8 +310,9 @@ export const usePostIts = (
             await persistPostIt(postItId, updates, previous?.updatedAt);
         } catch {
             if (previous) {
-                patchPostItLocal(
+                rollbackPostItLocal(
                     postItId,
+                    updates,
                     buildCardChange(previous, updates).before
                 );
             }
@@ -290,7 +349,7 @@ export const usePostIts = (
         } catch (error) {
             console.error('Board update failed, reverting:', error);
             effective.forEach((change) =>
-                patchPostItLocal(change.id, change.before)
+                rollbackPostItLocal(change.id, change.after, change.before)
             );
             onMutationError?.();
             return;
@@ -332,7 +391,11 @@ export const usePostIts = (
                 focusedCard.updatedAt
             );
         } catch {
-            patchPostItLocal(postItId, { zIndex: focusedCard.zIndex });
+            rollbackPostItLocal(
+                postItId,
+                { zIndex: nextZIndex },
+                { zIndex: focusedCard.zIndex }
+            );
             onMutationError?.();
         }
     };
@@ -888,7 +951,13 @@ export const usePostIts = (
             ? resolveCardRect(postItId, currentCards, stacks, layout)
             : null;
 
-        const created = await duplicatePostIt(postItId);
+        let created: PostIt;
+        try {
+            created = await duplicatePostIt(postItId);
+        } catch {
+            onMutationError?.();
+            return;
+        }
         const position = drawn ? { x: drawn.x + 24, y: drawn.y + 24 } : null;
 
         setPostItsByTab((current) => ({

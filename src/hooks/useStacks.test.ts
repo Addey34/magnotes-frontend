@@ -91,4 +91,29 @@ describe('useStacks rollbacks', () => {
         expect(mockedFetch).toHaveBeenCalledTimes(1);
         expect(result.current.isLoadingStacks).toBe(false);
     });
+
+    it('keeps a newer position when an older save fails out of order', async () => {
+        mockedUpdate
+            .mockImplementationOnce(async () => {
+                await Promise.resolve();
+                throw new Error('late network failure');
+            })
+            .mockResolvedValueOnce(undefined);
+        const onLoadError = jest.fn();
+        const { result } = renderHook(() =>
+            useStacks('tab-1', onLoadError, jest.fn())
+        );
+        await waitFor(() => expect(result.current.stacks).toHaveLength(1));
+
+        await act(async () => {
+            const older = result.current.settleStack('stack-1', 100, 100);
+            const newer = result.current.settleStack('stack-1', 200, 200);
+            await Promise.all([older, newer]);
+        });
+
+        expect(result.current.stacks[0]).toMatchObject({
+            x: snapToGrid(200),
+            y: snapToGrid(200),
+        });
+    });
 });

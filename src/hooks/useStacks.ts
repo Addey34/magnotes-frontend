@@ -101,7 +101,18 @@ export const useStacks = (
         try {
             await updateStack(stackId, updates);
         } catch {
-            patchStackLocal(stackId, { x: previous.x, y: previous.y });
+            setStacksByTab((current) => ({
+                ...current,
+                [activeTabId]: (current[activeTabId] || []).map((stack) =>
+                    stack._id === stackId
+                        ? {
+                              ...stack,
+                              x: stack.x === updates.x ? previous.x : stack.x,
+                              y: stack.y === updates.y ? previous.y : stack.y,
+                          }
+                        : stack
+                ),
+            }));
             onMutationError?.();
         }
     };
@@ -116,7 +127,14 @@ export const useStacks = (
         try {
             await updateStack(stackId, { collapsed });
         } catch {
-            patchStackLocal(stackId, { collapsed: previous.collapsed });
+            setStacksByTab((current) => ({
+                ...current,
+                [activeTabId]: (current[activeTabId] || []).map((stack) =>
+                    stack._id === stackId && stack.collapsed === collapsed
+                        ? { ...stack, collapsed: previous.collapsed }
+                        : stack
+                ),
+            }));
             onMutationError?.();
         }
     };

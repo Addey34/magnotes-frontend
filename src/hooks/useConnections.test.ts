@@ -83,4 +83,26 @@ describe('useConnections rollbacks', () => {
         expect(mockedFetch).toHaveBeenCalledTimes(1);
         expect(result.current.isLoadingConnections).toBe(false);
     });
+
+    it('keeps a newer label when an older save fails out of order', async () => {
+        mockedUpdate
+            .mockImplementationOnce(async () => {
+                await Promise.resolve();
+                throw new Error('late network failure');
+            })
+            .mockResolvedValueOnce(undefined);
+        const onLoadError = jest.fn();
+        const { result } = renderHook(() =>
+            useConnections('tab-1', onLoadError, jest.fn())
+        );
+        await waitFor(() => expect(result.current.links).toHaveLength(1));
+
+        await act(async () => {
+            const older = result.current.relabelLink('link-1', 'Older');
+            const newer = result.current.relabelLink('link-1', 'Newest');
+            await Promise.all([older, newer]);
+        });
+
+        expect(result.current.links[0].label).toBe('Newest');
+    });
 });

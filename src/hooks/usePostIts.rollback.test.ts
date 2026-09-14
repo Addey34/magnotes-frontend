@@ -323,6 +323,61 @@ describe('usePostIts rollbacks', () => {
         expect(result.current.postIts).toEqual([card, created]);
     });
 
+    it('reports a failed card creation without changing local state', async () => {
+        mockedCreate.mockRejectedValue(new Error('network'));
+        const onMutationError = jest.fn();
+        const { result } = renderHook(() =>
+            usePostIts('tab-1', jest.fn(), onMutationError)
+        );
+        await waitFor(() => expect(result.current.postIts).toEqual([card]));
+
+        await act(async () => result.current.addPostIt());
+
+        expect(result.current.postIts).toEqual([card]);
+        expect(result.current.canUndo).toBe(false);
+        expect(onMutationError).toHaveBeenCalledTimes(1);
+    });
+
+    it('reports a failed duplication without creating a phantom copy', async () => {
+        mockedDuplicate.mockRejectedValue(new Error('network'));
+        const onMutationError = jest.fn();
+        const { result } = renderHook(() =>
+            usePostIts('tab-1', jest.fn(), onMutationError)
+        );
+        await waitFor(() => expect(result.current.postIts).toEqual([card]));
+
+        await act(async () => result.current.clonePostIt('card-1'));
+
+        expect(result.current.postIts).toEqual([card]);
+        expect(onMutationError).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps a newer card edit when an older save fails out of order', async () => {
+        mockedUpdate
+            .mockImplementationOnce(async () => {
+                await Promise.resolve();
+                throw new Error('late network failure');
+            })
+            .mockResolvedValueOnce(undefined);
+        const onLoadError = jest.fn();
+        const { result } = renderHook(() =>
+            usePostIts('tab-1', onLoadError, jest.fn())
+        );
+        await waitFor(() => expect(result.current.postIts).toEqual([card]));
+
+        await act(async () => {
+            const older = result.current.savePostIt('card-1', {
+                title: 'Older',
+            });
+            const newer = result.current.savePostIt('card-1', {
+                title: 'Newest',
+            });
+            await Promise.all([older, newer]);
+        });
+
+        expect(result.current.postIts[0].title).toBe('Newest');
+    });
+
     it('undoes and redoes moving a card to another board', async () => {
         mockedUpdate.mockResolvedValue(undefined);
         const { result } = renderHook(() =>

@@ -114,7 +114,14 @@ export const useConnections = (
             try {
                 await updateConnection(linkId, { label: trimmed });
             } catch {
-                patchLinkLocal(linkId, { label: previous.label });
+                setLinksByTab((current) => ({
+                    ...current,
+                    [activeTabId!]: (current[activeTabId!] || []).map((link) =>
+                        link._id === linkId && link.label === trimmed
+                            ? { ...link, label: previous.label }
+                            : link
+                    ),
+                }));
                 onMutationError?.();
             }
         },

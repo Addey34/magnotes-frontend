@@ -78,7 +78,12 @@ export const useTabs = (
     };
 
     const patchTab = async (tabId: string, updates: TabCustomization) => {
-        const previousTabs = tabs;
+        const previous = tabs.find((tab) => tab._id === tabId);
+        if (!previous) return;
+        const optimisticBackground =
+            updates.backgroundColor === null
+                ? undefined
+                : (updates.backgroundColor ?? previous.backgroundColor);
         setTabs((currentTabs) =>
             currentTabs.map((tab) =>
                 tab._id === tabId
@@ -98,7 +103,30 @@ export const useTabs = (
         try {
             await updateTabRequest(tabId, updates);
         } catch {
-            setTabs(previousTabs);
+            // Only revert fields that still contain this request's optimistic
+            // value. A later successful edit must never be overwritten by an
+            // older request failing out of order.
+            setTabs((currentTabs) =>
+                currentTabs.map((tab) => {
+                    if (tab._id !== tabId) return tab;
+                    const reverted = { ...tab };
+                    for (const key of ['color', 'theme', 'icon'] as const) {
+                        if (
+                            key in updates &&
+                            Object.is(tab[key], updates[key])
+                        ) {
+                            Object.assign(reverted, { [key]: previous[key] });
+                        }
+                    }
+                    if (
+                        'backgroundColor' in updates &&
+                        Object.is(tab.backgroundColor, optimisticBackground)
+                    ) {
+                        reverted.backgroundColor = previous.backgroundColor;
+                    }
+                    return reverted;
+                })
+            );
             onMutationError?.();
         }
     };
@@ -118,9 +146,14 @@ export const useTabs = (
     const renameTab = async (tabId: string, name: string) => {
         const normalizedName = name.trim();
         const currentTab = tabs.find((tab) => tab._id === tabId);
-        if (!normalizedName || normalizedName === currentTab?.name) return;
+        if (
+            !currentTab ||
+            !normalizedName ||
+            normalizedName === currentTab.name
+        )
+            return;
 
-        const previousTabs = tabs;
+        const previousName = currentTab.name;
         setTabs((currentTabs) =>
             currentTabs.map((tab) =>
                 tab._id === tabId ? { ...tab, name: normalizedName } : tab
@@ -129,7 +162,13 @@ export const useTabs = (
         try {
             await updateTabRequest(tabId, { name: normalizedName });
         } catch {
-            setTabs(previousTabs);
+            setTabs((currentTabs) =>
+                currentTabs.map((tab) =>
+                    tab._id === tabId && tab.name === normalizedName
+                        ? { ...tab, name: previousName }
+                        : tab
+                )
+            );
             onMutationError?.();
         }
     };
@@ -140,7 +179,9 @@ export const useTabs = (
         position: 'before' | 'after' = 'before'
     ) => {
         if (draggedTabId === targetTabId) return;
-        const previousTabs = tabs;
+        const previousOrder = new Map(
+            tabs.map((tab) => [tab._id, tab.order] as const)
+        );
         const nextTabs = [...tabs];
         const sourceIndex = nextTabs.findIndex(
             (tab) => tab._id === draggedTabId
@@ -162,36 +203,64 @@ export const useTabs = (
             ...tab,
             order: index + 1,
         }));
+        const optimisticOrder = new Map(
+            orderedTabs.map((tab) => [tab._id, tab.order] as const)
+        );
         setTabs(orderedTabs);
         try {
             await reorderTabsRequest(orderedTabs.map((tab) => tab._id));
         } catch {
-            setTabs(previousTabs);
+            setTabs((currentTabs) =>
+                currentTabs
+                    .map((tab) =>
+                        previousOrder.has(tab._id) &&
+                        tab.order === optimisticOrder.get(tab._id)
+                            ? { ...tab, order: previousOrder.get(tab._id)! }
+                            : tab
+                    )
+                    .sort((a, b) => a.order - b.order)
+            );
             onMutationError?.();
         }
     };
 
     const removeTab = async (tabId: string) => {
         if (tabs.length <= 1) return false;
-        const previousTabs = tabs;
         const deletedIndex = tabs.findIndex((tab) => tab._id === tabId);
+        if (deletedIndex < 0) return false;
+        const removedTab = tabs[deletedIndex];
         const nextTabs = tabs
             .filter((tab) => tab._id !== tabId)
             .map((tab, index) => ({ ...tab, order: index + 1 }));
         setTabs(nextTabs);
-        if (activeTabId === tabId) {
-            setActiveTabId(
-                nextTabs[Math.min(deletedIndex, nextTabs.length - 1)]?._id ||
-                    null
-            );
-        }
+        const fallbackActiveTabId =
+            nextTabs[Math.min(deletedIndex, nextTabs.length - 1)]?._id || null;
+        if (activeTabId === tabId) setActiveTabId(fallbackActiveTabId);
 
         try {
             await deleteTabRequest(tabId);
             return true;
         } catch {
-            setTabs(previousTabs);
-            setActiveTabId(activeTabId);
+            setTabs((currentTabs) => {
+                if (currentTabs.some((tab) => tab._id === tabId)) {
+                    return currentTabs;
+                }
+                const restored = [...currentTabs];
+                restored.splice(
+                    Math.min(deletedIndex, restored.length),
+                    0,
+                    removedTab
+                );
+                return restored.map((tab, index) => ({
+                    ...tab,
+                    order: index + 1,
+                }));
+            });
+            setActiveTabId((current) =>
+                activeTabId === tabId && current === fallbackActiveTabId
+                    ? tabId
+                    : current
+            );
             onMutationError?.();
             return false;
         }

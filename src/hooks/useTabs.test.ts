@@ -1,7 +1,12 @@
 /** @jest-environment jsdom */
 
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { createTab, fetchTabs } from '../services/boardApi';
+import {
+    createTab,
+    deleteTab,
+    fetchTabs,
+    updateTab,
+} from '../services/boardApi';
 import { trackProductEvent } from '../services/analytics';
 import { BoardTab } from '../types/boardTypes';
 import { useTabs } from './useTabs';
@@ -29,9 +34,25 @@ const tab: BoardTab = {
     updatedAt: '2026-01-01T00:00:00.000Z',
 };
 
+const tab2: BoardTab = {
+    ...tab,
+    _id: 'tab-2',
+    name: 'Page 2',
+    order: 2,
+};
+
+const tab3: BoardTab = {
+    ...tab,
+    _id: 'tab-3',
+    name: 'Page 3',
+    order: 3,
+};
+
 describe('useTabs loading state', () => {
     const mockedFetch = fetchTabs as jest.MockedFunction<typeof fetchTabs>;
     const mockedCreate = createTab as jest.MockedFunction<typeof createTab>;
+    const mockedDelete = deleteTab as jest.MockedFunction<typeof deleteTab>;
+    const mockedUpdate = updateTab as jest.MockedFunction<typeof updateTab>;
     const mockedTrack = trackProductEvent as jest.MockedFunction<
         typeof trackProductEvent
     >;
@@ -105,5 +126,76 @@ describe('useTabs loading state', () => {
         );
 
         expect(mockedTrack).not.toHaveBeenCalled();
+    });
+
+    it('reverts only the customization fields rejected by the API', async () => {
+        mockedFetch.mockResolvedValue([{ ...tab, icon: '🚀' }]);
+        mockedUpdate.mockRejectedValue(new Error('network failure'));
+        const onLoadError = jest.fn();
+        const onMutationError = jest.fn();
+        const { result } = renderHook(() =>
+            useTabs(onLoadError, onMutationError)
+        );
+        await waitFor(() => expect(result.current.tabs).toHaveLength(1));
+
+        await act(async () => {
+            await result.current.customizeTab('tab-1', {
+                color: '#000000',
+            });
+        });
+
+        expect(result.current.tabs[0]).toMatchObject({
+            color: tab.color,
+            icon: '🚀',
+        });
+        expect(onMutationError).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps a newer rename when an older rename fails out of order', async () => {
+        mockedFetch.mockResolvedValue([tab]);
+        mockedUpdate
+            .mockImplementationOnce(async () => {
+                await Promise.resolve();
+                throw new Error('late network failure');
+            })
+            .mockResolvedValueOnce(undefined);
+        const { result } = renderHook(() => useTabs());
+        await waitFor(() => expect(result.current.tabs).toHaveLength(1));
+
+        await act(async () => {
+            const olderRequest = result.current.renameTab('tab-1', 'Older');
+            const newerRequest = result.current.renameTab('tab-1', 'Newest');
+            await Promise.all([olderRequest, newerRequest]);
+        });
+
+        expect(result.current.tabs[0].name).toBe('Newest');
+    });
+
+    it('restores a failed deletion without dropping a board created meanwhile', async () => {
+        mockedFetch.mockResolvedValue([tab, tab2]);
+        mockedCreate.mockResolvedValue(tab3);
+        let rejectDelete!: (reason: Error) => void;
+        mockedDelete.mockReturnValue(
+            new Promise((_, reject) => {
+                rejectDelete = reject;
+            })
+        );
+        const { result } = renderHook(() => useTabs());
+        await waitFor(() => expect(result.current.tabs).toHaveLength(2));
+
+        let deletion!: Promise<boolean>;
+        await act(async () => {
+            deletion = result.current.removeTab('tab-1');
+            await result.current.addTab();
+            rejectDelete(new Error('late network failure'));
+            await deletion;
+        });
+
+        expect(result.current.tabs.map(({ _id }) => _id)).toEqual([
+            'tab-1',
+            'tab-2',
+            'tab-3',
+        ]);
+        expect(result.current.activeTabId).toBe('tab-3');
     });
 });
