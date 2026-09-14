@@ -10,16 +10,16 @@
             name="description"
             content="Quelles données MagNotes collecte, pourquoi, combien de temps, et comment exercer vos droits RGPD."
         />
-        <!--
-          contact@adrianguichard.dev is live (Cloudflare Email Routing,
-          2026-09-02). noindex until the owner approves the text — flip to
-          "index, follow" and link it from the landing footer at that point.
-        -->
-        <meta name="robots" content="noindex, follow" />
+        <meta name="robots" content="index, follow" />
         <meta name="theme-color" content="#14141c" />
         <link
             rel="canonical"
             href="https://magnotes.adrianguichard.dev/confidentialite/"
+        />
+        <link
+            rel="alternate"
+            hreflang="en"
+            href="https://magnotes.adrianguichard.dev/en/privacy/"
         />
         <style>
             :root {
@@ -101,16 +101,6 @@
                 font-size: 0.9rem;
                 margin-bottom: 40px;
             }
-            .draft-note {
-                background: var(--card);
-                border: 1px solid var(--border);
-                border-left: 3px solid var(--accent);
-                border-radius: 8px;
-                padding: 16px 18px;
-                font-size: 0.9rem;
-                color: var(--muted);
-                margin-bottom: 40px;
-            }
             h2 {
                 font-size: 1.25rem;
                 margin: 36px 0 12px;
@@ -155,16 +145,7 @@
 
         <main class="wrap">
             <h1>Politique de confidentialité</h1>
-            <p class="updated">Dernière mise à jour : 2026-09-01.</p>
-
-            <div class="draft-note">
-                <strong>Brouillon en relecture.</strong> Cette page décrit
-                fidèlement ce que fait le code de MagNotes aujourd'hui, mais
-                n'est pas encore publiée (page en <code>noindex</code>, non liée
-                depuis le site) : le texte doit être validé par l'éditeur du
-                service avant publication officielle. Ce n'est pas encore un
-                engagement juridique définitif.
-            </div>
+            <p class="updated">Dernière mise à jour : 2026-09-14.</p>
 
             <h2>Qui exploite MagNotes ?</h2>
             <p>
@@ -296,7 +277,8 @@
         </main>
 
         <footer>
-            <span>© 2026 MagNotes</span>
+            <span>© 2026 MagNotes</span> ·
+            <a href="/en/privacy/">English</a>
         </footer>
     </body>
 </html>

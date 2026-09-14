@@ -184,7 +184,14 @@ export async function buildTemplateGallery(out, analytics = {}) {
             );
         }
     }
-    const urls = ['/', '/en/', '/templates/', '/en/templates/'];
+    const urls = [
+        '/',
+        '/en/',
+        '/confidentialite/',
+        '/en/privacy/',
+        '/templates/',
+        '/en/templates/',
+    ];
     for (const lang of ['fr', 'en']) {
         for (const template of localized[lang]) {
             urls.push(pathFor(lang, `${template.id}/`));
@@ -196,6 +203,7 @@ export async function buildTemplateGallery(out, analytics = {}) {
     const priorityFor = (url) => {
         if (url === '/' || url === '/en/') return '1.0';
         if (url.endsWith('/templates/')) return '0.9';
+        if (url === '/confidentialite/' || url === '/en/privacy/') return '0.5';
         return '0.8';
     };
     const sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls

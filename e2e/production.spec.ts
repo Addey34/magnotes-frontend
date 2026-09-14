@@ -76,6 +76,32 @@ test.describe('deployed production', () => {
         });
     }
 
+    for (const [path, heading, alternate] of [
+        ['/confidentialite/', 'Politique de confidentialité', '/en/privacy/'],
+        ['/en/privacy/', 'Privacy policy', '/confidentialite/'],
+    ] as const) {
+        test(`serves an indexable privacy page (${path})`, async ({ page }) => {
+            const failures = monitorBrowserFailures(page);
+            const response = await page.goto(path, {
+                waitUntil: 'networkidle',
+            });
+
+            expect(response?.status()).toBe(200);
+            await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+                heading
+            );
+            await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
+                'content',
+                'index, follow'
+            );
+            await expect(
+                page.locator(`link[rel="alternate"][href$="${alternate}"]`)
+            ).toHaveCount(1);
+            await expectNoBlockingAccessibilityIssues(page);
+            expect(failures).toEqual([]);
+        });
+    }
+
     test('serves the authentication surface without browser failures', async ({
         page,
     }) => {
