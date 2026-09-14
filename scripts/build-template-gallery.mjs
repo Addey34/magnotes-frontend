@@ -75,9 +75,9 @@ function shell({
     const c = copy[lang];
     const tracker =
         analytics?.src && analytics?.websiteId
-            ? `<script defer src="${escapeHtml(analytics.src)}" data-website-id="${escapeHtml(analytics.websiteId)}"></script>`
+            ? `<script src="/analytics-control.js"></script><script defer src="${escapeHtml(analytics.src)}" data-website-id="${escapeHtml(analytics.websiteId)}" data-before-send="magNotesAnalyticsBeforeSend"></script>`
             : '';
-    return `<!doctype html><html lang="${lang}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="index, follow"><link rel="canonical" href="${ORIGIN}${canonical}"><link rel="alternate" hreflang="${alternate.lang}" href="${ORIGIN}${alternate.path}"><meta property="og:type" content="website"><meta property="og:locale" content="${c.locale}"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${ORIGIN}${canonical}"><meta property="og:image" content="${ORIGIN}/og-image.png"><style>${css}</style>${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replaceAll('<', '\\u003c')}</script>` : ''}${tracker}</head><body><header><div class="wrap nav"><a class="brand" href="/"><span>🧲</span>MagNotes</a><nav class="nav-links"><a class="btn" href="${alternate.path}">${c.lang}</a><a class="btn btn-primary" href="/app/">${c.login}</a></nav></div></header><main>${body}</main><footer>© 2026 MagNotes · ${c.galleryTitle}</footer></body></html>`;
+    return `<!doctype html><html lang="${lang}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="index, follow"><link rel="canonical" href="${ORIGIN}${canonical}"><link rel="alternate" hreflang="${alternate.lang}" href="${ORIGIN}${alternate.path}"><meta property="og:type" content="website"><meta property="og:locale" content="${c.locale}"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${ORIGIN}${canonical}"><meta property="og:image" content="${ORIGIN}/og-image.png"><style>${css}</style>${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replaceAll('<', '\\u003c')}</script>` : ''}${tracker}</head><body><header><div class="wrap nav"><a class="brand" href="/"><span>🧲</span>MagNotes</a><nav class="nav-links"><a class="btn" href="${alternate.path}">${c.lang}</a><a class="btn btn-primary" href="/app/" data-umami-event="template_login_clicked">${c.login}</a></nav></div></header><main>${body}</main><footer>© 2026 MagNotes · ${c.galleryTitle}</footer></body></html>`;
 }
 
 function miniBoard(template) {
@@ -97,7 +97,7 @@ function galleryPage(lang, templates, analytics) {
     const cards = templates
         .map(
             (template) =>
-                `<a class="template-card" href="${pathFor(lang, `${template.id}/`)}">${miniBoard(template)}<h2>${escapeHtml(template.label)}</h2><p>${escapeHtml(template.description)}</p><span class="meta">${template.cards.length} ${c.cards} · ${c.preview} →</span></a>`
+                `<a class="template-card" href="${pathFor(lang, `${template.id}/`)}" data-umami-event="template_viewed" data-umami-event-template="${escapeHtml(template.id)}">${miniBoard(template)}<h2>${escapeHtml(template.label)}</h2><p>${escapeHtml(template.description)}</p><span class="meta">${template.cards.length} ${c.cards} · ${c.preview} →</span></a>`
         )
         .join('');
     const body = `<section class="wrap hero"><div class="eyebrow">${c.eyebrow}</div><h1>${c.galleryTitle}</h1><p>${c.galleryDescription}</p></section><section class="wrap grid">${cards}</section>`;
@@ -131,7 +131,7 @@ function detailPage(lang, template, analytics) {
     const list = template.cards
         .map((card) => `<li>${escapeHtml(card.title)}</li>`)
         .join('');
-    const body = `<div class="wrap"><a href="${pathFor(lang)}">← ${c.back}</a><section class="detail"><div class="board-preview" style="--board-bg:${escapeHtml(template.background || '#f4f6f9')}">${preview}</div><div class="detail-copy"><div class="eyebrow">${c.eyebrow}</div><h1>${escapeHtml(template.label)}</h1><p class="lead">${escapeHtml(template.description)}</p><div class="actions"><a class="btn btn-primary" href="/app/?demo=1&amp;template=${encodeURIComponent(template.id)}">${c.use}</a><a class="btn" href="/app/?demo=1">${c.try}</a></div><h2>${c.included}</h2><ul>${list}</ul></div></section></div>`;
+    const body = `<div class="wrap"><a href="${pathFor(lang)}">← ${c.back}</a><section class="detail"><div class="board-preview" style="--board-bg:${escapeHtml(template.background || '#f4f6f9')}">${preview}</div><div class="detail-copy"><div class="eyebrow">${c.eyebrow}</div><h1>${escapeHtml(template.label)}</h1><p class="lead">${escapeHtml(template.description)}</p><div class="actions"><a class="btn btn-primary" href="/app/?demo=1&amp;template=${encodeURIComponent(template.id)}" data-umami-event="template_demo_started" data-umami-event-template="${escapeHtml(template.id)}">${c.use}</a><a class="btn" href="/app/?demo=1" data-umami-event="template_demo_started">${c.try}</a></div><h2>${c.included}</h2><ul>${list}</ul></div></section></div>`;
     const title = `${template.label} — ${c.suffix} | MagNotes`;
     return shell({
         lang,

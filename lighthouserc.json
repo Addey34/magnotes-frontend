@@ -2,7 +2,7 @@
     "ci": {
         "collect": {
             "url": [
-                "https://magnotes.adrianguichard.dev/",
+                "https://magnotes.adrianguichard.dev/?analytics=off",
                 "https://magnotes.adrianguichard.dev/app/?analytics=off"
             ],
             "numberOfRuns": 2,
@@ -13,7 +13,7 @@
         "assert": {
             "assertMatrix": [
                 {
-                    "matchingUrlPattern": "^https://magnotes\\.adrianguichard\\.dev/$",
+                    "matchingUrlPattern": "^https://magnotes\\.adrianguichard\\.dev/\\?analytics=off$",
                     "assertions": {
                         "categories:performance": [
                             "error",

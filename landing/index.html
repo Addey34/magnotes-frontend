@@ -408,17 +408,7 @@
             }
         </style>
 
-        <!--
-          Privacy-first Umami analytics (no cookies). Uncomment and fill the
-          website id after deploying the Umami stack (compose.analytics.yml).
-          The src origin must match the CSP added in firebase.json.
-        <script
-            async
-            defer
-            src="https://analytics-magnotes.adrianguichard.dev/script.js"
-            data-website-id="REPLACE_WITH_UMAMI_WEBSITE_ID"
-        ></script>
-        -->
+        <!-- MAGNOTES_ANALYTICS -->
     </head>
     <body>
         <header>
@@ -429,8 +419,18 @@
                 >
                 <nav>
                     <a class="btn btn-ghost" href="/en/">EN</a>
-                    <a class="btn btn-ghost" href="/app/">Se connecter</a>
-                    <a class="btn btn-primary" href="/app/">Commencer</a>
+                    <a
+                        class="btn btn-ghost"
+                        href="/app/"
+                        data-umami-event="landing_login_clicked"
+                        >Se connecter</a
+                    >
+                    <a
+                        class="btn btn-primary"
+                        href="/app/"
+                        data-umami-event="landing_signup_clicked"
+                        >Commencer</a
+                    >
                 </nav>
             </div>
         </header>
@@ -448,10 +448,16 @@
                         sans formulaire ni friction.
                     </p>
                     <div class="hero-cta">
-                        <a class="btn btn-primary" href="/app/"
+                        <a
+                            class="btn btn-primary"
+                            href="/app/"
+                            data-umami-event="landing_signup_clicked"
                             >Commencer gratuitement</a
                         >
-                        <a class="btn btn-ghost" href="/app/?demo=1"
+                        <a
+                            class="btn btn-ghost"
+                            href="/app/?demo=1"
+                            data-umami-event="landing_demo_started"
                             >Essayer sans compte</a
                         >
                     </div>
@@ -586,7 +592,10 @@
                 <div class="cta-final">
                     <h2>Sortez vos idées de votre tête.</h2>
                     <p>Créez votre premier tableau en moins d'une minute.</p>
-                    <a class="btn btn-primary" href="/app/?demo=1"
+                    <a
+                        class="btn btn-primary"
+                        href="/app/?demo=1"
+                        data-umami-event="landing_demo_started"
                         >Essayer sans compte</a
                     >
                 </div>
@@ -596,7 +605,10 @@
         <footer>
             <span>© 2026 MagNotes</span> ·
             <span>Fait avec soin par un freelance, pour les freelances</span> ·
-            <a href="/templates/">Modèles gratuits</a> ·
+            <a href="/templates/" data-umami-event="landing_templates_opened"
+                >Modèles gratuits</a
+            >
+            ·
             <a href="/confidentialite/">Confidentialité</a>
         </footer>
     </body>

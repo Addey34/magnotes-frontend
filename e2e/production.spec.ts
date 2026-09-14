@@ -49,6 +49,13 @@ const expectNoBlockingAccessibilityIssues = async (page: Page) => {
 };
 
 test.describe('deployed production', () => {
+    test.beforeEach(async ({ page }) => {
+        await page.route(
+            'https://analytics-magnotes.adrianguichard.dev/api/send',
+            (route) => route.fulfill({ status: 204, body: '' })
+        );
+    });
+
     for (const path of ['/', '/en/']) {
         test(`keeps every landing navigation action inside the mobile header (${path})`, async ({
             page,
@@ -75,6 +82,37 @@ test.describe('deployed production', () => {
             }
         });
     }
+
+    test('keeps acquisition analytics measurable while honoring QA opt-out', async ({
+        page,
+    }) => {
+        let analyticsRequests = 0;
+        page.on('request', (request) => {
+            if (
+                request.url() ===
+                'https://analytics-magnotes.adrianguichard.dev/api/send'
+            ) {
+                analyticsRequests += 1;
+            }
+        });
+
+        await page.goto('/?analytics=off', { waitUntil: 'networkidle' });
+        await expect(page.locator('script[data-website-id]')).toHaveAttribute(
+            'data-before-send',
+            'magNotesAnalyticsBeforeSend'
+        );
+        await expect(
+            page.locator('[data-umami-event="landing_demo_started"]')
+        ).not.toHaveCount(0);
+
+        await page.goto('/templates/client-project/?analytics=off', {
+            waitUntil: 'networkidle',
+        });
+        await expect(
+            page.locator('[data-umami-event="template_demo_started"]').first()
+        ).toHaveAttribute('data-umami-event-template', 'client-project');
+        expect(analyticsRequests).toBe(0);
+    });
 
     for (const [path, heading, alternate] of [
         ['/confidentialite/', 'Politique de confidentialité', '/en/privacy/'],
@@ -106,13 +144,14 @@ test.describe('deployed production', () => {
         page,
     }) => {
         let interceptedAnalyticsRequests = 0;
-        await page.route(
-            'https://analytics-magnotes.adrianguichard.dev/api/send',
-            async (route) => {
+        page.on('request', (request) => {
+            if (
+                request.url() ===
+                'https://analytics-magnotes.adrianguichard.dev/api/send'
+            ) {
                 interceptedAnalyticsRequests += 1;
-                await route.fulfill({ status: 204, body: '' });
             }
-        );
+        });
         const failures = monitorBrowserFailures(page);
 
         const response = await page.goto('/app/', { waitUntil: 'networkidle' });
