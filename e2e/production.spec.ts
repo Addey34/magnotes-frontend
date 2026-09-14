@@ -102,9 +102,17 @@ test.describe('deployed production', () => {
         });
     }
 
-    test('serves the authentication surface without browser failures', async ({
+    test('serves the authentication surface and tracker without recording QA', async ({
         page,
     }) => {
+        let interceptedAnalyticsRequests = 0;
+        await page.route(
+            'https://analytics-magnotes.adrianguichard.dev/api/send',
+            async (route) => {
+                interceptedAnalyticsRequests += 1;
+                await route.fulfill({ status: 204, body: '' });
+            }
+        );
         const failures = monitorBrowserFailures(page);
 
         const response = await page.goto('/app/', { waitUntil: 'networkidle' });
@@ -115,6 +123,7 @@ test.describe('deployed production', () => {
             'src',
             'https://analytics-magnotes.adrianguichard.dev/script.js'
         );
+        expect(interceptedAnalyticsRequests).toBeGreaterThan(0);
         await expectNoBlockingAccessibilityIssues(page);
         expect(failures).toEqual([]);
     });
