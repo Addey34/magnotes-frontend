@@ -29,7 +29,7 @@ export default defineConfig({
     projects: [
         {
             name: 'chromium-desktop',
-            use: { ...devices['Desktop Chrome'] },
+            use: { ...devices['Desktop Chrome'], locale: 'fr-FR' },
         },
         {
             name: 'chromium-mobile',
@@ -37,7 +37,11 @@ export default defineConfig({
             // layout checks on desktop while retaining all mobile-specific E2E.
             grepInvert:
                 /sidebar expands on hover without covering the workspace/,
-            use: { ...devices['iPhone 12'], browserName: 'chromium' },
+            use: {
+                ...devices['iPhone 12'],
+                browserName: 'chromium',
+                locale: 'en-US',
+            },
         },
     ],
 });
