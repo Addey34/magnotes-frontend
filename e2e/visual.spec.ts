@@ -116,6 +116,9 @@ test.describe('visual layout contracts', () => {
     });
 
     test('matches the stable demo-board visual reference', async ({ page }) => {
+        await page.addInitScript(() => {
+            localStorage.setItem('magnotes-lang', 'fr');
+        });
         await page.clock.setFixedTime(new Date('2026-08-27T12:00:00Z'));
         await page.goto('/app/?demo=1');
         await expect(page.locator('.post-it-card')).toHaveCount(6);
