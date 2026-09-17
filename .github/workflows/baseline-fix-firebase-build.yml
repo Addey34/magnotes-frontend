@@ -1,0 +1,61 @@
+name: Baseline Firebase build repair
+
+on:
+  push:
+    branches:
+      - baseline/v1-magnotes-frontend
+    paths:
+      - '.github/workflows/baseline-fix-firebase-build.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: magnotes-frontend-baseline-build-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout baseline branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: baseline/v1-magnotes-frontend
+
+      - name: Enable pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.33.2 --activate
+
+      - name: Setup Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Make TypeScript build tooling explicit
+        run: |
+          pnpm add --save-dev tsx@^4.8.1
+          pnpm pkg set 'scripts.build:firebase=vite build && tsx build-firebase.mjs'
+
+      - name: Verify Firebase payload build
+        env:
+          VITE_API_URL: https://api-magnotes.adrianguichard.dev
+        run: |
+          pnpm run build:firebase
+          pnpm run verify
+
+      - name: Commit package and lockfile repair
+        run: |
+          if git diff --quiet -- package.json pnpm-lock.yaml; then
+            echo "No build-tooling changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json pnpm-lock.yaml
+          git commit -m "fix: make Firebase TypeScript build portable"
+          git push origin HEAD:baseline/v1-magnotes-frontend
