@@ -35,7 +35,8 @@ export default defineConfig({
             name: 'chromium-mobile',
             // A touch profile has no stable hover contract. Keep pointer-hover
             // layout checks on desktop while retaining all mobile-specific E2E.
-            grepInvert: /sidebar expands on hover without covering the workspace/,
+            grepInvert:
+                /sidebar expands on hover without covering the workspace/,
             use: { ...devices['iPhone 12'], browserName: 'chromium' },
         },
     ],
