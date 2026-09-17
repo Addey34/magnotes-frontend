@@ -40,6 +40,7 @@ jobs:
         run: |
           pnpm add --save-dev tsx@^4.8.1
           pnpm pkg set 'scripts.build:firebase=vite build && tsx build-firebase.mjs'
+          pnpm exec prettier --write .github/workflows/baseline-fix-firebase-build.yml
 
       - name: Verify Firebase payload build
         env:
