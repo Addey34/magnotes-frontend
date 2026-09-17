@@ -336,24 +336,29 @@ test.describe('guest demo surface', () => {
             )
             .toBeLessThan(100);
 
-        const collapsedIconOffsets = await sidebar
-            .locator('.board-tab-select')
-            .evaluateAll((elements) =>
-                elements.map((element) => {
-                    const control = element.getBoundingClientRect();
-                    const icon = element
-                        .querySelector('.board-tab-icon')
-                        ?.getBoundingClientRect();
-                    return icon
-                        ? Math.abs(
-                              icon.left +
-                                  icon.width / 2 -
-                                  (control.left + control.width / 2)
-                          )
-                        : 0;
-                })
-            );
-        expect(collapsedIconOffsets.every((offset) => offset <= 1)).toBe(true);
+        await expect
+            .poll(
+                () =>
+                    sidebar
+                        .locator('.board-tab-select')
+                        .evaluateAll((elements) =>
+                            elements.every((element) => {
+                                const control = element.getBoundingClientRect();
+                                const icon = element
+                                    .querySelector('.board-tab-icon')
+                                    ?.getBoundingClientRect();
+                                if (!icon) return true;
+                                const offset = Math.abs(
+                                    icon.left +
+                                        icon.width / 2 -
+                                        (control.left + control.width / 2)
+                                );
+                                return offset <= 1;
+                            })
+                        ),
+                { timeout: 1500 }
+            )
+            .toBe(true);
     });
 
     test('page customization keeps the custom color inline and dismisses outside', async ({

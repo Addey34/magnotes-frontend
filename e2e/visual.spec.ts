@@ -116,6 +116,15 @@ test.describe('visual layout contracts', () => {
     });
 
     test('matches the stable demo-board visual reference', async ({ page }) => {
+        const snapshotLanguage =
+            test.info().project.name === 'chromium-mobile' ? 'en' : 'fr';
+
+        // Seed the locale before any application JavaScript runs. The demo
+        // welcome board is created on first startup, so setting localStorage
+        // after a preliminary navigation can already be too late.
+        await page.addInitScript((language) => {
+            localStorage.setItem('magnotes-lang', language);
+        }, snapshotLanguage);
         await page.clock.setFixedTime(new Date('2026-08-27T12:00:00Z'));
         await page.goto('/app/?demo=1');
         await expect(page.locator('.post-it-card')).toHaveCount(6);
