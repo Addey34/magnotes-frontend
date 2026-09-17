@@ -117,8 +117,13 @@ test.describe('visual layout contracts', () => {
 
     test('matches the stable demo-board visual reference', async ({ page }) => {
         const snapshotLanguage =
-            (page.viewportSize()?.width ?? 0) <= 620 ? 'en' : 'fr';
-        await page.addInitScript((language) => {
+            test.info().project.name === 'chromium-mobile' ? 'en' : 'fr';
+
+        // Establish the target origin first, then persist the locale explicitly
+        // before entering demo mode. This prevents browser/runner locale from
+        // influencing the seeded welcome board used by the visual reference.
+        await page.goto('/app/');
+        await page.evaluate((language) => {
             localStorage.setItem('magnotes-lang', language);
         }, snapshotLanguage);
         await page.clock.setFixedTime(new Date('2026-08-27T12:00:00Z'));
