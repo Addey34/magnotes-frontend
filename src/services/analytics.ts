@@ -11,6 +11,7 @@
  * (script-src + connect-src).
  */
 
+import { analyticsConfigIssue } from '../utils/analyticsConfig';
 import { isDemoRequested } from './demoMode';
 
 const SCRIPT_ID = 'umami-analytics';
@@ -73,6 +74,7 @@ export function initAnalytics(config: AnalyticsConfig = {}): boolean {
     const isDemo = config.isDemo ?? isDemoRequested();
     const disabled = config.disabled ?? isAnalyticsDisabled();
 
+    if (analyticsConfigIssue(src, websiteId)) return false;
     if (!src || !websiteId) return false;
     if (isDemo || disabled) return false;
     if (document.getElementById(SCRIPT_ID)) return false;
