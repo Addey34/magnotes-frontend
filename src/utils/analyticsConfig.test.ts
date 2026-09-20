@@ -6,21 +6,24 @@ import {
 
 describe('analytics hosting configuration', () => {
     it('accepts the self-hosted HTTPS tracker origin', () => {
-        expect(
-            isAllowedAnalyticsSource(`${ANALYTICS_ORIGIN}/script.js`)
-        ).toBe(true);
+        const allowed = isAllowedAnalyticsSource(
+            `${ANALYTICS_ORIGIN}/script.js`
+        );
+        expect(allowed).toBe(true);
     });
 
     it('rejects insecure or unexpected tracker origins', () => {
-        expect(
-            isAllowedAnalyticsSource(
-                'http://analytics-magnotes.adrianguichard.dev/script.js'
-            )
-        ).toBe(false);
-        expect(
-            isAllowedAnalyticsSource('https://example.com/script.js')
-        ).toBe(false);
-        expect(isAllowedAnalyticsSource('not-a-url')).toBe(false);
+        const insecure = isAllowedAnalyticsSource(
+            'http://analytics-magnotes.adrianguichard.dev/script.js'
+        );
+        const foreign = isAllowedAnalyticsSource(
+            'https://example.com/script.js'
+        );
+        const malformed = isAllowedAnalyticsSource('not-a-url');
+
+        expect(insecure).toBe(false);
+        expect(foreign).toBe(false);
+        expect(malformed).toBe(false);
     });
 
     it('allows analytics to be entirely disabled', () => {
@@ -28,17 +31,17 @@ describe('analytics hosting configuration', () => {
     });
 
     it('rejects partial or CSP-incompatible analytics config', () => {
-        expect(analyticsConfigIssue(`${ANALYTICS_ORIGIN}/script.js`)).toMatch(
-            /configured together/
+        const missingId = analyticsConfigIssue(
+            `${ANALYTICS_ORIGIN}/script.js`
         );
-        expect(
-            analyticsConfigIssue(undefined, 'website-id')
-        ).toMatch(/configured together/);
-        expect(
-            analyticsConfigIssue(
-                'https://example.com/script.js',
-                'website-id'
-            )
-        ).toMatch(/must use/);
+        const missingSource = analyticsConfigIssue(undefined, 'website-id');
+        const foreignSource = analyticsConfigIssue(
+            'https://example.com/script.js',
+            'website-id'
+        );
+
+        expect(missingId).toMatch(/configured together/);
+        expect(missingSource).toMatch(/configured together/);
+        expect(foreignSource).toMatch(/must use/);
     });
 });
