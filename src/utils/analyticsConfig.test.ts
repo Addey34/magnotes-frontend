@@ -31,9 +31,7 @@ describe('analytics hosting configuration', () => {
     });
 
     it('rejects partial or CSP-incompatible analytics config', () => {
-        const missingId = analyticsConfigIssue(
-            `${ANALYTICS_ORIGIN}/script.js`
-        );
+        const missingId = analyticsConfigIssue(`${ANALYTICS_ORIGIN}/script.js`);
         const missingSource = analyticsConfigIssue(undefined, 'website-id');
         const foreignSource = analyticsConfigIssue(
             'https://example.com/script.js',
