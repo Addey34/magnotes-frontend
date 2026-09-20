@@ -44,6 +44,13 @@ export function isAnalyticsDisabled(): boolean {
     );
 }
 
+export function isSensitiveAnalyticsPath(pathname?: string): boolean {
+    const value =
+        pathname ??
+        (typeof window !== 'undefined' ? window.location.pathname : '');
+    return /^\/app\/b\/[a-f0-9]{32}\/?$/i.test(value);
+}
+
 /**
  * Sends one anonymous product milestone when Umami has loaded. Event payloads
  * deliberately never include emails, user ids, board names, or card content.
@@ -52,7 +59,8 @@ export function trackProductEvent(event: ProductEvent): boolean {
     if (
         typeof window === 'undefined' ||
         isDemoRequested() ||
-        isAnalyticsDisabled()
+        isAnalyticsDisabled() ||
+        isSensitiveAnalyticsPath()
     )
         return false;
 
@@ -74,6 +82,7 @@ export function initAnalytics(config: AnalyticsConfig = {}): boolean {
     const isDemo = config.isDemo ?? isDemoRequested();
     const disabled = config.disabled ?? isAnalyticsDisabled();
 
+    if (isSensitiveAnalyticsPath()) return false;
     if (analyticsConfigIssue(src, websiteId)) return false;
     if (!src || !websiteId) return false;
     if (isDemo || disabled) return false;
