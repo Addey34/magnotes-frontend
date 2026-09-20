@@ -718,6 +718,15 @@ export const DICTIONARY = {
         fr: 'Le lien de partage est invalide ou a été désactivé par son propriétaire.',
         en: 'The share link is invalid or was disabled by its owner.',
     },
+    'public.error.title': {
+        fr: 'Impossible de charger ce tableau',
+        en: 'Unable to load this board',
+    },
+    'public.error.text': {
+        fr: 'Le service est momentanément indisponible. Le lien de partage peut toujours être valide.',
+        en: 'The service is temporarily unavailable. The share link may still be valid.',
+    },
+    'public.retry': { fr: 'Réessayer', en: 'Try again' },
     'public.createMine': { fr: 'Créer mon tableau', en: 'Create my board' },
     'public.madeWith.pre': { fr: 'Créé avec', en: 'Made with' },
     'public.madeWith.post': {
