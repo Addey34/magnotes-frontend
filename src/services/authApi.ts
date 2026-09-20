@@ -5,6 +5,7 @@ import {
     removeToken,
     setTokens,
 } from '../utils/tokenUtils';
+import { installAuthInterceptor } from './authInterceptor';
 
 const baseUrl = import.meta.env.VITE_API_URL || '';
 const withCredentials = { withCredentials: true };
@@ -108,31 +109,8 @@ export async function bootstrapSession(): Promise<boolean> {
 /**
  * Install a global 401 interceptor: on an expired access token, transparently
  * refresh once and replay the request, so users are not kicked out mid-session.
+ * The returned disposer must be called when the app effect is cleaned up.
  */
 export function setupAuthInterceptor(onSessionLost: () => void): () => void {
-    const interceptorId = axios.interceptors.response.use(
-        (response) => response,
-        async (error) => {
-            const original = error.config;
-            const isAuthCall = original?.url?.includes('/api/auth/');
-            if (
-                error.response?.status === 401 &&
-                original &&
-                !original._retry &&
-                !isAuthCall
-            ) {
-                original._retry = true;
-                const newToken = await refreshSession();
-                if (newToken) {
-                    original.headers = original.headers || {};
-                    original.headers.Authorization = `Bearer ${newToken}`;
-                    return axios(original);
-                }
-                onSessionLost();
-            }
-            return Promise.reject(error);
-        }
-    );
-
-    return () => axios.interceptors.response.eject(interceptorId);
+    return installAuthInterceptor(refreshSession, onSessionLost);
 }
