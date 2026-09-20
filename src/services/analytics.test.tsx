@@ -1,10 +1,15 @@
 /**
  * @jest-environment jsdom
  */
-import { initAnalytics, trackProductEvent } from './analytics';
+import { ANALYTICS_ORIGIN } from '../utils/analyticsConfig';
+import {
+    initAnalytics,
+    isSensitiveAnalyticsPath,
+    trackProductEvent,
+} from './analytics';
 
 const CONFIG = {
-    src: 'https://analytics.example.com/script.js',
+    src: `${ANALYTICS_ORIGIN}/script.js`,
     websiteId: 'abc-123',
     isDemo: false,
 };
@@ -50,6 +55,20 @@ describe('initAnalytics', () => {
         (window as typeof window & { umami?: { track: typeof track } }).umami =
             { track };
 
+        expect(initAnalytics(CONFIG)).toBe(false);
+        expect(trackProductEvent('card_created')).toBe(false);
+        expect(tracker()).toBeNull();
+        expect(track).not.toHaveBeenCalled();
+    });
+
+    it('never injects analytics on a public share capability URL', () => {
+        const token = 'a'.repeat(32);
+        window.history.replaceState({}, '', `/app/b/${token}`);
+        const track = jest.fn();
+        (window as typeof window & { umami?: { track: typeof track } }).umami =
+            { track };
+
+        expect(isSensitiveAnalyticsPath()).toBe(true);
         expect(initAnalytics(CONFIG)).toBe(false);
         expect(trackProductEvent('card_created')).toBe(false);
         expect(tracker()).toBeNull();
