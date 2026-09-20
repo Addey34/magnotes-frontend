@@ -131,8 +131,14 @@ export const fetchPublicBoard = async (
             `${baseUrl}/api/public/boards/${token}`
         );
         return response.data;
-    } catch {
-        return null;
+    } catch (error) {
+        // A missing/revoked share is a real "not found". Network failures and
+        // server errors are different states and must remain observable by the
+        // caller instead of being misreported as an invalid link.
+        if (axios.isAxiosError(error) && error.response?.status === 404) {
+            return null;
+        }
+        throw error;
     }
 };
 
