@@ -1,5 +1,4 @@
-export const ANALYTICS_ORIGIN =
-    'https://analytics-magnotes.adrianguichard.dev';
+export const ANALYTICS_ORIGIN = 'https://analytics-magnotes.adrianguichard.dev';
 
 export function isAllowedAnalyticsSource(value?: string): boolean {
     if (!value) return false;
