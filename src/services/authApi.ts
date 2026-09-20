@@ -109,8 +109,8 @@ export async function bootstrapSession(): Promise<boolean> {
  * Install a global 401 interceptor: on an expired access token, transparently
  * refresh once and replay the request, so users are not kicked out mid-session.
  */
-export function setupAuthInterceptor(onSessionLost: () => void) {
-    axios.interceptors.response.use(
+export function setupAuthInterceptor(onSessionLost: () => void): () => void {
+    const interceptorId = axios.interceptors.response.use(
         (response) => response,
         async (error) => {
             const original = error.config;
@@ -133,4 +133,6 @@ export function setupAuthInterceptor(onSessionLost: () => void) {
             return Promise.reject(error);
         }
     );
+
+    return () => axios.interceptors.response.eject(interceptorId);
 }
