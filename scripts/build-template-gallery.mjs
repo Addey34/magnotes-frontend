@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
@@ -5,6 +6,7 @@ import {
     getBoardTemplates,
     WELCOME_TEMPLATE_ID,
 } from '../src/constants/boardTemplates.ts';
+import { ANALYTICS_ORIGIN } from '../src/utils/analyticsConfig.ts';
 
 const ORIGIN = 'https://magnotes.adrianguichard.dev';
 
@@ -73,11 +75,33 @@ function shell({
     analytics,
 }) {
     const c = copy[lang];
-    const tracker =
-        analytics?.src && analytics?.websiteId
-            ? `<script src="/analytics-control.js"></script><script defer src="${escapeHtml(analytics.src)}" data-website-id="${escapeHtml(analytics.websiteId)}" data-before-send="magNotesAnalyticsBeforeSend"></script>`
-            : '';
-    return `<!doctype html><html lang="${lang}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="index, follow"><link rel="canonical" href="${ORIGIN}${canonical}"><link rel="alternate" hreflang="${alternate.lang}" href="${ORIGIN}${alternate.path}"><meta property="og:type" content="website"><meta property="og:locale" content="${c.locale}"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${ORIGIN}${canonical}"><meta property="og:image" content="${ORIGIN}/og-image.png"><style>${css}</style>${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replaceAll('<', '\\u003c')}</script>` : ''}${tracker}</head><body><header><div class="wrap nav"><a class="brand" href="/"><span>🧲</span>MagNotes</a><nav class="nav-links"><a class="btn" href="${alternate.path}">${c.lang}</a><a class="btn btn-primary" href="/app/" data-umami-event="template_login_clicked">${c.login}</a></nav></div></header><main>${body}</main><footer>© 2026 MagNotes · ${c.galleryTitle}</footer></body></html>`;
+    const analyticsEnabled = Boolean(analytics?.src && analytics?.websiteId);
+    const tracker = analyticsEnabled
+        ? `<script src="/analytics-control.js"></script><script defer src="${escapeHtml(analytics.src)}" data-website-id="${escapeHtml(analytics.websiteId)}" data-before-send="magNotesAnalyticsBeforeSend"></script>`
+        : '';
+    const schemaJson = schema
+        ? JSON.stringify(schema).replaceAll('<', '\\u003c')
+        : '';
+    const schemaHash = schemaJson
+        ? `'sha256-${createHash('sha256').update(schemaJson).digest('base64')}'`
+        : '';
+    const analyticsSource = analyticsEnabled ? ` ${ANALYTICS_ORIGIN}` : '';
+    const csp = [
+        "default-src 'self'",
+        "base-uri 'self'",
+        "object-src 'none'",
+        "form-action 'self'",
+        `script-src 'self'${schemaHash ? ` ${schemaHash}` : ''}${analyticsSource}`,
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data: https:",
+        "font-src 'self' data:",
+        `connect-src 'self'${analyticsSource}`,
+        'upgrade-insecure-requests',
+    ].join('; ');
+    const schemaScript = schemaJson
+        ? `<script type="application/ld+json">${schemaJson}</script>`
+        : '';
+    return `<!doctype html><html lang="${lang}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="${escapeHtml(csp)}"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="index, follow"><link rel="canonical" href="${ORIGIN}${canonical}"><link rel="alternate" hreflang="${alternate.lang}" href="${ORIGIN}${alternate.path}"><meta property="og:type" content="website"><meta property="og:locale" content="${c.locale}"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${ORIGIN}${canonical}"><meta property="og:image" content="${ORIGIN}/og-image.png"><style>${css}</style>${schemaScript}${tracker}</head><body><header><div class="wrap nav"><a class="brand" href="/"><span>🧲</span>MagNotes</a><nav class="nav-links"><a class="btn" href="${alternate.path}">${c.lang}</a><a class="btn btn-primary" href="/app/" data-umami-event="template_login_clicked">${c.login}</a></nav></div></header><main>${body}</main><footer>© 2026 MagNotes · ${c.galleryTitle}</footer></body></html>`;
 }
 
 function miniBoard(template) {
