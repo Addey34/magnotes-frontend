@@ -16,6 +16,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadEnv } from 'vite';
 import { buildTemplateGallery } from './scripts/build-template-gallery.mjs';
+import { analyticsConfigIssue } from './src/utils/analyticsConfig.ts';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const clientDist = resolve(root, 'dist');
@@ -33,6 +34,8 @@ const escapeAttribute = (value) =>
 
 const injectLandingAnalytics = () => {
     const { VITE_UMAMI_SRC: src, VITE_UMAMI_WEBSITE_ID: websiteId } = env;
+    const issue = analyticsConfigIssue(src, websiteId);
+    if (issue) throw new Error(issue);
     const tracker =
         src && websiteId
             ? `<script src="/analytics-control.js"></script>\n        <script defer src="${escapeAttribute(src)}" data-website-id="${escapeAttribute(websiteId)}" data-before-send="magNotesAnalyticsBeforeSend"></script>`
