@@ -268,8 +268,7 @@ const PublicCardBadges: React.FC<{
             )}
             {card.dueDate && (
                 <span className="public-card__badge">
-                    📅{' '}
-                    {formatDueDate(card.dueDate, lang)}
+                    📅 {formatDueDate(card.dueDate, lang)}
                 </span>
             )}
             {checklist.length > 0 && (
