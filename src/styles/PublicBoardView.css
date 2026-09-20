@@ -46,10 +46,13 @@
 .public-board__cta {
     margin-top: 20px;
     padding: 10px 22px;
+    border: 0;
     border-radius: 10px;
     background: #8b7cf6;
     color: #fff;
+    font: inherit;
     font-weight: 600;
+    cursor: pointer;
 }
 
 /* Top bar: board identity + persistent sign-up nudge (viral loop). */
