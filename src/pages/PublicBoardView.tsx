@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { fetchPublicBoard } from '../services/boardApi';
 import { PostIt, PublicBoard } from '../types/boardTypes';
 import { spreadStacks } from '../hooks/stackLayout';
+import { formatDueDate } from '../utils/cardMeta';
 import { linkAnchors } from '../utils/connectionGeometry';
 import { renderMarkdown } from '../utils/markdownRender';
 import { TranslationKey } from '../i18n/dictionary';
@@ -268,9 +269,7 @@ const PublicCardBadges: React.FC<{
             {card.dueDate && (
                 <span className="public-card__badge">
                     📅{' '}
-                    {new Date(card.dueDate).toLocaleDateString(
-                        lang === 'fr' ? 'fr-FR' : 'en-US'
-                    )}
+                    {formatDueDate(card.dueDate, lang)}
                 </span>
             )}
             {checklist.length > 0 && (
