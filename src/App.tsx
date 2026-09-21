@@ -48,9 +48,15 @@ const App: React.FC = () => {
 
     useEffect(() => {
         if (publicShareToken) return;
-        setupAuthInterceptor(() => setIsLoggedIn(false));
+
+        let active = true;
+        const disposeAuthInterceptor = setupAuthInterceptor(() => {
+            if (active) setIsLoggedIn(false);
+        });
+
         bootstrapSession()
             .then((valid) => {
+                if (!active) return;
                 if (valid) {
                     deactivateDemo();
                     setIsLoggedIn(true);
@@ -59,7 +65,14 @@ const App: React.FC = () => {
                     setDemoActive(true);
                 }
             })
-            .finally(() => setIsBooting(false));
+            .finally(() => {
+                if (active) setIsBooting(false);
+            });
+
+        return () => {
+            active = false;
+            disposeAuthInterceptor();
+        };
     }, []);
 
     const handleLogin = async () => {

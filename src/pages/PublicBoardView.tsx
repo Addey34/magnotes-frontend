@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { fetchPublicBoard } from '../services/boardApi';
 import { PostIt, PublicBoard } from '../types/boardTypes';
 import { spreadStacks } from '../hooks/stackLayout';
+import { formatDueDate } from '../utils/cardMeta';
 import { linkAnchors } from '../utils/connectionGeometry';
 import { renderMarkdown } from '../utils/markdownRender';
 import { TranslationKey } from '../i18n/dictionary';
@@ -23,25 +24,34 @@ const STATUS_KEYS = new Set(['todo', 'doing', 'done']);
 const PublicBoardView: React.FC<{ token: string }> = ({ token }) => {
     const { t } = useT();
     const [board, setBoard] = useState<PublicBoard | null>(null);
-    const [status, setStatus] = useState<'loading' | 'ready' | 'notfound'>(
-        'loading'
-    );
+    const [status, setStatus] = useState<
+        'loading' | 'ready' | 'notfound' | 'error'
+    >('loading');
+    const [loadAttempt, setLoadAttempt] = useState(0);
 
     useEffect(() => {
         let active = true;
-        fetchPublicBoard(token).then((data) => {
-            if (!active) return;
-            if (data) {
-                setBoard(data);
-                setStatus('ready');
-            } else {
-                setStatus('notfound');
-            }
-        });
+        setBoard(null);
+        setStatus('loading');
+
+        fetchPublicBoard(token)
+            .then((data) => {
+                if (!active) return;
+                if (data) {
+                    setBoard(data);
+                    setStatus('ready');
+                } else {
+                    setStatus('notfound');
+                }
+            })
+            .catch(() => {
+                if (active) setStatus('error');
+            });
+
         return () => {
             active = false;
         };
-    }, [token]);
+    }, [token, loadAttempt]);
 
     // Every card at the position it is really drawn at — stacks laid out flat.
     // The canvas box, the arrows and the cards all read from this one list, so
@@ -79,6 +89,27 @@ const PublicBoardView: React.FC<{ token: string }> = ({ token }) => {
         return (
             <div className="public-board public-board--center">
                 <p className="public-board__muted">{t('public.loading')}</p>
+            </div>
+        );
+    }
+
+    if (status === 'error') {
+        return (
+            <div className="public-board public-board--center">
+                <div className="public-board__notfound">
+                    <span className="public-board__logo">🧲 MagNotes</span>
+                    <h1>{t('public.error.title')}</h1>
+                    <p className="public-board__muted">
+                        {t('public.error.text')}
+                    </p>
+                    <button
+                        type="button"
+                        className="public-board__cta"
+                        onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+                    >
+                        {t('public.retry')}
+                    </button>
+                </div>
             </div>
         );
     }
@@ -237,10 +268,7 @@ const PublicCardBadges: React.FC<{
             )}
             {card.dueDate && (
                 <span className="public-card__badge">
-                    📅{' '}
-                    {new Date(card.dueDate).toLocaleDateString(
-                        lang === 'fr' ? 'fr-FR' : 'en-US'
-                    )}
+                    📅 {formatDueDate(card.dueDate, lang)}
                 </span>
             )}
             {checklist.length > 0 && (
