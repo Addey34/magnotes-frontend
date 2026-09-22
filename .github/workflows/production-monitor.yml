@@ -13,14 +13,14 @@ concurrency:
     cancel-in-progress: false
 
 jobs:
-    browser-health:
+    production-health:
         runs-on: ubuntu-latest
-        timeout-minutes: 15
+        timeout-minutes: 25
         steps:
             - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-            - run: |
-                  corepack enable
-                  corepack prepare pnpm@10.33.2 --activate
+            - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+              with:
+                  version: 10.33.2
             - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
               with:
                   node-version: 22
@@ -41,23 +41,9 @@ jobs:
                       playwright-report/
                       test-results/
                   if-no-files-found: ignore
-                  retention-days: 14
-
-    lighthouse:
-        runs-on: ubuntu-latest
-        timeout-minutes: 15
-        steps:
-            - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-            - run: |
-                  corepack enable
-                  corepack prepare pnpm@10.33.2 --activate
-            - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
-              with:
-                  node-version: 22
-                  cache: pnpm
-                  cache-dependency-path: pnpm-lock.yaml
-            - run: pnpm install --frozen-lockfile
+                  retention-days: 7
             - run: pnpm run monitor:lighthouse
+              if: always()
             - name: Upload Lighthouse reports
               if: always()
               uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -65,4 +51,4 @@ jobs:
                   name: production-lighthouse-reports
                   path: .lighthouseci/
                   if-no-files-found: ignore
-                  retention-days: 14
+                  retention-days: 7
