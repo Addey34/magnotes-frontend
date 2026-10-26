@@ -29,11 +29,11 @@ unset). To work fully offline, use the demo sandbox at `/app/?demo=1`.
 
 ## Build & deploy
 
-The app is served under `/app/`; `/` serves the static landing page. Firebase
-Hosting is the target.
+The app is served under `/app/`; `/` serves the static landing page. Cloudflare
+Pages is the target (moved from Firebase Hosting on 2026-10-26 after Firebase answered 509).
 
 ```bash
-pnpm run deploy:firebase  # rebuild ./firebase-dist, then deploy hosting:magnotes
+pnpm run deploy:pages  # rebuild ./firebase-dist, then deploy it to the Cloudflare Pages project `magnotes`
 ```
 
 ## Scripts
@@ -43,7 +43,7 @@ pnpm run deploy:firebase  # rebuild ./firebase-dist, then deploy hosting:magnote
 | `pnpm run dev`                         | Vite dev server                                                  |
 | `pnpm run build`                       | Production build → `dist/`                                       |
 | `pnpm run build:firebase`              | Build + assemble `firebase-dist/` (landing + app)                |
-| `pnpm run deploy:firebase`             | Rebuild the Firebase payload, then deploy it                     |
+| `pnpm run deploy:pages`                | Rebuild the payload, then deploy it to Cloudflare Pages          |
 | `pnpm run preview`                     | Preview the production build                                     |
 | `pnpm run typecheck`                   | `tsc --noEmit`                                                   |
 | `npm test`                             | Jest unit tests                                                  |
