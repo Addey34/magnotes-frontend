@@ -10,9 +10,11 @@
  * Vite emits content-hashed asset filenames, so cache-first is safe: a new
  * build produces new URLs. Bump CACHE_VERSION to force-drop old shells.
  */
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const CACHE = `magnotes-${CACHE_VERSION}`;
-const APP_SHELL = '/app/index.html';
+// `/app/`, not `/app/index.html`: Cloudflare Pages answers the latter with a 308 redirect, and a
+// redirected response cannot be served for a navigation (offline boot failed with ERR_FAILED).
+const APP_SHELL = '/app/';
 const PRECACHE = [APP_SHELL, '/app/manifest.webmanifest', '/app/icon.svg'];
 
 self.addEventListener('install', (event) => {
