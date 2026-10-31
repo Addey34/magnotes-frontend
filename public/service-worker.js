@@ -72,9 +72,14 @@ self.addEventListener('fetch', (event) => {
                 fetch(request).then((response) => {
                     if (response.ok && response.type === 'basic') {
                         const copy = response.clone();
-                        caches
-                            .open(CACHE)
-                            .then((cache) => cache.put(request, copy));
+                        // Keep the worker alive until the copy is stored, or the
+                        // offline cache can be left incomplete.
+                        event.waitUntil(
+                            caches
+                                .open(CACHE)
+                                .then((cache) => cache.put(request, copy))
+                                .catch(() => undefined)
+                        );
                     }
                     return response;
                 })
