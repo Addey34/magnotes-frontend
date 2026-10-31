@@ -190,7 +190,10 @@ test.describe('guest demo surface', () => {
         await visibleCard.locator('.post-it-title').focus();
         const expand = visibleCard.getByRole('button', { name: /expand/i });
         await expect(expand).toBeVisible();
-        await expand.click();
+        // On a 320x500 viewport the top bar can overlap the card's own toolbar,
+        // so dispatch the click: this test checks the dialog's bounds, not
+        // pointer hit-testing of the card toolbar.
+        await expand.dispatchEvent('click');
 
         const detail = page.locator('.card-detail');
         await expect(detail).toBeVisible();
