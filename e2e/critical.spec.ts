@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { startEditingCard } from './cardEditing';
 
 const mockUnauthenticatedRefresh = async (page: Page) => {
     await page.route('**/api/auth/refresh', (route) =>
@@ -41,6 +42,7 @@ test.describe('critical demo journeys', () => {
         await expect(cards).toHaveCount(initialCount + 1);
 
         const card = cards.last();
+        await startEditingCard(card);
         await card.locator('.post-it-title').fill('E2E note');
         await card
             .locator('.post-it-content')

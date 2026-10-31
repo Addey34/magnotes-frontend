@@ -16,7 +16,24 @@ interface MarkdownCard {
 export interface BoardMarkdownOptions {
     documentTitle?: string;
     includeMetadata?: boolean;
+    /** Language of the metadata labels; the importer reads both. */
+    lang?: 'fr' | 'en';
 }
+
+const MARKDOWN_LABELS = {
+    fr: {
+        untitled: 'Sans titre',
+        status: 'Statut',
+        due: 'Échéance',
+        tags: 'Tags',
+    },
+    en: {
+        untitled: 'Untitled',
+        status: 'Status',
+        due: 'Due date',
+        tags: 'Tags',
+    },
+} as const;
 
 function escapeMarkdown(value: string): string {
     return value.replace(/\\/g, '\\\\').replace(/([`*_[\]<>#])/g, '\\$1');
@@ -42,24 +59,32 @@ function formatTag(tag: string): string | null {
     return value ? `#${escapeMarkdown(value)}` : null;
 }
 
-function cardToMarkdown(card: MarkdownCard, includeMetadata: boolean): string {
+function cardToMarkdown(
+    card: MarkdownCard,
+    includeMetadata: boolean,
+    labels: (typeof MARKDOWN_LABELS)[keyof typeof MARKDOWN_LABELS]
+): string {
     const blocks: string[] = [];
-    const title = card.title?.trim() || 'Sans titre';
+    const title = card.title?.trim() || labels.untitled;
     blocks.push(`## ${escapeMarkdown(title)}`);
 
     if (includeMetadata) {
         const metadata: string[] = [];
         if (card.status) {
-            metadata.push(`**Statut :** ${escapeMarkdown(card.status)}`);
+            metadata.push(
+                `**${labels.status} :** ${escapeMarkdown(card.status)}`
+            );
         }
         if (card.dueDate) {
-            metadata.push(`**Échéance :** ${escapeMarkdown(card.dueDate)}`);
+            metadata.push(
+                `**${labels.due} :** ${escapeMarkdown(card.dueDate)}`
+            );
         }
         const tags = card.tags
             ?.map(formatTag)
             .filter((tag): tag is string => tag !== null);
         if (tags && tags.length > 0) {
-            metadata.push(`**Tags :** ${tags.join(' ')}`);
+            metadata.push(`**${labels.tags} :** ${tags.join(' ')}`);
         }
         if (metadata.length > 0) {
             blocks.push(metadata.join('\n'));
@@ -100,7 +125,13 @@ export function cardsToMarkdown(
     sections.push(
         ...[...cards]
             .sort(compareCards)
-            .map((card) => cardToMarkdown(card, includeMetadata))
+            .map((card) =>
+                cardToMarkdown(
+                    card,
+                    includeMetadata,
+                    MARKDOWN_LABELS[options.lang ?? 'fr']
+                )
+            )
     );
 
     return sections.length > 0 ? `${sections.join('\n\n')}\n` : '';

@@ -87,7 +87,9 @@ export const CARD_PRIORITIES: {
 ];
 
 export const DEFAULT_POST_IT = {
-    title: 'Nouvelle note',
+    // Empty on purpose: a localized placeholder is shown, so the default never
+    // leaks one language into the other.
+    title: '',
     content: '',
     color: '#fef08a',
     textColor: '#172033',

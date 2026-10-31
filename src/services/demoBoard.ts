@@ -20,6 +20,8 @@ import {
     PostItStackUpdate,
     PostItUpdate,
 } from '../types/boardTypes';
+import { getBoardTemplates } from '../constants/boardTemplates';
+import type { Lang } from '../i18n/i18n';
 
 const STORAGE_KEY = 'magnotes-demo-board-v1';
 const DEMO_USER = 'demo';
@@ -476,4 +478,34 @@ export function hasDemoData(): boolean {
 
 export function resetDemoBoard(): void {
     removeRaw();
+}
+
+/**
+ * The demo board is seeded once, in the language of the first visit, then kept
+ * in localStorage. When the visitor now wants the other language and the board
+ * is still an untouched template (no card text edited), drop it so the next
+ * boot seeds it again in the right language. Returns true when it was reset.
+ * A board with any edited card is never touched.
+ */
+export function resetPristineDemoForLanguage(lang: Lang): boolean {
+    const snapshot = load();
+    if (snapshot.tabs.length !== 1 || snapshot.postIts.length === 0) {
+        return false;
+    }
+    const other: Lang = lang === 'fr' ? 'en' : 'fr';
+    const key = (title: string, content: string) => `${title} ${content}`;
+    const matchesTemplate = (templateLang: Lang) =>
+        getBoardTemplates(templateLang).some((template) => {
+            if (template.cards.length !== snapshot.postIts.length) return false;
+            const expected = new Set(
+                template.cards.map((card) => key(card.title, card.content))
+            );
+            return snapshot.postIts.every((card) =>
+                expected.has(key(card.title, card.content))
+            );
+        });
+    // Already in the requested language, or edited by the visitor: keep it.
+    if (matchesTemplate(lang) || !matchesTemplate(other)) return false;
+    resetDemoBoard();
+    return true;
 }

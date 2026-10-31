@@ -6,6 +6,7 @@ import {
     type Route,
 } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
+import { startEditingCard } from './cardEditing';
 
 const enabled = process.env.E2E_REAL_API === '1';
 const mailpitUrl = process.env.E2E_MAILPIT_URL || 'http://127.0.0.1:8025';
@@ -66,6 +67,7 @@ async function setCardContent(
     content: string
 ): Promise<void> {
     await card.hover();
+    await startEditingCard(card);
     await card.locator('.post-it-hover-tools .icon-button').nth(3).click();
     const editor = page.locator('.card-detail-editor');
     await expect(editor).toBeVisible();
@@ -122,6 +124,7 @@ test.describe('real local authentication', () => {
         await expect(cards).toHaveCount(initialCardCount + 1);
 
         const card = cards.last();
+        await startEditingCard(card);
         await card.locator('.post-it-title').fill(title);
         await card
             .locator('.post-it-content')
@@ -175,11 +178,9 @@ test.describe('real local authentication', () => {
         };
         await page.route('**/api/postits/**', interruptFirstPatch);
         const recoveredTitle = `Recovered ${testInfo.project.name}`;
-        await (
-            await cardByTitle(page, title)
-        )
-            .locator('.post-it-title')
-            .fill(recoveredTitle);
+        const cardToRename = await cardByTitle(page, title);
+        await startEditingCard(cardToRename);
+        await cardToRename.locator('.post-it-title').fill(recoveredTitle);
         await expect(
             page.locator('.app-notification[role="alert"]').last()
         ).toContainText(/could not be saved|n’a pas pu être enregistrée/i);

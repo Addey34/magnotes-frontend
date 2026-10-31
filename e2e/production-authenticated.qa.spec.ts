@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { startEditingCard } from './cardEditing';
 
 const waitForCardSave = (page: Page) =>
     page.waitForResponse(
@@ -117,6 +118,7 @@ test.describe('authenticated production gestures', () => {
 
             const title = `QA gestures ${Date.now()}`;
             const card = cards.last();
+            await startEditingCard(card);
             await card.locator('.post-it-title').fill(title);
             await card.locator('.post-it-content').fill('Disposable QA card.');
             await card.locator('.post-it-content').blur();
@@ -245,6 +247,7 @@ test.describe('authenticated production gestures', () => {
             await expect(cards).toHaveCount(beforeTargetCount + 1);
             const targetCard = cards.last();
             const targetSaved = waitForCardSave(page);
+            await startEditingCard(targetCard);
             await targetCard.locator('.post-it-title').fill(targetTitle);
             await targetSaved;
 

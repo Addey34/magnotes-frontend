@@ -100,8 +100,8 @@ export const usePostIts = (
         y?: number;
         color?: string;
         title?: string;
-    }) => {
-        if (!activeTabId) return;
+    }): Promise<string | undefined> => {
+        if (!activeTabId) return undefined;
 
         const position = findFreePostItPosition(
             {
@@ -127,7 +127,7 @@ export const usePostIts = (
             });
         } catch {
             onMutationError?.();
-            return;
+            return undefined;
         }
 
         setPostItsByTab((current) => ({
@@ -164,6 +164,7 @@ export const usePostIts = (
                 await restorePostIt(postIt);
             },
         });
+        return postIt._id;
     };
 
     // Insert a template's cards into the active board. The create endpoint only

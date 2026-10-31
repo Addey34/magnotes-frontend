@@ -65,7 +65,15 @@ const AUTH_ERROR_KEYS: Record<string, TranslationKey> = {
         'auth.error.resendTooSoon',
     'Trop de tentatives. Demandez un nouveau code.':
         'auth.error.tooManyAttempts',
+    'Trop de tentatives. Réessayez dans quelques minutes.':
+        'auth.error.rateLimited',
+    'Trop de requêtes. Ralentissez un instant.': 'auth.error.rateLimited',
+    'Trop de retours envoyés. Réessayez plus tard.': 'auth.error.rateLimited',
+    'Session expirée, reconnectez-vous.': 'auth.error.sessionExpired',
 };
+
+const FRENCH_MESSAGE =
+    /[àâçéèêëîïôûùüœ]|\b(le|la|les|des|une|vous|trop|mot de passe|réessayez|compte)\b/i;
 
 type DemoColor = 'yellow' | 'pink' | 'mint' | 'sky' | 'lavender';
 
@@ -97,7 +105,7 @@ const DEMO_NOTES = [
 ];
 
 const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
-    const { t } = useT();
+    const { t, lang } = useT();
     const [mode, setMode] = useState<Mode>('login');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -156,8 +164,12 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
 
     const localizedApiError = (data?: ErrorResponse): string | undefined => {
         const message = data?.error || data?.message;
-        return message && AUTH_ERROR_KEYS[message]
-            ? t(AUTH_ERROR_KEYS[message])
+        if (!message) return undefined;
+        if (AUTH_ERROR_KEYS[message]) return t(AUTH_ERROR_KEYS[message]);
+        // An unknown server message may be French: never show that to an
+        // English UI (an English message is fine to display as is).
+        return lang !== 'fr' && FRENCH_MESSAGE.test(message)
+            ? t('auth.error.generic')
             : message;
     };
 

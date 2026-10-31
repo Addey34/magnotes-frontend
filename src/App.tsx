@@ -19,6 +19,8 @@ import {
     markDemoImportPending,
     requestedDemoTemplateId,
 } from './services/demoMode';
+import { resetPristineDemoForLanguage } from './services/demoBoard';
+import { detectLang } from './i18n/i18n';
 
 // Public read-only share route: `/app/b/<token>` (or `/b/<token>` in dev).
 // No client router in the app — a path check picks the public view before the
@@ -61,6 +63,7 @@ const App: React.FC = () => {
                     deactivateDemo();
                     setIsLoggedIn(true);
                 } else if (isDemoRequested() || isDemoActive()) {
+                    resetPristineDemoForLanguage(detectLang());
                     activateDemo();
                     setDemoActive(true);
                 }

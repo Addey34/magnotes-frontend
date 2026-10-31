@@ -82,7 +82,11 @@ const stackView = (
 
 const renderCard = (
     cardOverrides: Partial<PostIt> = {},
-    propOverrides: { stackView?: CardStackView } = {}
+    propOverrides: {
+        stackView?: CardStackView;
+        autoEdit?: boolean;
+        onAutoEditHandled?: (id: string) => void;
+    } = {}
 ) => {
     const postIt = makeCard(cardOverrides);
     const onNavigateToCard = jest.fn();
@@ -119,6 +123,8 @@ const renderCard = (
             onMoveToTab={onMoveToTab}
             onUnstack={onUnstack}
             stackView={propOverrides.stackView}
+            autoEdit={propOverrides.autoEdit}
+            onAutoEditHandled={propOverrides.onAutoEditHandled}
             onToggleStack={onToggleStack}
             onSelectInStack={onSelectInStack}
             onStepInStack={onStepInStack}
@@ -160,29 +166,87 @@ describe('PostItCard rendering', () => {
         );
     });
 
-    it('switches to an editable textarea when the content is clicked', () => {
+    it('is move-first: the title is read-only and the body is not editable until edit mode', () => {
         const { container } = renderCard();
 
-        expect(
-            container.querySelector('.post-it-content-view')
-        ).toBeInTheDocument();
-        fireEvent.click(container.querySelector('.post-it-content-view')!);
-
-        const textarea = container.querySelector('textarea.post-it-content');
-        expect(textarea).toBeInTheDocument();
-        expect(container.querySelector('.post-it-content-view')).toBeNull();
+        const title =
+            container.querySelector<HTMLInputElement>('.post-it-title')!;
+        expect(title.readOnly).toBe(true);
+        expect(title.tabIndex).toBe(-1);
+        expect(container.querySelector('.post-it-content-view')).toBeTruthy();
+        expect(container.querySelector('textarea.post-it-content')).toBeNull();
+        // Only the edit button is offered; the style tools stay hidden.
+        expect(screen.getByLabelText('Edit card')).toBeInTheDocument();
+        expect(screen.queryByLabelText('Duplicate')).toBeNull();
+        expect(container.querySelector('.card-color-trigger')).toBeNull();
     });
 
-    it('keeps the textarea mounted past the first keystroke on an empty card', () => {
-        // Regression: an empty card renders the textarea via
-        // `!postIt.content.trim()` rather than `isEditingContent`. Without
-        // marking isEditingContent on focus, the first keystroke (content
-        // becomes non-empty, as the controlled `postIt` prop is updated by
-        // the parent on every change) used to flip that condition back to
-        // false and swap the textarea for the read-only view mid-typing,
-        // dropping focus and silently discarding every keystroke after the
-        // first — the parent re-renders with the new prop the same way
-        // BoardApp does after onLocalChange.
+    it('enters edit mode from the edit button, then finishes with the done button', () => {
+        const { container, onFocus } = renderCard();
+
+        fireEvent.click(screen.getByLabelText('Edit card'));
+
+        expect(onFocus).toHaveBeenCalledWith('card-1');
+        expect(
+            container.querySelector<HTMLInputElement>('.post-it-title')!
+                .readOnly
+        ).toBe(false);
+        expect(
+            container.querySelector('textarea.post-it-content')
+        ).toBeInTheDocument();
+        expect(container.querySelector('.post-it-content-view')).toBeNull();
+        expect(container.querySelector('.card-color-trigger')).toBeTruthy();
+        expect(screen.queryByLabelText('Edit card')).toBeNull();
+
+        fireEvent.click(screen.getByLabelText('Finish editing'));
+
+        expect(
+            container.querySelector<HTMLInputElement>('.post-it-title')!
+                .readOnly
+        ).toBe(true);
+        expect(container.querySelector('textarea.post-it-content')).toBeNull();
+    });
+
+    it('opens straight in edit mode when the board requests it', () => {
+        const onHandled = jest.fn();
+        const { container } = renderCard(
+            { title: '', content: '' },
+            { autoEdit: true, onAutoEditHandled: onHandled }
+        );
+        expect(
+            container.querySelector('textarea.post-it-content')
+        ).toBeInTheDocument();
+        expect(onHandled).toHaveBeenCalledWith(expect.any(String));
+    });
+
+    it('stays in view mode for an empty card nobody asked to edit', () => {
+        const { container } = renderCard({ title: '', content: '' });
+        expect(container.querySelector('textarea.post-it-content')).toBeNull();
+    });
+
+    it('enters edit mode on double-click and leaves it with Escape', () => {
+        const { container } = renderCard();
+
+        fireEvent.doubleClick(
+            container.querySelector('.post-it-content-view')!
+        );
+        expect(
+            container.querySelector('textarea.post-it-content')
+        ).toBeInTheDocument();
+
+        fireEvent.keyDown(
+            container.querySelector('textarea.post-it-content')!,
+            {
+                key: 'Escape',
+            }
+        );
+        expect(container.querySelector('textarea.post-it-content')).toBeNull();
+    });
+
+    it('keeps the textarea mounted while typing in edit mode on an empty card', () => {
+        // Regression: the editor must stay mounted as the parent re-renders the
+        // controlled `postIt` prop on every keystroke (as BoardApp does after
+        // onLocalChange), otherwise focus and keystrokes are lost mid-typing.
         const postIt = makeCard({ content: '' });
         const props: Omit<React.ComponentProps<typeof PostItCard>, 'postIt'> = {
             tabs: [tab],
@@ -212,12 +276,10 @@ describe('PostItCard rendering', () => {
             <PostItCard postIt={postIt} {...props} />,
             { wrapper: LangProvider }
         );
-
-        const textarea = container.querySelector<HTMLTextAreaElement>(
-            'textarea.post-it-content'
-        )!;
-        expect(textarea).toBeInTheDocument();
-        fireEvent.focus(textarea);
+        fireEvent.click(screen.getByLabelText('Edit card'));
+        expect(
+            container.querySelector('textarea.post-it-content')
+        ).toBeInTheDocument();
 
         rerender(
             <PostItCard postIt={{ ...postIt, content: 'h' }} {...props} />

@@ -1,5 +1,6 @@
 import * as demo from './demoBoard';
 import { PostIt } from '../types/boardTypes';
+import { getBoardTemplates } from '../constants/boardTemplates';
 
 const baseCardInput = (tabId: string, overrides = {}) => ({
     tabId,
@@ -171,5 +172,50 @@ describe('demoBoard store', () => {
         expect(demo.hasDemoData()).toBe(true);
         demo.resetDemoBoard();
         expect(demo.hasDemoData()).toBe(false);
+    });
+
+    describe('resetPristineDemoForLanguage', () => {
+        const seedWelcome = async (lang: 'fr' | 'en') => {
+            const tab = await demo.createTab('Welcome', '#111');
+            for (const card of getBoardTemplates(lang).find(
+                (template) => template.id === 'welcome'
+            )!.cards) {
+                await demo.createPostIt(
+                    baseCardInput(tab._id, {
+                        title: card.title,
+                        content: card.content,
+                    })
+                );
+            }
+        };
+
+        it('drops an untouched French board when English is requested', async () => {
+            await seedWelcome('fr');
+            expect(demo.resetPristineDemoForLanguage('en')).toBe(true);
+            expect(demo.hasDemoData()).toBe(false);
+        });
+
+        it('keeps a board already in the requested language', async () => {
+            await seedWelcome('en');
+            expect(demo.resetPristineDemoForLanguage('en')).toBe(false);
+            expect(demo.hasDemoData()).toBe(true);
+        });
+
+        it('never drops a board the visitor has edited', async () => {
+            await seedWelcome('fr');
+            const [first] = (await demo.fetchPostIts(
+                (await demo.fetchTabs())[0]._id
+            )) as PostIt[];
+            await demo.updatePostIt(first._id, { title: 'Mon titre' });
+            expect(demo.resetPristineDemoForLanguage('en')).toBe(false);
+            expect(demo.hasDemoData()).toBe(true);
+        });
+
+        it('ignores an empty or unrelated board', async () => {
+            expect(demo.resetPristineDemoForLanguage('en')).toBe(false);
+            const tab = await demo.createTab('Mine', '#111');
+            await demo.createPostIt(baseCardInput(tab._id));
+            expect(demo.resetPristineDemoForLanguage('en')).toBe(false);
+        });
     });
 });

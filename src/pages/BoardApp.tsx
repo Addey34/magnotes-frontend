@@ -179,6 +179,10 @@ const BoardApp: React.FC<BoardAppProps> = ({
         'canvas' | 'kanban' | 'agenda' | 'timeline'
     >('canvas');
     const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
+    // The card the user just created: opens in edit mode once mounted, and the
+    // view only moves when the card landed out of sight.
+    const [editRequestId, setEditRequestId] = useState<string | null>(null);
+    const revealOnlyRef = useRef(false);
     const [linkingSourceId, setLinkingSourceId] = useState<string | null>(null);
     const [selectedLinkId, setSelectedLinkId] = useState<string | null>(null);
     // Multi-selection of cards (for bulk keyboard actions: delete, duplicate).
@@ -187,9 +191,6 @@ const BoardApp: React.FC<BoardAppProps> = ({
         () => new Set()
     );
     const [brandMenuOpen, setBrandMenuOpen] = useState(false);
-    const [sidebarExpanded, setSidebarExpanded] = useState(false);
-    const [sidebarHovered, setSidebarHovered] = useState(false);
-    const sidebarHoverTimerRef = useRef<number | null>(null);
     const [shareDialogOpen, setShareDialogOpen] = useState(false);
     const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false);
     const [appearanceOpen, setAppearanceOpen] = useState(false);
@@ -213,29 +214,6 @@ const BoardApp: React.FC<BoardAppProps> = ({
     const brandPortalRef = useCallback((node: HTMLDivElement | null) => {
         setBrandPortalTarget(node);
     }, []);
-    const scheduleSidebarHover = useCallback((next: boolean) => {
-        if (sidebarHoverTimerRef.current !== null) {
-            window.clearTimeout(sidebarHoverTimerRef.current);
-            sidebarHoverTimerRef.current = null;
-        }
-        // Opening: small delay so brushing past doesn't open it.
-        // Closing: longer delay so crossing the gap to a popover doesn't close it.
-        sidebarHoverTimerRef.current = window.setTimeout(
-            () => {
-                setSidebarHovered(next);
-                sidebarHoverTimerRef.current = null;
-            },
-            next ? 80 : 340
-        );
-    }, []);
-    useEffect(
-        () => () => {
-            if (sidebarHoverTimerRef.current !== null) {
-                window.clearTimeout(sidebarHoverTimerRef.current);
-            }
-        },
-        []
-    );
     const [theme, setTheme] = useState<'theme-dark' | 'theme-light'>(() =>
         localStorage.getItem('magnotes-theme') === 'theme-light'
             ? 'theme-light'
@@ -367,7 +345,6 @@ const BoardApp: React.FC<BoardAppProps> = ({
         isLoadingPostIts ||
         isLoadingStacks ||
         isLoadingConnections;
-    const sidebarOpen = sidebarExpanded || sidebarHovered;
     const syncStatusClass = !isOnline
         ? 'offline'
         : demo
@@ -461,6 +438,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
         if (!activeTab) return;
         const markdown = cardsToMarkdown(postIts, {
             documentTitle: activeTab.name,
+            lang,
         });
         downloadTextFile(
             `${toFileStem(activeTab.name)}.md`,
@@ -834,7 +812,24 @@ const BoardApp: React.FC<BoardAppProps> = ({
 
         const frame = requestAnimationFrame(() => {
             focusPostIt(card._id);
-            focusBounds(target);
+            const canvasRect = canvasRef.current?.getBoundingClientRect();
+            const topLeft = canvasRect
+                ? screenToBoardPoint(canvasRect.left, canvasRect.top)
+                : null;
+            // Keep clear of the bottom dock when judging visibility.
+            const bottomRight = canvasRect
+                ? screenToBoardPoint(canvasRect.right, canvasRect.bottom - 140)
+                : null;
+            const alreadyVisible =
+                revealOnlyRef.current &&
+                topLeft !== null &&
+                bottomRight !== null &&
+                target.minX >= topLeft.x &&
+                target.minY >= topLeft.y &&
+                target.maxX <= bottomRight.x &&
+                target.maxY <= bottomRight.y;
+            revealOnlyRef.current = false;
+            if (!alreadyVisible) focusBounds(target);
             setPendingFocusId(null);
         });
         return () => cancelAnimationFrame(frame);
@@ -847,36 +842,57 @@ const BoardApp: React.FC<BoardAppProps> = ({
         toggleStack,
         focusPostIt,
         focusBounds,
+        screenToBoardPoint,
     ]);
+
+    // On a touch screen or a narrow window the board is usually zoomed far out,
+    // so a card entering edit mode is framed to a size that can be typed in.
+    const handleCardEditStart = (id: string) => {
+        const compact = window.matchMedia(
+            '(pointer: coarse), (max-width: 620px)'
+        ).matches;
+        if (!compact || zoom >= 0.8) return;
+        const rect = resolveCardRect(id, postIts, stacks, {
+            revealCollapsed: true,
+        });
+        if (!rect) return;
+        focusBounds({
+            minX: rect.x,
+            minY: rect.y,
+            maxX: rect.x + rect.width,
+            maxY: rect.y + rect.height,
+        });
+    };
 
     const createPostItInView = (
         position?: { x: number; y: number },
         title?: string
     ) => {
         const titleOption = title ? { title } : {};
-        if (position) {
-            addPostIt({
-                ...position,
-                color: colorFilter || undefined,
-                ...titleOption,
-            });
-            return;
-        }
         const canvas = canvasRef.current;
-        if (!canvas) {
-            addPostIt({ color: colorFilter || undefined, ...titleOption });
-            return;
-        }
-        const rect = canvas.getBoundingClientRect();
-        const point = screenToBoardPoint(
-            rect.left + rect.width / 2,
-            rect.top + rect.height / 2
-        );
-        addPostIt({
-            x: point ? point.x - 110 : undefined,
-            y: point ? point.y - 75 : undefined,
+        const rect = canvas?.getBoundingClientRect();
+        const point = rect
+            ? screenToBoardPoint(
+                  rect.left + rect.width / 2,
+                  rect.top + rect.height / 2
+              )
+            : null;
+        const placement = position
+            ? position
+            : point
+              ? { x: point.x - 110, y: point.y - 75 }
+              : {};
+        void addPostIt({
+            ...placement,
             color: colorFilter || undefined,
             ...titleOption,
+        }).then((id) => {
+            if (!id || view !== 'canvas') return;
+            // A card created with a title (palette, template) is not blank:
+            // only an empty one goes straight to typing.
+            if (!title) setEditRequestId(id);
+            revealOnlyRef.current = true;
+            setPendingFocusId(id);
         });
     };
 
@@ -1402,7 +1418,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
                 .filter((card) => card.tabId !== activeTabId)
                 .map((card) => ({
                     id: `global-${card._id}`,
-                    label: card.title || 'Sans titre',
+                    label: card.title || t('card.untitled'),
                     group: 'Autres tableaux',
                     hint: tabs.find((tab) => tab._id === card.tabId)?.name,
                     run: () => openCardInBoard(card.tabId, card._id),
@@ -1412,9 +1428,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
 
     return (
         <main
-            className={`board-app mn-palette ${theme} ${activeBoardThemeClass} ${
-                sidebarOpen ? 'is-sidebar-expanded' : ''
-            } ${demo ? 'has-demo-banner' : ''}`.trim()}
+            className={`board-app mn-palette ${theme} ${activeBoardThemeClass} ${demo ? 'has-demo-banner' : ''}`.trim()}
         >
             <NotificationCenter
                 isOnline={isOnline}
@@ -1436,11 +1450,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
                     </button>
                 </div>
             )}
-            <aside
-                className="board-sidebar"
-                onPointerEnter={() => scheduleSidebarHover(true)}
-                onPointerLeave={() => scheduleSidebarHover(false)}
-            >
+            <aside className="board-sidebar">
                 {brandPortalTarget &&
                     createPortal(
                         <div
@@ -1640,22 +1650,6 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                             </span>
                                         </button>
                                     )}
-                                    <button
-                                        type="button"
-                                        role="menuitem"
-                                        onClick={() => {
-                                            setSidebarExpanded(false);
-                                            closeBrandMenu();
-                                        }}
-                                    >
-                                        <ChevronDoubleLeftIcon />
-                                        <span>
-                                            {t('app.sidebar.collapse')}
-                                            <small>
-                                                {t('app.sidebar.collapse.sub')}
-                                            </small>
-                                        </span>
-                                    </button>
                                 </div>
                             )}
                         </div>,
@@ -2298,6 +2292,11 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                     onDelete={handleDeleteCard}
                                     onStartLink={handleStartLink}
                                     onLinkTarget={handleLinkTarget}
+                                    onEditStart={handleCardEditStart}
+                                    autoEdit={editRequestId === postIt._id}
+                                    onAutoEditHandled={() =>
+                                        setEditRequestId(null)
+                                    }
                                 />
                             ))}
                         </div>
@@ -2346,7 +2345,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                             type="button"
                                             className="board-selection-clear"
                                             onClick={clearCardSelection}
-                                            title={`${t('app.selection.clear')} (Échap)`}
+                                            title={`${t('app.selection.clear')} (${t('palette.esc')})`}
                                             aria-label={t(
                                                 'app.selection.clear'
                                             )}

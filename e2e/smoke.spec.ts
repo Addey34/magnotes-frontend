@@ -1,6 +1,7 @@
 ﻿import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { startEditingCard } from './cardEditing';
 
 const mockUnauthenticatedRefresh = async (page: Page) => {
     await page.route('**/api/auth/refresh', (route) =>
@@ -129,7 +130,9 @@ test.describe('guest demo surface', () => {
         await page.setViewportSize({ width: 390, height: 844 });
         await page.goto('/app/?demo=1');
 
-        const title = page.locator('.post-it-title').first();
+        const card = page.locator('.post-it-card').first();
+        await startEditingCard(card);
+        const title = card.locator('.post-it-title');
         await title.fill('Rotation-safe note');
         await page.setViewportSize({ width: 844, height: 390 });
 
@@ -187,7 +190,7 @@ test.describe('guest demo surface', () => {
         });
         expect(visibleCardIndex).toBeGreaterThanOrEqual(0);
         const visibleCard = cards.nth(visibleCardIndex);
-        await visibleCard.locator('.post-it-title').focus();
+        await startEditingCard(visibleCard);
         const expand = visibleCard.getByRole('button', { name: /expand/i });
         await expect(expand).toBeVisible();
         // On a 320x500 viewport the top bar can overlap the card's own toolbar,
@@ -213,7 +216,7 @@ test.describe('guest demo surface', () => {
         await expect(detail).toBeHidden();
     });
 
-    test('sidebar expands on hover without covering the workspace', async ({
+    test('sidebar stays a compact rail on hover and never moves the workspace', async ({
         page,
     }) => {
         await page.setViewportSize({ width: 1440, height: 900 });
@@ -221,147 +224,28 @@ test.describe('guest demo surface', () => {
 
         const sidebar = page.locator('.board-sidebar');
         const workspace = page.locator('.board-workspace');
-        const topbar = page.locator('.board-topbar');
-        const brand = page.locator('.board-brand');
-        const title = page.locator('.board-title-group');
-        const collapsedWidth = await sidebar.evaluate((element) =>
-            Math.round(element.getBoundingClientRect().width)
-        );
-        const collapsedBrandWidth = await brand.evaluate((element) =>
-            Math.round(element.getBoundingClientRect().width)
-        );
+        const width = () =>
+            sidebar.evaluate((element) =>
+                Math.round(element.getBoundingClientRect().width)
+            );
+        const workspaceLeft = () =>
+            workspace.evaluate((element) =>
+                Math.round(element.getBoundingClientRect().left)
+            );
 
+        const collapsedWidth = await width();
+        const collapsedWorkspaceLeft = await workspaceLeft();
         expect(collapsedWidth).toBeLessThan(100);
 
-        const collapsedWorkspaceLeft = await workspace.evaluate((element) =>
-            Math.round(element.getBoundingClientRect().left)
-        );
-
         await sidebar.hover();
-        await expect
-            .poll(
-                () =>
-                    sidebar.evaluate((element) =>
-                        Math.round(element.getBoundingClientRect().width)
-                    ),
-                { timeout: 1500 }
-            )
-            .toBeGreaterThan(180);
+        // Well past the delay the old hover-expansion used (80 ms open).
+        await page.waitForTimeout(600);
 
-        const workspaceLeft = await workspace.evaluate((element) =>
-            Math.round(element.getBoundingClientRect().left)
+        expect(await width()).toBe(collapsedWidth);
+        expect(await workspaceLeft()).toBe(collapsedWorkspaceLeft);
+        await expect(page.locator('.board-app')).not.toHaveClass(
+            /is-sidebar-expanded/
         );
-
-        expect(workspaceLeft).toBe(collapsedWorkspaceLeft);
-
-        const topbarBounds = await topbar.evaluate((element) => {
-            const rect = element.getBoundingClientRect();
-            return {
-                left: Math.round(rect.left),
-                right: Math.round(rect.right),
-                bottom: Math.round(rect.bottom),
-            };
-        });
-        expect(topbarBounds.left).toBe(0);
-        expect(topbarBounds.right).toBe(1440);
-
-        const [expandedSidebarBounds, brandBounds, titleBounds] =
-            await Promise.all(
-                [sidebar, brand, title].map((locator) =>
-                    locator.evaluate((element) => {
-                        const rect = element.getBoundingClientRect();
-                        return {
-                            left: Math.round(rect.left),
-                            top: Math.round(rect.top),
-                            right: Math.round(rect.right),
-                            bottom: Math.round(rect.bottom),
-                            width: Math.round(rect.width),
-                        };
-                    })
-                )
-            );
-        expect(expandedSidebarBounds.top).toBeGreaterThanOrEqual(
-            topbarBounds.bottom
-        );
-        expect(brandBounds.width).toBe(collapsedBrandWidth);
-        expect(titleBounds.left).toBeGreaterThanOrEqual(brandBounds.right);
-        expect(titleBounds.top).toBeGreaterThanOrEqual(brandBounds.top);
-
-        const expandedControls = await sidebar
-            .locator('.board-tab, .board-tab-add, .sidebar-command')
-            .evaluateAll((elements) =>
-                elements.map((element) => {
-                    const rect = element.getBoundingClientRect();
-                    return {
-                        left: Math.round(rect.left),
-                        right: Math.round(rect.right),
-                        height: Math.round(rect.height),
-                    };
-                })
-            );
-        expect(expandedControls.length).toBeGreaterThan(2);
-        for (const control of expandedControls) {
-            expect(control.left).toBeGreaterThanOrEqual(
-                expandedSidebarBounds.left
-            );
-            expect(control.right).toBeLessThanOrEqual(
-                expandedSidebarBounds.right
-            );
-            expect(control.height).toBe(36);
-        }
-
-        const expandedLabels = sidebar.locator(
-            '.board-tab-name, .board-tab-add span, .sidebar-command span'
-        );
-        await expect
-            .poll(() =>
-                expandedLabels.evaluateAll((elements) =>
-                    elements.every(
-                        (element) =>
-                            Number.parseFloat(
-                                getComputedStyle(element).opacity
-                            ) === 1
-                    )
-                )
-            )
-            .toBe(true);
-
-        await page.locator('.board-canvas').hover({
-            position: { x: 420, y: 300 },
-        });
-        await expect
-            .poll(
-                () =>
-                    sidebar.evaluate((element) =>
-                        Math.round(element.getBoundingClientRect().width)
-                    ),
-                { timeout: 1500 }
-            )
-            .toBeLessThan(100);
-
-        await expect
-            .poll(
-                () =>
-                    sidebar
-                        .locator('.board-tab-select')
-                        .evaluateAll((elements) =>
-                            elements.every((element) => {
-                                const control = element.getBoundingClientRect();
-                                const icon = element
-                                    .querySelector('.board-tab-icon')
-                                    ?.getBoundingClientRect();
-                                if (!icon) return true;
-                                const offset = Math.abs(
-                                    icon.left +
-                                        icon.width / 2 -
-                                        (control.left + control.width / 2)
-                                );
-                                return offset <= 1;
-                            })
-                        ),
-                { timeout: 1500 }
-            )
-            .toBe(true);
     });
 
     test('page customization keeps the custom color inline and dismisses outside', async ({
@@ -370,7 +254,8 @@ test.describe('guest demo surface', () => {
         await page.setViewportSize({ width: 1440, height: 900 });
         await page.goto('/app/?demo=1');
 
-        await page.locator('.board-sidebar').hover();
+        // The sidebar is a fixed rail: the tab's menu badge shows on tab hover.
+        await page.locator('.board-sidebar .board-tab').first().hover();
         const menu = page.locator('.board-tab-menu').first();
         await menu.locator('summary').click();
 
@@ -686,6 +571,7 @@ test.describe('guest demo surface', () => {
             })
             .toBeGreaterThan(30);
 
+        await startEditingCard(card);
         const title = card.locator('.post-it-title');
         await title.fill('Note tactile QA');
         await expect(title).toHaveValue('Note tactile QA');

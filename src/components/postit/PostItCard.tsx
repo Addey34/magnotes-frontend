@@ -3,6 +3,8 @@ import {
     ArrowTopRightOnSquareIcon,
     ArrowPathIcon,
     CheckCircleIcon,
+    CheckIcon,
+    PencilSquareIcon,
     ChevronDoubleLeftIcon,
     ChevronLeftIcon,
     ChevronRightIcon,
@@ -99,6 +101,11 @@ interface PostItCardProps {
     onDelete: (postItId: string) => void;
     onStartLink: (postItId: string) => void;
     onLinkTarget: (postItId: string) => void;
+    /** True for the card just created by the user: open it straight in edit mode. */
+    autoEdit?: boolean;
+    onAutoEditHandled?: (postItId: string) => void;
+    /** Fired when the card enters edit mode (the board may frame it). */
+    onEditStart?: (postItId: string) => void;
 }
 
 const PostItCard: React.FC<PostItCardProps> = ({
@@ -128,6 +135,9 @@ const PostItCard: React.FC<PostItCardProps> = ({
     onDelete,
     onStartLink,
     onLinkTarget,
+    autoEdit,
+    onAutoEditHandled,
+    onEditStart,
 }) => {
     const { t, lang } = useT();
     const cardRef = useRef<HTMLElement | null>(null);
@@ -145,22 +155,71 @@ const PostItCard: React.FC<PostItCardProps> = ({
     const [newChecklistText, setNewChecklistText] = useState('');
     const [newTag, setNewTag] = useState('');
     const [detailOpen, setDetailOpen] = useState(false);
-    const [isEditingContent, setIsEditingContent] = useState(false);
+    // Cards are move-first: text is only editable in edit mode, so a drag can
+    // start anywhere on the card (title and body included).
+    const [isEditing, setIsEditing] = useState(false);
+    const titleRef = useRef<HTMLInputElement | null>(null);
     const [mediaDraft, setMediaDraft] = useState('');
     const [mediaError, setMediaError] = useState<string | null>(null);
     const contentRef = useRef<HTMLTextAreaElement | null>(null);
     const closeStylePanel = useCallback(() => setStylePanel(null), []);
     useDismiss(stylePanel !== null, cardRef, closeStylePanel);
 
-    // Focus the textarea when the content switches from rendered read-mode to
-    // edit-mode (click-to-edit), placing the caret at the end.
+    // Entering edit mode focuses the title of an untitled card, else the body,
+    // with the caret at the end.
     useEffect(() => {
-        if (!isEditingContent) return;
-        const el = contentRef.current;
+        if (!isEditing) return;
+        const el = !postIt.title.trim() ? titleRef.current : contentRef.current;
         if (!el) return;
         el.focus();
         el.setSelectionRange(el.value.length, el.value.length);
-    }, [isEditingContent]);
+        // Only on entering edit mode, not on every keystroke.
+    }, [isEditing]);
+
+    // Leave edit mode when the card stops being selected (clicking elsewhere,
+    // selecting another card). Only the true -> false transition counts, so
+    // entering edit mode before the selection has propagated doesn't cancel it.
+    const wasSelectedRef = useRef(Boolean(selected));
+    useEffect(() => {
+        if (isEditing && wasSelectedRef.current && !selected) {
+            setIsEditing(false);
+        }
+        wasSelectedRef.current = Boolean(selected);
+    }, [selected, isEditing]);
+
+    const startEditing = (): void => {
+        if (stackView?.role === 'pile' || stackView?.role === 'fan-tab') return;
+        onFocus(postIt._id);
+        setStylePanel(null);
+        setIsEditing(true);
+        onEditStart?.(postIt._id);
+    };
+
+    // The board asks for edit mode on a card the user just created, once it is
+    // mounted (it may be culled off-screen at creation time).
+    useEffect(() => {
+        if (!autoEdit) return;
+        startEditing();
+        onAutoEditHandled?.(postIt._id);
+    }, [autoEdit]);
+
+    const stopEditing = (): void => {
+        setStylePanel(null);
+        setIsEditing(false);
+    };
+
+    const handleDoubleClick = (event: React.MouseEvent<HTMLElement>): void => {
+        if (isEditing) return;
+        const target = event.target as HTMLElement;
+        if (
+            target.closest(
+                'button, a, input, textarea, select, .post-it-style-popover, .resize-handle, .post-it-checklist'
+            )
+        ) {
+            return;
+        }
+        startEditing();
+    };
 
     const textSize = postIt.textSize || 13;
     const textColor = postIt.textColor || '#172033';
@@ -186,11 +245,11 @@ const PostItCard: React.FC<PostItCardProps> = ({
         if (!iso) return '';
         const date = new Date(iso);
         if (Number.isNaN(date.getTime())) return '';
-        return date.toLocaleDateString(undefined, {
+        return date.toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-US', {
             day: '2-digit',
             month: 'short',
         });
-    }, [postIt.updatedAt, postIt.createdAt]);
+    }, [postIt.updatedAt, postIt.createdAt, lang]);
 
     const statusLabel = useMemo(() => {
         if (saveState.postItId !== postIt._id) return '';
@@ -621,7 +680,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
     return (
         <article
             ref={cardRef}
-            className={`post-it-card finish-${postIt.finish || 'flat'} ${isDragging ? 'is-dragging' : ''} ${isHovered ? 'is-hovered' : ''} ${stylePanel ? 'has-open-style-panel' : ''} ${intentClass} ${isLinkSource ? 'is-link-source' : ''} ${isLinkTargetCandidate ? 'is-link-target' : ''} ${selected ? 'is-selected' : ''} ${isDropTarget ? 'is-drop-target' : ''} ${stackClass}`}
+            className={`post-it-card finish-${postIt.finish || 'flat'} ${isDragging ? 'is-dragging' : ''} ${isEditing ? 'is-editing' : ''} ${isHovered ? 'is-hovered' : ''} ${stylePanel ? 'has-open-style-panel' : ''} ${intentClass} ${isLinkSource ? 'is-link-source' : ''} ${isLinkTargetCandidate ? 'is-link-target' : ''} ${selected ? 'is-selected' : ''} ${isDropTarget ? 'is-drop-target' : ''} ${stackClass}`}
             style={
                 {
                     backgroundColor: postIt.color,
@@ -640,6 +699,10 @@ const PostItCard: React.FC<PostItCardProps> = ({
                 } as React.CSSProperties
             }
             onPointerDown={handlePointerDown}
+            onDoubleClick={handleDoubleClick}
+            onKeyDown={(event) => {
+                if (event.key === 'Escape' && isEditing) stopEditing();
+            }}
             onPointerEnter={() => setIsHovered(true)}
             onPointerLeave={() => setIsHovered(false)}
             onDrop={handleDrop}
@@ -728,109 +791,151 @@ const PostItCard: React.FC<PostItCardProps> = ({
                 />
             </button>
 
-            <div className="post-it-hover-tools">
-                <button
-                    className="card-color-trigger"
-                    type="button"
-                    onClick={() =>
-                        setStylePanel((panel) =>
-                            panel === 'color' ? null : 'color'
-                        )
-                    }
-                    title={t('card.tool.color')}
-                    aria-label={t('card.tool.color')}
-                    aria-expanded={stylePanel === 'color'}
-                    style={{ backgroundColor: postIt.color }}
-                />
-                <button
-                    className="card-text-trigger"
-                    type="button"
-                    onClick={() =>
-                        setStylePanel((panel) =>
-                            panel === 'text' ? null : 'text'
-                        )
-                    }
-                    title={t('card.tool.text')}
-                    aria-label={t('card.tool.text')}
-                    aria-expanded={stylePanel === 'text'}
-                >
-                    Aa
-                </button>
-                <button
-                    type="button"
-                    className={`icon-button ${status || checklist.length ? 'is-active' : ''}`}
-                    onClick={() =>
-                        setStylePanel((panel) =>
-                            panel === 'task' ? null : 'task'
-                        )
-                    }
-                    title={t('card.tool.task')}
-                    aria-label={t('card.tool.task')}
-                    aria-expanded={stylePanel === 'task'}
-                >
-                    <CheckCircleIcon />
-                </button>
-                <button
-                    type="button"
-                    className={`icon-button ${isLinkSource ? 'is-active' : ''}`}
-                    onClick={() => onStartLink(postIt._id)}
-                    title={
-                        isLinkSource
-                            ? t('card.tool.linkActive')
-                            : t('card.tool.link')
-                    }
-                    aria-pressed={isLinkSource}
-                >
-                    <LinkIcon />
-                </button>
-                <button
-                    type="button"
-                    className={`icon-button ${stylePanel === 'media' ? 'is-active' : ''}`}
-                    onClick={() => {
-                        setMediaDraft(
-                            postIt.mediaUrl &&
-                                !postIt.mediaUrl.startsWith('data:')
-                                ? postIt.mediaUrl
-                                : ''
-                        );
-                        setMediaError(null);
-                        setStylePanel((panel) =>
-                            panel === 'media' ? null : 'media'
-                        );
-                    }}
-                    title={t('card.tool.image')}
-                    aria-label={t('card.tool.image')}
-                    aria-expanded={stylePanel === 'media'}
-                >
-                    <PhotoIcon />
-                </button>
-                <button
-                    type="button"
-                    className="icon-button"
-                    onClick={() => setDetailOpen(true)}
-                    title={t('card.tool.expand')}
-                    aria-label={t('card.tool.expand')}
-                >
-                    <ArrowsPointingOutIcon />
-                </button>
-                <button
-                    type="button"
-                    className="icon-button"
-                    onClick={() => onDuplicate(postIt._id)}
-                    title={t('card.tool.duplicate')}
-                    aria-label={t('card.tool.duplicate')}
-                >
-                    <DocumentDuplicateIcon />
-                </button>
-                <button
-                    type="button"
-                    className="icon-button danger"
-                    onClick={() => onDelete(postIt._id)}
-                    title={t('card.tool.delete')}
-                    aria-label={t('card.tool.delete')}
-                >
-                    <TrashIcon />
-                </button>
+            <div
+                className="post-it-hover-tools"
+                // Controls keep a readable size when the board is zoomed out.
+                style={
+                    zoom < 1
+                        ? {
+                              scale: String(Math.min(1.6, 1 / zoom)),
+                              transformOrigin: 'right bottom',
+                          }
+                        : undefined
+                }
+            >
+                {!isEditing && (
+                    <button
+                        type="button"
+                        className="card-edit-trigger"
+                        onClick={startEditing}
+                        title={t('card.tool.edit')}
+                        aria-label={t('card.tool.edit')}
+                    >
+                        <PencilSquareIcon />
+                        <span>{t('card.tool.editShort')}</span>
+                    </button>
+                )}
+                {isEditing && (
+                    <>
+                        <button
+                            className="card-color-trigger"
+                            type="button"
+                            onClick={() =>
+                                setStylePanel((panel) =>
+                                    panel === 'color' ? null : 'color'
+                                )
+                            }
+                            title={t('card.tool.color')}
+                            aria-label={t('card.tool.color')}
+                            aria-expanded={stylePanel === 'color'}
+                            style={{ backgroundColor: postIt.color }}
+                        />
+                        <button
+                            className="card-text-trigger"
+                            type="button"
+                            onClick={() =>
+                                setStylePanel((panel) =>
+                                    panel === 'text' ? null : 'text'
+                                )
+                            }
+                            title={t('card.tool.text')}
+                            aria-label={t('card.tool.text')}
+                            aria-expanded={stylePanel === 'text'}
+                        >
+                            Aa
+                        </button>
+                        <button
+                            type="button"
+                            className={`icon-button ${status || checklist.length ? 'is-active' : ''}`}
+                            onClick={() =>
+                                setStylePanel((panel) =>
+                                    panel === 'task' ? null : 'task'
+                                )
+                            }
+                            title={t('card.tool.task')}
+                            aria-label={t('card.tool.task')}
+                            aria-expanded={stylePanel === 'task'}
+                        >
+                            <CheckCircleIcon />
+                        </button>
+                        <button
+                            type="button"
+                            className={`icon-button ${isLinkSource ? 'is-active' : ''}`}
+                            onClick={() => onStartLink(postIt._id)}
+                            title={
+                                isLinkSource
+                                    ? t('card.tool.linkActive')
+                                    : t('card.tool.link')
+                            }
+                            aria-label={
+                                isLinkSource
+                                    ? t('card.tool.linkActive')
+                                    : t('card.tool.link')
+                            }
+                            aria-pressed={isLinkSource}
+                        >
+                            <LinkIcon />
+                        </button>
+                        <button
+                            type="button"
+                            className={`icon-button ${stylePanel === 'media' ? 'is-active' : ''}`}
+                            onClick={() => {
+                                setMediaDraft(
+                                    postIt.mediaUrl &&
+                                        !postIt.mediaUrl.startsWith('data:')
+                                        ? postIt.mediaUrl
+                                        : ''
+                                );
+                                setMediaError(null);
+                                setStylePanel((panel) =>
+                                    panel === 'media' ? null : 'media'
+                                );
+                            }}
+                            title={t('card.tool.image')}
+                            aria-label={t('card.tool.image')}
+                            aria-expanded={stylePanel === 'media'}
+                        >
+                            <PhotoIcon />
+                        </button>
+                        <button
+                            type="button"
+                            className="icon-button"
+                            onClick={() => setDetailOpen(true)}
+                            title={t('card.tool.expand')}
+                            aria-label={t('card.tool.expand')}
+                        >
+                            <ArrowsPointingOutIcon />
+                        </button>
+                        <button
+                            type="button"
+                            className="icon-button"
+                            onClick={() => onDuplicate(postIt._id)}
+                            title={t('card.tool.duplicate')}
+                            aria-label={t('card.tool.duplicate')}
+                        >
+                            <DocumentDuplicateIcon />
+                        </button>
+                        <button
+                            type="button"
+                            className="icon-button danger"
+                            onClick={() => onDelete(postIt._id)}
+                            title={t('card.tool.delete')}
+                            aria-label={t('card.tool.delete')}
+                        >
+                            <TrashIcon />
+                        </button>
+                        <button
+                            type="button"
+                            className="card-edit-done"
+                            onClick={stopEditing}
+                            title={t('card.tool.done')}
+                            aria-label={t('card.tool.done')}
+                        >
+                            <CheckIcon />
+                            <span>{t('card.tool.doneShort')}</span>
+                        </button>
+                    </>
+                )}
             </div>
 
             {stylePanel === 'media' && (
@@ -1224,7 +1329,10 @@ const PostItCard: React.FC<PostItCardProps> = ({
 
             <div className="post-it-header-row">
                 <input
-                    className="post-it-title"
+                    ref={titleRef}
+                    className={`post-it-title ${isEditing ? '' : 'is-readonly'}`}
+                    readOnly={!isEditing}
+                    tabIndex={isEditing ? 0 : -1}
                     value={postIt.title}
                     maxLength={80}
                     onChange={(event) =>
@@ -1291,7 +1399,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                 </div>
             )}
 
-            {isEditingContent || !postIt.content.trim() ? (
+            {isEditing ? (
                 <textarea
                     ref={contentRef}
                     className="post-it-content"
@@ -1300,11 +1408,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                     onChange={(event) =>
                         updateText('content', event.target.value)
                     }
-                    onFocus={() => {
-                        onFocus(postIt._id);
-                        setIsEditingContent(true);
-                    }}
-                    onBlur={() => setIsEditingContent(false)}
+                    onFocus={() => onFocus(postIt._id)}
                     aria-label={t('card.content.aria')}
                     placeholder={t('card.content.placeholder')}
                     style={{ color: textColor, fontFamily, fontSize: textSize }}
@@ -1312,23 +1416,20 @@ const PostItCard: React.FC<PostItCardProps> = ({
             ) : (
                 <div
                     className="post-it-content post-it-content-view markdown-body app-scrollbar"
-                    onClick={() => {
-                        // On a folded pile the body is the surface you click to
-                        // open the stack (see the pointer-up gesture). Dropping
-                        // into the editor at the same time would fan the pile
-                        // out AND steal the caret on a single click.
-                        if (stackView?.role === 'pile') return;
-                        onFocus(postIt._id);
-                        setIsEditingContent(true);
-                    }}
                     title={
                         stackView?.role === 'pile'
                             ? t('stack.fanOut', { n: stackView.count })
-                            : t('card.clickToEdit')
+                            : undefined
                     }
                     style={{ color: textColor, fontFamily, fontSize: textSize }}
                 >
-                    {renderMarkdown(postIt.content)}
+                    {postIt.content.trim() ? (
+                        renderMarkdown(postIt.content)
+                    ) : (
+                        <span className="post-it-content-empty">
+                            {t('card.content.placeholder')}
+                        </span>
+                    )}
                 </div>
             )}
 

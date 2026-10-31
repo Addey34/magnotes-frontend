@@ -1,3 +1,4 @@
+import { parseMarkdownCards } from './markdownImport';
 import { cardsToMarkdown } from './boardMarkdown';
 
 describe('cardsToMarkdown', () => {
@@ -89,5 +90,18 @@ describe('cardsToMarkdown', () => {
                 }
             )
         ).toBe('# Projet \\#1\n\n## Carte\n');
+    });
+
+    it('labels metadata in English on request and the importer reads it back', () => {
+        const markdown = cardsToMarkdown(
+            [{ title: '', status: 'doing', dueDate: '2026-12-01' }],
+            { lang: 'en' }
+        );
+        expect(markdown).toContain('## Untitled');
+        expect(markdown).toContain('**Status :** doing');
+        expect(markdown).toContain('**Due date :** 2026-12-01');
+        const [card] = parseMarkdownCards(markdown);
+        expect(card.status).toBe('doing');
+        expect(card.dueDate).toBe('2026-12-01');
     });
 });

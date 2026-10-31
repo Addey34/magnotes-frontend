@@ -196,6 +196,18 @@ export const DICTIONARY = {
         fr: 'Trop de tentatives. Demandez un nouveau code.',
         en: 'Too many attempts. Request a new code.',
     },
+    'auth.error.rateLimited': {
+        fr: 'Trop de tentatives. Réessayez dans quelques minutes.',
+        en: 'Too many attempts. Try again in a few minutes.',
+    },
+    'auth.error.sessionExpired': {
+        fr: 'Session expirée, reconnectez-vous.',
+        en: 'Session expired, please sign in again.',
+    },
+    'auth.error.generic': {
+        fr: 'Une erreur est survenue. Réessayez.',
+        en: 'Something went wrong. Please try again.',
+    },
     'auth.error.server': {
         fr: 'Impossible de contacter le serveur.',
         en: 'Could not reach the server.',
@@ -835,6 +847,7 @@ export const DICTIONARY = {
         en: 'Detailed card editing',
     },
     'card.title.placeholder': { fr: 'Titre', en: 'Title' },
+    'card.untitled': { fr: 'Sans titre', en: 'Untitled' },
     'card.detail.markdown': { fr: 'Markdown', en: 'Markdown' },
     'card.detail.contentPlaceholder': {
         fr: 'Écris ici… **gras**, *italique*, - listes, [lien](https://…)',
@@ -890,6 +903,10 @@ export const DICTIONARY = {
         fr: 'Image (URL, coller ou déposer)',
         en: 'Image (URL, paste or drop)',
     },
+    'card.tool.edit': { fr: 'Modifier la carte', en: 'Edit card' },
+    'card.tool.editShort': { fr: 'Modifier', en: 'Edit' },
+    'card.tool.doneShort': { fr: 'Terminé', en: 'Done' },
+    'card.tool.done': { fr: 'Terminer la modification', en: 'Finish editing' },
     'card.tool.expand': {
         fr: 'Agrandir (édition Markdown)',
         en: 'Expand (Markdown editing)',

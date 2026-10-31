@@ -890,10 +890,54 @@
     margin: 0 auto;
 }
 
-/* Interactive controls fully disappear when collapsed (no half-states). */
+/* The sidebar is a fixed icon rail (it never expands), so the per-board menu
+   (colour, rename, delete) appears as a small badge on the corner of a tab
+   while it is hovered, focused or its menu is open. */
+.board-app:not(.is-sidebar-expanded) .board-sidebar .board-tab {
+    position: relative;
+}
 
 .board-app:not(.is-sidebar-expanded) .board-sidebar .board-tab-menu {
-    display: none;
+    position: absolute;
+    right: -4px;
+    top: -4px;
+    z-index: 2;
+}
+
+.board-app:not(.is-sidebar-expanded) .board-sidebar .board-tab-menu summary {
+    background: var(--panel-bg);
+    border: 1px solid var(--control-border);
+    border-radius: 50%;
+    height: 18px;
+    opacity: 0;
+    transition: opacity 120ms ease;
+    width: 18px;
+}
+
+.board-app:not(.is-sidebar-expanded)
+    .board-sidebar
+    .board-tab-menu
+    summary
+    svg {
+    height: 12px;
+    width: 12px;
+}
+
+.board-app:not(.is-sidebar-expanded)
+    .board-sidebar
+    .board-tab:hover
+    .board-tab-menu
+    summary,
+.board-app:not(.is-sidebar-expanded)
+    .board-sidebar
+    .board-tab:focus-within
+    .board-tab-menu
+    summary,
+.board-app:not(.is-sidebar-expanded)
+    .board-sidebar
+    .board-tab-menu[open]
+    summary {
+    opacity: 1;
 }
 
 /* Text labels stay in the DOM and fade/slide out, so they animate back in. */
@@ -2802,7 +2846,7 @@
     pointer-events: none;
     position: absolute;
     right: 5px;
-    top: -30px;
+    top: -36px;
     transform: translateY(4px);
     transition:
         opacity 130ms ease,
@@ -2820,6 +2864,8 @@
 }
 
 .icon-button,
+.card-edit-trigger,
+.card-edit-done,
 .card-color-trigger,
 .card-text-trigger {
     align-items: center;
@@ -2837,8 +2883,78 @@
 }
 
 .icon-button:hover,
+.card-edit-trigger:hover,
+.card-edit-done:hover,
 .card-text-trigger:hover {
     background: #f8fafc;
+}
+
+.card-edit-trigger,
+.card-edit-done {
+    font-size: 12px;
+    font-weight: 700;
+    gap: 6px;
+    height: 30px;
+    padding: 0 12px 0 10px;
+    width: auto;
+    white-space: nowrap;
+}
+
+.card-edit-trigger {
+    background: #5d4fc1;
+    border-color: #4f43b2;
+    color: #fff;
+}
+
+.card-edit-trigger:hover {
+    background: #4f43b2;
+}
+
+.card-edit-trigger svg,
+.card-edit-done svg {
+    flex: none;
+    height: 16px;
+    width: 16px;
+}
+
+.card-edit-done {
+    background: #16a34a;
+    border-color: #15803d;
+    color: #fff;
+}
+
+.card-edit-done:hover {
+    background: #15803d;
+}
+
+/* Move-first cards: outside edit mode the title and body never capture the
+   pointer, so a drag can start anywhere on the card. */
+.post-it-title.is-readonly {
+    cursor: inherit;
+    pointer-events: none;
+    text-overflow: ellipsis;
+    user-select: none;
+}
+
+.post-it-card:not(.is-editing) .post-it-content-view {
+    user-select: none;
+}
+
+.post-it-content-empty {
+    font-style: italic;
+    opacity: 0.55;
+}
+
+/* Edit mode: the whole toolbar stays open and the card shows a clear ring. */
+.post-it-card.is-editing .post-it-hover-tools,
+.post-it-card.is-selected .post-it-hover-tools {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+
+.post-it-card.is-editing {
+    box-shadow: 0 0 0 2px #7c6cf0;
 }
 
 .icon-button svg {
@@ -3692,12 +3808,8 @@
 }
 
 @media (hover: none) {
-    .post-it-hover-tools {
-        opacity: 1;
-        pointer-events: auto;
-        transform: translateY(0);
-    }
-
+    /* No hover on touch: the toolbar belongs to the selected / edited card only
+       (see .is-selected and .is-editing above), not to every card at once. */
     .resize-handle {
         opacity: 1;
     }
@@ -3718,6 +3830,7 @@
     .post-it-hover-tools {
         left: 8px;
         overflow-x: auto;
+        scale: none !important;
         padding-bottom: 2px;
         right: 8px;
         scrollbar-width: none;
@@ -3731,6 +3844,95 @@
 
     .post-it-hover-tools > button {
         flex: 0 0 25px;
+    }
+
+    .post-it-hover-tools > .card-edit-trigger {
+        flex: 0 0 auto;
+        margin-left: auto;
+    }
+
+    /* The row scrolls sideways: "Done" goes first so it is never off-screen. */
+    .post-it-hover-tools > .card-edit-done {
+        flex: 0 0 auto;
+        margin-right: 4px;
+        order: -1;
+    }
+
+    /* The minimap would sit on top of the card being worked on. */
+    .board-minimap {
+        display: none;
+    }
+}
+
+/* Touch screens: every control gets a finger-sized target (36px+). */
+@media (pointer: coarse), (max-width: 620px) {
+    .icon-button,
+    .card-color-trigger,
+    .card-text-trigger {
+        height: 36px;
+        width: 36px;
+    }
+
+    .card-edit-trigger,
+    .card-edit-done {
+        height: 36px;
+    }
+
+    .post-it-hover-tools > button.icon-button,
+    .post-it-hover-tools > button.card-color-trigger,
+    .post-it-hover-tools > button.card-text-trigger {
+        flex: 0 0 36px;
+    }
+
+    .demo-banner__cta {
+        min-height: 36px;
+    }
+
+    .board-tab-options button,
+    .board-tab-icon-options button,
+    .board-tab-custom-color,
+    .color-swatch,
+    .text-color-swatch {
+        height: 30px;
+        width: 30px;
+    }
+
+    .color-swatch-row {
+        grid-template-columns: repeat(7, 30px);
+    }
+
+    .board-tab-icon-options {
+        grid-template-columns: repeat(8, 28px);
+    }
+
+    .board-tab-icon-options button {
+        height: 28px;
+        width: 28px;
+    }
+
+    .board-app .board-shortcuts-help > button {
+        height: 36px;
+        width: 36px;
+    }
+
+    .board-view-switch button {
+        min-height: 36px;
+        min-width: 40px;
+    }
+
+    .board-title-trigger {
+        min-height: 32px;
+        padding-block: 8px;
+    }
+
+    .agenda-title,
+    .agenda-status-select {
+        min-height: 36px;
+    }
+
+    .appearance-reset {
+        height: 36px;
+        width: 36px;
     }
 }
 

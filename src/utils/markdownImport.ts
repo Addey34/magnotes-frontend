@@ -21,8 +21,8 @@ export interface ParsedCard {
 
 const HEADING = /^(#{1,6})\s+(.*)$/;
 const CHECKLIST = /^\s*[-*]\s+\[( |x|X)\]\s+(.*)$/;
-const META_STATUS = /^\*\*Statut\s*:\*\*\s*(.+)$/;
-const META_DUE = /^\*\*Échéance\s*:\*\*\s*(.+)$/;
+const META_STATUS = /^\*\*(?:Statut|Status)\s*:\*\*\s*(.+)$/;
+const META_DUE = /^\*\*(?:Échéance|Due date|Due)\s*:\*\*\s*(.+)$/;
 const META_TAGS = /^\*\*Tags\s*:\*\*\s*(.+)$/;
 const STATUSES: PostItStatus[] = ['todo', 'doing', 'done'];
 
@@ -160,7 +160,7 @@ export function buildImportedCards(
         const row = Math.floor(cardIndex / columns);
         return {
             tabId,
-            title: card.title || 'Sans titre',
+            title: card.title || '',
             content: card.content,
             color: DEFAULT_POST_IT.color,
             textColor: DEFAULT_POST_IT.textColor,
