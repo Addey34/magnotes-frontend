@@ -49,6 +49,21 @@ describe('detectLang', () => {
         expect(detectLang()).toBe('fr');
     });
 
+    it('lets an explicit ?lang= override the stored choice and persists it', () => {
+        storeLang('fr');
+        window.history.pushState({}, '', '/app/?demo=1&lang=en');
+        expect(detectLang()).toBe('en');
+        expect(localStorage.getItem(STORAGE_KEY)).toBe('en');
+        window.history.pushState({}, '', '/');
+    });
+
+    it('ignores an invalid ?lang= value', () => {
+        storeLang('fr');
+        window.history.pushState({}, '', '/app/?lang=de');
+        expect(detectLang()).toBe('fr');
+        window.history.pushState({}, '', '/');
+    });
+
     it('ignores an invalid stored value and falls back', () => {
         localStorage.setItem(STORAGE_KEY, 'de');
         // jsdom navigator.language is usually en-US → English default.

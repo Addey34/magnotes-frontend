@@ -17,6 +17,20 @@ export function isLang(value: unknown): value is Lang {
 }
 
 export function detectLang(): Lang {
+    // An explicit `?lang=` (set by the landing page links) wins over the stored
+    // choice and the browser language, so an English landing opens an English
+    // demo. It is persisted so the choice survives in-app navigation.
+    try {
+        const requested = new URLSearchParams(window.location.search).get(
+            'lang'
+        );
+        if (isLang(requested)) {
+            storeLang(requested);
+            return requested;
+        }
+    } catch {
+        /* no window/location — fall through */
+    }
     try {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (isLang(stored)) return stored;
