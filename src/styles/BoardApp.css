@@ -4534,6 +4534,29 @@
     pointer-events: auto;
 }
 
+/* Phones: the contextual bar and the minimap no longer fit side by side (at
+   390px the minimap spilled over the "Search" button). Stack them instead, the
+   minimap above the bar, and drop the empty symmetry flank. */
+@media (max-width: 620px) {
+    .board-bottom-dock {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .board-bottom-dock-side {
+        flex: 0 0 auto;
+    }
+
+    .board-bottom-dock-side:first-child:empty {
+        display: none;
+    }
+
+    .board-bottom-dock-side:last-child {
+        order: -1;
+    }
+}
+
 /* Action bar for the current multi-selection (mouse-friendly counterpart to
    the Suppr / Ctrl+D / Échap shortcuts). */
 .board-selection-bar {
