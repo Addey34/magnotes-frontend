@@ -989,6 +989,14 @@ export const DICTIONARY = {
         fr: 'L’action n’a pas pu aboutir. Veuillez réessayer.',
         en: 'The action could not be completed. Please try again.',
     },
+    'notification.importTooLarge': {
+        fr: 'Fichier trop volumineux (1 Mo maximum).',
+        en: 'File too large (1 MB maximum).',
+    },
+    'notification.importTooManyCards': {
+        fr: 'Import refusé : 100 cartes maximum par fichier. Découpez-le en plusieurs fichiers.',
+        en: 'Import refused: 100 cards maximum per file. Split it into several files.',
+    },
     'notification.searchFailed': {
         fr: 'La recherche globale est momentanément indisponible.',
         en: 'Global search is temporarily unavailable.',

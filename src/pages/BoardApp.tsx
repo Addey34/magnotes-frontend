@@ -53,6 +53,10 @@ import {
     getBoardTemplates,
     WELCOME_TEMPLATE_ID,
 } from '../constants/boardTemplates';
+import {
+    isImportCardCountTooHigh,
+    isImportFileTooLarge,
+} from '../utils/importLimits';
 import { buildTemplateCards } from '../utils/boardTemplate';
 import {
     buildImportedCards,
@@ -1077,6 +1081,13 @@ const BoardApp: React.FC<BoardAppProps> = ({
     // create + task-fields path as template insertion.
     const importBoardFile = async (file: File) => {
         if (!activeTabId) return;
+        if (isImportFileTooLarge(file.size)) {
+            notify(t('notification.importTooLarge'), {
+                key: 'board-import-limit',
+                kind: 'error',
+            });
+            return;
+        }
         const text = await file.text();
 
         const canvas = canvasRef.current;
@@ -1121,6 +1132,13 @@ const BoardApp: React.FC<BoardAppProps> = ({
             );
         }
         if (cards.length === 0) return;
+        if (isImportCardCountTooHigh(cards.length)) {
+            notify(t('notification.importTooManyCards'), {
+                key: 'board-import-limit',
+                kind: 'error',
+            });
+            return;
+        }
 
         setView('canvas');
         await addTemplateCards(cards);
