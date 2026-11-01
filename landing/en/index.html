@@ -345,6 +345,21 @@
                 margin-bottom: 28px;
             }
 
+            .import-band {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 12px 24px;
+                margin: 32px 0 0;
+                padding: 20px 24px;
+                border: 1px dashed rgba(255, 255, 255, 0.18);
+                border-radius: 14px;
+                color: var(--muted);
+            }
+            .import-band strong {
+                color: #fff;
+            }
+
             .views {
                 display: grid;
                 grid-template-columns: repeat(2, 1fr);
@@ -602,12 +617,12 @@
                 </div>
                 <div class="grid">
                     <div class="feature">
-                        <div class="icon">🗺️</div>
-                        <h3>Infinite canvas</h3>
+                        <div class="icon">🗂️</div>
+                        <h3>Piles that fan out</h3>
                         <p>
-                            Free panning, cursor-centered zoom, minimap. Stack
-                            cards, dock them edge to edge — you never run out of
-                            room.
+                            Drop a card on another and they form a pile. Click
+                            it to fan it out and pick a card from its side tab.
+                            The canvas stays readable, even with 200 notes.
                         </p>
                     </div>
                     <div class="feature">
@@ -619,12 +634,12 @@
                         </p>
                     </div>
                     <div class="feature">
-                        <div class="icon">✅</div>
-                        <h3>Work-ready cards</h3>
+                        <div class="icon">✋</div>
+                        <h3>Move first, edit second</h3>
                         <p>
-                            Status, priority, due date, tags, checklists with
-                            progress, images — every sticky note is a real work
-                            object.
+                            Grab a card anywhere. An Edit button opens text,
+                            status, due date and checklist. No more accidental
+                            edits.
                         </p>
                     </div>
                     <div class="feature">
@@ -646,13 +661,21 @@
                     </div>
                     <div class="feature">
                         <div class="icon">📝</div>
-                        <h3>Markdown &amp; export</h3>
+                        <h3>Your notes stay yours</h3>
                         <p>
-                            Write in Markdown, paste images, export any board as
-                            a Markdown file. Your notes stay portable.
+                            Import Markdown or a Notion CSV, export to Markdown
+                            or full JSON. The demo works without an account,
+                            even offline.
                         </p>
                     </div>
                 </div>
+                <p class="import-band">
+                    <span
+                        ><strong>Coming from somewhere else?</strong> Import a
+                        Markdown file or a Notion CSV export: your notes arrive
+                        as cards, ready to sort.</span
+                    >
+                </p>
             </section>
 
             <section>
