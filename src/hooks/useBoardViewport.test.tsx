@@ -162,6 +162,48 @@ describe('useBoardViewport touch gestures', () => {
 });
 
 describe('useBoardViewport controls', () => {
+    it('uses the latest viewport when controls run in the same update', () => {
+        const { hookRef } = renderViewport();
+
+        act(() => {
+            hookRef.current!.setViewport({
+                zoom: 1.5,
+                offset: { x: 40, y: 20 },
+            });
+            hookRef.current!.zoomIn();
+        });
+
+        expect(hookRef.current!.zoom).toBeCloseTo(1.6);
+        act(() => {
+            hookRef.current!.resetViewport();
+            hookRef.current!.zoomIn();
+        });
+        expect(hookRef.current!.zoom).toBeCloseTo(1.1);
+    });
+
+    it('keeps the center of the visible board fixed when zooming', () => {
+        const { canvas, hookRef } = renderViewport();
+        jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+            left: 100,
+            top: 50,
+            width: 800,
+            height: 600,
+        } as DOMRect);
+        act(() =>
+            hookRef.current!.setViewport({ zoom: 1, offset: { x: 40, y: 20 } })
+        );
+        const before = hookRef.current!.screenToBoardPoint(500, 350);
+
+        act(() => hookRef.current!.zoomIn());
+
+        expect(hookRef.current!.screenToBoardPoint(500, 350)?.x).toBeCloseTo(
+            before!.x
+        );
+        expect(hookRef.current!.screenToBoardPoint(500, 350)?.y).toBeCloseTo(
+            before!.y
+        );
+    });
+
     it('steps zoom in and out and resets the viewport', () => {
         const { hookRef } = renderViewport();
 

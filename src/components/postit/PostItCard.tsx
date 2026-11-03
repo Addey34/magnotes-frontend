@@ -296,6 +296,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
     const isLinkTargetCandidate = Boolean(linkingSourceId) && !isLinkSource;
 
     const handlePointerDown = (event: React.PointerEvent<HTMLElement>) => {
+        if (event.button !== 0) return;
         // While linking, a pointer-down on any other card picks it as the target
         // instead of starting a drag/edit.
         if (isLinkTargetCandidate) {
@@ -318,7 +319,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
         const target = event.target as HTMLElement;
         if (
             target.closest(
-                'input, textarea, select, button, .post-it-style-popover, .resize-handle'
+                'a, input, textarea, select, button, .post-it-style-popover, .resize-handle'
             )
         ) {
             return;

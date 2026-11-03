@@ -2099,12 +2099,21 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                     role="tooltip"
                                 >
                                     <strong>{t('app.help.title')}</strong>
-                                    <span>
-                                        {linkingSourceId
-                                            ? t('app.help.linking')
-                                            : t('app.help.canvas')}
+                                    {linkingSourceId ? (
+                                        <span>{t('app.help.linking')}</span>
+                                    ) : (
+                                        <>
+                                            <span className="pointer-help">
+                                                {t('app.help.canvas')}
+                                            </span>
+                                            <span className="touch-help">
+                                                {t('app.help.touch')}
+                                            </span>
+                                        </>
+                                    )}
+                                    <span className="pointer-help">
+                                        {t('app.help.shortcuts')}
                                     </span>
-                                    <span>{t('app.help.shortcuts')}</span>
                                     <span className="board-shortcuts-tooltip-meta">
                                         {Math.round(zoom * 100)}% ·{' '}
                                         {hasActiveFilters
@@ -2209,8 +2218,15 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                     className="empty-board-tips"
                                     aria-label={t('app.empty.tipsAria')}
                                 >
-                                    <span>{t('app.empty.tip.create')}</span>
-                                    <span>{t('app.empty.tip.palette')}</span>
+                                    <span className="pointer-help">
+                                        {t('app.empty.tip.create')}
+                                    </span>
+                                    <span className="pointer-help">
+                                        {t('app.empty.tip.palette')}
+                                    </span>
+                                    <span className="touch-help">
+                                        {t('app.empty.tip.touch')}
+                                    </span>
                                 </div>
                             </div>
                         )}

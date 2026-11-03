@@ -71,6 +71,7 @@ test.describe('guest demo surface', () => {
         await page.goto('/app/?demo=1');
         await expect(page.locator('.board-app')).toBeVisible();
         await expect(page.locator('.demo-banner')).toBeVisible();
+        await expect(page.locator('.post-it-card').first()).toBeVisible();
 
         if ((page.viewportSize()?.width ?? 0) <= 620) {
             await expect(page.locator('.mobile-board-actions')).toBeVisible();
@@ -83,6 +84,57 @@ test.describe('guest demo surface', () => {
             () => document.documentElement.scrollWidth > window.innerWidth + 1
         );
         expect(hasHorizontalOverflow).toBe(false);
+    });
+
+    test('touch gestures navigate the loaded board and reveal contextual help', async ({
+        page,
+        isMobile,
+    }, testInfo) => {
+        test.skip(!isMobile, 'Touch interaction is checked on mobile profiles');
+        await page.addInitScript(() =>
+            localStorage.setItem('magnotes-lang', 'en')
+        );
+        await page.goto('/app/?demo=1');
+        const canvas = page.locator('.board-canvas');
+        const content = page.locator('.board-content');
+        await expect(page.locator('.post-it-card').first()).toBeVisible();
+        await page.getByRole('button', { name: 'Help and shortcuts' }).tap();
+        await expect(page.getByText(/Pinch to zoom/)).toBeVisible();
+        await expect(page.locator('.board-shortcuts-tooltip')).toHaveCSS(
+            'opacity',
+            '1'
+        );
+        await page.screenshot({
+            path: testInfo.outputPath('loaded-board.png'),
+        });
+
+        const before = await content.evaluate((el) => el.style.transform);
+        await canvas.evaluate((element) => {
+            const rect = element.getBoundingClientRect();
+            const touch = (x: number, y: number) => ({
+                clientX: x,
+                clientY: y,
+            });
+            const x = rect.left + rect.width / 2;
+            const y = rect.top + 80;
+            const send = (
+                type: string,
+                touches: ReturnType<typeof touch>[]
+            ) => {
+                const event = new Event(type, {
+                    bubbles: true,
+                    cancelable: true,
+                });
+                Object.defineProperty(event, 'touches', { value: touches });
+                element.dispatchEvent(event);
+            };
+            send('touchstart', [touch(x - 30, y), touch(x + 30, y)]);
+            send('touchmove', [touch(x - 60, y), touch(x + 60, y)]);
+            send('touchend', []);
+        });
+        await expect
+            .poll(() => content.evaluate((el) => el.style.transform))
+            .not.toBe(before);
     });
 
     test('seeds a fully English welcome board for English users', async ({

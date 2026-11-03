@@ -39,5 +39,17 @@ export default defineConfig({
                 /sidebar expands on hover without covering the workspace/,
             use: { ...devices['iPhone 12'], browserName: 'chromium' },
         },
+        {
+            name: 'android-mobile',
+            testMatch: 'smoke.spec.ts',
+            use: { ...devices['Pixel 7'] },
+        },
+        {
+            name: 'webkit-iphone',
+            testMatch: 'smoke.spec.ts',
+            grepInvert:
+                /sidebar expands on hover without covering the workspace/,
+            use: { ...devices['iPhone 12'] },
+        },
     ],
 });

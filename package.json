@@ -24,7 +24,7 @@
         "e2e": "playwright test",
         "e2e:touch": "playwright test --config playwright.touch.config.ts",
         "e2e:real": "playwright test e2e/auth.real.spec.ts",
-        "e2e:install": "playwright install chromium",
+        "e2e:install": "playwright install chromium webkit",
         "monitor:production": "playwright test --config playwright.production.config.ts",
         "qa:production:authenticated": "playwright test --config playwright.production-authenticated.config.ts",
         "monitor:lighthouse": "lhci autorun",

@@ -559,8 +559,12 @@ export const DICTIONARY = {
         en: 'Click a target card to create the link · Esc to cancel',
     },
     'app.help.canvas': {
-        fr: 'Double-cliquez le fond pour créer · Cliquez une note pour éditer · Maintenez la poignée pour déplacer · Molette pour zoomer',
-        en: 'Double-click the background to create · Click a note to edit · Hold the handle to move · Scroll to zoom',
+        fr: 'Double-cliquez le fond pour créer · Double-cliquez une note ou choisissez Modifier · Glissez une note pour la déplacer · Molette pour zoomer',
+        en: 'Double-click the background to create · Double-click a note or choose Edit · Drag a note to move it · Scroll to zoom',
+    },
+    'app.help.touch': {
+        fr: 'Touchez une note puis Modifier · Glissez une note pour la déplacer · Glissez le fond pour naviguer · Pincez pour zoomer',
+        en: 'Tap a note then Edit · Drag a note to move it · Drag the background to navigate · Pinch to zoom',
     },
     'app.help.title': { fr: 'Aide et raccourcis', en: 'Help and shortcuts' },
     'app.help.shortcuts': {
@@ -610,8 +614,8 @@ export const DICTIONARY = {
         en: 'Your board is empty',
     },
     'app.empty.text': {
-        fr: 'Double-cliquez dans le canvas ou créez votre première note.',
-        en: 'Double-click the canvas or create your first note.',
+        fr: 'Créez votre première note pour commencer.',
+        en: 'Create your first note to get started.',
     },
     'app.empty.create': { fr: 'Créer un post-it', en: 'Create a sticky note' },
     'app.empty.template': {
@@ -634,6 +638,10 @@ export const DICTIONARY = {
     'app.empty.tip.palette': {
         fr: 'Ouvrez la palette avec Ctrl/Cmd+K',
         en: 'Open the palette with Ctrl/Cmd+K',
+    },
+    'app.empty.tip.touch': {
+        fr: 'Glissez le fond pour naviguer, pincez pour zoomer',
+        en: 'Drag the background to navigate, pinch to zoom',
     },
     'app.empty.resetFilters': {
         fr: 'Réinitialiser les filtres',

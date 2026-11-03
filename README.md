@@ -53,7 +53,7 @@ pnpm run deploy:pages  # rebuild ./firebase-dist, then deploy it to the Cloudfla
 | `pnpm run monitor:production`          | Production publique : santé, console, réseau et accessibilité    |
 | `pnpm run qa:production:authenticated` | QA métier avec compte de production jetable (variables requises) |
 | `pnpm run monitor:lighthouse`          | Budgets Lighthouse landing + authentification                    |
-| `pnpm run e2e:install`                 | Installe Chromium pour les tests E2E                             |
+| `pnpm run e2e:install`                 | Installe Chromium et WebKit pour les tests E2E                   |
 
 ## License
 

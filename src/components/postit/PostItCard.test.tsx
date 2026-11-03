@@ -317,6 +317,15 @@ describe('PostItCard rendering', () => {
 });
 
 describe('PostItCard drag', () => {
+    it('does not start a drag with the secondary mouse button', () => {
+        const { card, onLocalChange, onMove } = renderCard();
+        firePointer(card, 'pointerdown', { button: 2 });
+        firePointer(window, 'pointermove', { clientX: 50, clientY: 50 });
+        firePointer(window, 'pointerup', { clientX: 50, clientY: 50 });
+        expect(onLocalChange).not.toHaveBeenCalled();
+        expect(onMove).not.toHaveBeenCalled();
+    });
+
     it('ignores movement below the drag threshold', () => {
         const { card, onDragStateChange, onLocalChange, onMove } = renderCard();
 

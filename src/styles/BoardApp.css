@@ -3810,8 +3810,15 @@
 @media (hover: none) {
     /* No hover on touch: the toolbar belongs to the selected / edited card only
        (see .is-selected and .is-editing above), not to every card at once. */
-    .resize-handle {
+    .post-it-card .resize-handle {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .post-it-card.is-selected .resize-handle,
+    .post-it-card.is-editing .resize-handle {
         opacity: 1;
+        pointer-events: auto;
     }
 }
 
@@ -5112,6 +5119,20 @@
 .board-shortcuts-tooltip span {
     font-size: 10px;
     line-height: 1.45;
+}
+
+.touch-help {
+    display: none;
+}
+
+@media (hover: none) {
+    .pointer-help {
+        display: none;
+    }
+
+    .touch-help {
+        display: inline;
+    }
 }
 
 .board-shortcuts-tooltip-meta {

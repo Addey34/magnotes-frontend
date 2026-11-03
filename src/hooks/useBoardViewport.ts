@@ -80,10 +80,6 @@ export function useBoardViewport() {
         return () => observer.disconnect();
     }, []);
 
-    const clampZoom = useCallback((value: number): number => {
-        return clampZoomValue(value);
-    }, []);
-
     const screenToBoardPoint = useCallback(
         (clientX: number, clientY: number): BoardPoint | null => {
             const rect = canvasRef.current?.getBoundingClientRect();
@@ -97,9 +93,12 @@ export function useBoardViewport() {
     const setZoomAroundPoint = useCallback(
         (nextZoom: number, clientX?: number, clientY?: number) => {
             const rect = canvasRef.current?.getBoundingClientRect();
+            const current = viewportRef.current;
 
             if (!rect || clientX === undefined || clientY === undefined) {
-                setZoom(clampZoomValue(nextZoom));
+                const zoom = clampZoomValue(nextZoom);
+                viewportRef.current = { ...current, zoom };
+                setZoom(zoom);
                 return;
             }
 
@@ -108,31 +107,47 @@ export function useBoardViewport() {
                 clientX,
                 clientY,
                 rect,
-                offset,
-                zoom
+                current.offset,
+                current.zoom
             );
+            viewportRef.current = next;
             setOffset(next.offset);
             setZoom(next.zoom);
         },
-        [offset, zoom]
+        []
     );
 
-    const zoomIn = useCallback(() => {
-        setZoom((currentZoom) => clampZoom(currentZoom + ZOOM_STEP));
-    }, [clampZoom]);
+    const stepZoom = useCallback((step: number) => {
+        const current = viewportRef.current;
+        const rect = canvasRef.current?.getBoundingClientRect();
+        const next = rect
+            ? zoomAroundPoint(
+                  current.zoom + step,
+                  rect.left + rect.width / 2,
+                  rect.top + rect.height / 2,
+                  rect,
+                  current.offset,
+                  current.zoom
+              )
+            : { ...current, zoom: clampZoomValue(current.zoom + step) };
+        viewportRef.current = next;
+        setZoom(next.zoom);
+        setOffset(next.offset);
+    }, []);
 
-    const zoomOut = useCallback(() => {
-        setZoom((currentZoom) => clampZoom(currentZoom - ZOOM_STEP));
-    }, [clampZoom]);
+    const zoomIn = useCallback(() => stepZoom(ZOOM_STEP), [stepZoom]);
+    const zoomOut = useCallback(() => stepZoom(-ZOOM_STEP), [stepZoom]);
 
     const resetViewport = useCallback(() => {
+        viewportRef.current = { zoom: 1, offset: { x: 0, y: 0 } };
         setZoom(1);
         setOffset({ x: 0, y: 0 });
     }, []);
 
     const setViewport = useCallback(
         (next: { zoom: number; offset: BoardPoint }) => {
-            setZoom(clampZoomValue(next.zoom));
+            viewportRef.current = { ...next, zoom: clampZoomValue(next.zoom) };
+            setZoom(viewportRef.current.zoom);
             setOffset(next.offset);
         },
         []
@@ -147,6 +162,7 @@ export function useBoardViewport() {
             }
 
             const next = computeFocusView(bounds, rect);
+            viewportRef.current = next;
             setZoom(next.zoom);
             setOffset(next.offset);
         },
@@ -305,10 +321,15 @@ export function useBoardViewport() {
             event.currentTarget.setPointerCapture(event.pointerId);
 
             const handlePointerMove = (moveEvent: PointerEvent) => {
-                setOffset({
+                const nextOffset = {
                     x: initialOffset.x + moveEvent.clientX - startX,
                     y: initialOffset.y + moveEvent.clientY - startY,
-                });
+                };
+                viewportRef.current = {
+                    ...viewportRef.current,
+                    offset: nextOffset,
+                };
+                setOffset(nextOffset);
             };
 
             const handlePointerUp = () => {
@@ -329,12 +350,12 @@ export function useBoardViewport() {
         (event: React.WheelEvent<HTMLElement>): void => {
             event.preventDefault();
             setZoomAroundPoint(
-                zoom - event.deltaY * 0.001,
+                viewportRef.current.zoom - event.deltaY * 0.001,
                 event.clientX,
                 event.clientY
             );
         },
-        [setZoomAroundPoint, zoom]
+        [setZoomAroundPoint]
     );
 
     return {
