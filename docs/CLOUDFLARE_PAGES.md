@@ -11,6 +11,20 @@ Merging this workflow does **not** enable publication. PRs only build and valida
 the static payload, without Cloudflare secrets. No `pull_request_target` is used.
 The existing Frontend CI remains the quality gate.
 
+On every PR, `deployment-tools` separately reproduces the deploy job's setup in
+an empty workspace: explicit pnpm **10.33.2**, `standalone: true`, Node **22**, no
+checkout, no environment and no token permissions. It actually starts Wrangler
+**4.45.0** using `pnpm --package=wrangler@4.45.0 dlx wrangler --version`, then
+checks `pages deploy --help` for the flags used by publication. Help does not
+authenticate or publish. The same job tests the Cloudflare preflight predicate
+against positive/negative JSON fixtures, without calling Cloudflare.
+
+The preflight's GET endpoint and `production_branch`/`source` fields are defined
+by the [Cloudflare project API](https://developers.cloudflare.com/api/resources/pages/subresources/projects/methods/get/).
+Actual account permission, project state and post-publication HTTP responses can
+only be verified during a separately authorized publication. Offline fixtures
+and CLI help do not validate credentials, propagation or production headers.
+
 After supervisor approval:
 
 1. Merge the dedicated PR and wait for **Frontend CI on a push of main** to pass.
