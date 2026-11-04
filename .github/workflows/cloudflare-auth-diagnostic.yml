@@ -79,11 +79,11 @@ jobs:
 
                   {
                     echo '### MagNotes — Cloudflare API authentication (read-only)'
-                    echo "- Token verification: HTTP `$verify_http`; active: **$token_active**"
-                    echo "- Pages project magnotes: HTTP `$pages_http`; accessible: **$pages_accessible**"
+                    printf "%s\n" "- Token verification: HTTP $verify_http; active: **$token_active**"
+                    printf "%s\n" "- Pages project magnotes: HTTP $pages_http; accessible: **$pages_accessible**"
                     echo "- Direct Upload on main, matching deploy preflight: **$pages_preflight_ok**"
-                    if [[ -n "$token_codes" ]]; then echo "- Token API error codes: `$token_codes`"; fi
-                    if [[ -n "$pages_codes" ]]; then echo "- Pages API error codes: `$pages_codes`"; fi
+                    if [[ -n "$token_codes" ]]; then printf "%s\n" "- Token API error codes: $token_codes"; fi
+                    if [[ -n "$pages_codes" ]]; then printf "%s\n" "- Pages API error codes: $pages_codes"; fi
 
                     if [[ "$verify_http" == 401 || "$token_active" != true ]]; then
                       echo '- Interpretation: check the API token value, status, and GitHub environment secret first.'
