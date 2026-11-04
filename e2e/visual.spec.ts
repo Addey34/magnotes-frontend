@@ -77,6 +77,51 @@ test.describe('visual layout contracts', () => {
         }
     });
 
+    test('touch tools follow selection and remain usable while editing', async ({
+        page,
+        hasTouch,
+    }, testInfo) => {
+        test.skip(
+            testInfo.project.name !== 'chromium-mobile',
+            'This interaction contract targets the Chromium mobile touch profile'
+        );
+        expect(hasTouch).toBe(true);
+        expect(page.viewportSize()?.width).toBeLessThanOrEqual(620);
+        await page.goto('/app/?demo=1');
+        const cards = page.locator('.post-it-card');
+        await expect(cards).toHaveCount(6);
+        await expect(page.locator('.board-loading')).toBeHidden();
+        await page.locator('.mobile-board-actions button').last().tap();
+        const card = cards.first();
+        const tools = card.locator('.post-it-hover-tools');
+        // Opacity-zero controls are still "visible" to Playwright. Check
+        // the computed styles and exercise real touch hit testing instead.
+        await expect(tools).toHaveCSS('opacity', '0');
+        await expect(tools).toHaveCSS('pointer-events', 'none');
+        await card.locator('.post-it-date').tap();
+        await expect(card).toHaveClass(/is-selected/);
+        await expect(tools).toHaveCSS('opacity', '1');
+        await expect(tools).toHaveCSS('pointer-events', 'auto');
+        const otherTools = cards.nth(1).locator('.post-it-hover-tools');
+        await expect(otherTools).toHaveCSS('opacity', '0');
+        await expect(otherTools).toHaveCSS('pointer-events', 'none');
+
+        await card.locator('.card-edit-trigger').tap();
+        await expect(card).toHaveClass(/is-editing/);
+        await expect(tools).toHaveCSS('opacity', '1');
+        await expect(tools).toHaveCSS('pointer-events', 'auto');
+        const title = card.locator('.post-it-title');
+        await title.fill('Mobile editing contract');
+        await expect(title).toHaveValue('Mobile editing contract');
+        const colorTool = card.locator('.card-color-trigger');
+        await colorTool.tap();
+        await expect(colorTool).toHaveAttribute('aria-expanded', 'true');
+        await colorTool.tap();
+        await expect(colorTool).toHaveAttribute('aria-expanded', 'false');
+        await card.locator('.card-edit-done').tap();
+        await expect(card).not.toHaveClass(/is-editing/);
+    });
+
     test('renders every board view inside the workspace', async ({ page }) => {
         await page.goto('/app/?demo=1');
 
