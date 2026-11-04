@@ -3849,6 +3849,12 @@
         display: none;
     }
 
+    /* Keep every editing panel below the 36px controls at top: 7px, with
+       an 8px gap so the trigger remains available to close its panel. */
+    .post-it-style-popover {
+        top: 51px;
+    }
+
     .post-it-hover-tools > button {
         flex: 0 0 25px;
     }

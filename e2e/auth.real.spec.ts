@@ -370,10 +370,9 @@ test.describe('real local authentication', () => {
         );
 
         await page.getByRole('button', { name: /MagNotes/ }).click();
-        const deleteMenuItems = page.locator(
-            '.board-brand-menu > button[role="menuitem"]'
-        );
-        await deleteMenuItems.nth(5).click();
+        await page
+            .locator('.board-brand-menu > button[role="menuitem"].is-danger')
+            .click();
         const deleteDialog = page.locator('.account-dialog');
         await expect(deleteDialog).toBeVisible();
         await deleteDialog
