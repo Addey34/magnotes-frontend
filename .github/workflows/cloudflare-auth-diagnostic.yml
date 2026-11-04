@@ -1,0 +1,102 @@
+name: Cloudflare Auth Diagnostic (read-only)
+
+# Explicit operator action only. Never runs on PRs, pushes, or CI completions.
+on:
+    workflow_dispatch:
+
+# This workflow neither checks out code nor writes to GitHub or Cloudflare.
+permissions: {}
+
+jobs:
+    diagnose:
+        if: github.repository == 'Addey34/magnotes-frontend' && github.ref == 'refs/heads/main'
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        environment: cloudflare-production
+        env:
+            CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+            CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        steps:
+            - name: Verify the token and access to magnotes (GET only)
+              shell: bash
+              run: |
+                  set -euo pipefail
+
+                  # Never print secret values, request headers, raw API responses, or account IDs.
+                  if [[ -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_ACCOUNT_ID" ]]; then
+                    echo "::error::Missing CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID in the cloudflare-production environment."
+                    exit 1
+                  fi
+                  if [[ ! "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-fA-F]{32}$ ]]; then
+                    echo "::error::CLOUDFLARE_ACCOUNT_ID is not a 32-character hexadecimal account identifier."
+                    exit 1
+                  fi
+                  if [[ "$CLOUDFLARE_API_TOKEN" =~ [[:space:]] ]]; then
+                    echo "::error::CLOUDFLARE_API_TOKEN contains whitespace; check the GitHub environment secret."
+                    exit 1
+                  fi
+
+                  tmp="$(mktemp -d)"
+                  trap 'rm -rf "$tmp"' EXIT
+
+                  request_get() {
+                    local url="$1" output="$2" status
+                    # Do not use --fail: HTTP 401/403/404 responses are expected diagnostic data.
+                    if ! status="$(curl --silent --request GET --connect-timeout 10 --max-time 30 --retry 0 \
+                      --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+                      --header "Accept: application/json" \
+                      --output "$output" --write-out '%{http_code}' "$url")"; then
+                      status=000
+                    fi
+                    printf '%s' "$status"
+                  }
+
+                  safe_error_codes() {
+                    # Only numeric Cloudflare error codes are exposed, never API messages.
+                    jq -r '[.errors[]?.code | select(type == "number")] | join(", ")' "$1" 2>/dev/null || true
+                  }
+
+                  verify_http="$(request_get 'https://api.cloudflare.com/client/v4/user/tokens/verify' "$tmp/token.json")"
+                  pages_http="$(request_get "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/magnotes" "$tmp/pages.json")"
+
+                  token_active=false
+                  if [[ "$verify_http" == 200 ]] && jq -e '.success == true and .result.status == "active"' "$tmp/token.json" >/dev/null 2>&1; then
+                    token_active=true
+                  fi
+
+                  pages_accessible=false
+                  if [[ "$pages_http" == 200 ]] && jq -e '.success == true and .result.name == "magnotes"' "$tmp/pages.json" >/dev/null 2>&1; then
+                    pages_accessible=true
+                  fi
+
+                  pages_preflight_ok=false
+                  if [[ "$pages_accessible" == true ]] && jq -e '.result.production_branch == "main" and .result.source == null' "$tmp/pages.json" >/dev/null 2>&1; then
+                    pages_preflight_ok=true
+                  fi
+
+                  token_codes="$(safe_error_codes "$tmp/token.json")"
+                  pages_codes="$(safe_error_codes "$tmp/pages.json")"
+
+                  {
+                    echo '### MagNotes — Cloudflare API authentication (read-only)'
+                    echo "- Token verification: HTTP `$verify_http`; active: **$token_active**"
+                    echo "- Pages project magnotes: HTTP `$pages_http`; accessible: **$pages_accessible**"
+                    echo "- Direct Upload on main, matching deploy preflight: **$pages_preflight_ok**"
+                    if [[ -n "$token_codes" ]]; then echo "- Token API error codes: `$token_codes`"; fi
+                    if [[ -n "$pages_codes" ]]; then echo "- Pages API error codes: `$pages_codes`"; fi
+
+                    if [[ "$verify_http" == 401 || "$token_active" != true ]]; then
+                      echo '- Interpretation: check the API token value, status, and GitHub environment secret first.'
+                    elif [[ "$pages_http" == 401 || "$pages_http" == 403 ]]; then
+                      echo '- Interpretation: token is active but Pages request was rejected; verify Pages Read/Edit permission and token account scope.'
+                    elif [[ "$pages_http" == 404 ]]; then
+                      echo '- Interpretation: check the account ID, the token account scope, and that magnotes exists in that account.'
+                    elif [[ "$pages_accessible" == true && "$pages_preflight_ok" != true ]]; then
+                      echo '- Interpretation: API authentication works, but the project branch or Direct Upload configuration differs from the deployment workflow.'
+                    elif [[ "$verify_http" == 000 || "$pages_http" == 000 ]]; then
+                      echo '- Interpretation: network or TLS failure. No HTTP response was received.'
+                    fi
+                    echo '- No deployment and no Cloudflare write operations were performed.'
+                  } | tee "$GITHUB_STEP_SUMMARY"
+
+                  [[ "$token_active" == true && "$pages_preflight_ok" == true ]]
