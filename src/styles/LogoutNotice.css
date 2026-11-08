@@ -1,0 +1,7 @@
+/* Sign-in screen: the notice sits in the normal flow above the form so it can
+   never cover the inputs or the submit button, whatever the viewport. */
+.demo-import-banner.logout-notice {
+    position: static;
+    transform: none;
+    margin: 12px auto 0;
+}

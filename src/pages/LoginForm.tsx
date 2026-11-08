@@ -17,7 +17,7 @@ import {
     resetPassword,
     verifyEmail,
 } from '../services/authApi';
-import { setTokens } from '../utils/tokenUtils';
+import { SessionLockTimeoutError } from '../services/sessionCoordinator';
 import { TranslationKey } from '../i18n/dictionary';
 import { useT } from '../i18n/LangContext';
 import { trackProductEvent } from '../services/analytics';
@@ -125,10 +125,9 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
         if (next === 'login' || next === 'register') setNotice('');
     };
 
-    const finishSession = (token: string) => {
-        setTokens(token);
-        onLogin();
-    };
+    // The session (token + supersession of a pending logout) is established
+    // by authApi while it still holds the cross-tab lock.
+    const finishSession = () => onLogin();
 
     const requireMatchingPasswords = () => {
         if (password !== passwordConfirmation) {
@@ -183,7 +182,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
                 requireValidEmail();
                 requireLoginPassword();
                 const session = await loginRequest(email.trim(), password);
-                finishSession(session.token);
+                finishSession();
                 trackProductEvent('login_completed');
             } else if (mode === 'register') {
                 requireValidEmail();
@@ -195,7 +194,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
             } else if (mode === 'verify') {
                 requireValidCode();
                 const session = await verifyEmail(email.trim(), code.trim());
-                finishSession(session.token);
+                finishSession();
                 trackProductEvent('email_verified');
             } else if (mode === 'forgot') {
                 requireValidEmail();
@@ -210,6 +209,11 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
                 setNotice(t('auth.notice.passwordReset'));
             }
         } catch (caughtError) {
+            if (caughtError instanceof SessionLockTimeoutError) {
+                // Another tab is still finishing a session operation.
+                setError(t('auth.error.busy'));
+                return;
+            }
             const axiosError = caughtError as AxiosError<ErrorResponse>;
             const data = axiosError.response?.data;
             // Login before verifying → route the user to the code step.

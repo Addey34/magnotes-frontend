@@ -1,13 +1,21 @@
 import * as React from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import BoardApp from './pages/BoardApp';
 import LoginForm from './pages/LoginForm';
 import PublicBoardView from './pages/PublicBoardView';
 import {
     bootstrapSession,
     logout as logoutRequest,
+    LogoutResult,
+    retryLogout,
     setupAuthInterceptor,
 } from './services/authApi';
+import {
+    currentGeneration,
+    hasPendingLogout,
+    startSessionCoordination,
+} from './services/sessionCoordinator';
+import LogoutNotice, { LogoutNoticeState } from './components/ui/LogoutNotice';
 import DemoImportBanner from './components/ui/DemoImportBanner';
 import { importDemoBoardToAccount } from './services/demoImportRuntime';
 import {
@@ -55,6 +63,12 @@ const IMPORT_GATE_MS = 3000;
 const App: React.FC = () => {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [isBooting, setIsBooting] = useState(true);
+    // Sign-in screen notice about server-side revocation. A logout left
+    // unconfirmed (failure, closed tab) survives a reload and blocks silent
+    // re-authentication until it is retried or the user signs in again.
+    const [logoutNotice, setLogoutNotice] = useState<LogoutNoticeState | null>(
+        () => (hasPendingLogout() ? 'unconfirmed' : null)
+    );
     const [demoActive, setDemoActive] = useState(false);
     // Demo → account import progress. `null` = nothing to show.
     const [importUi, setImportUi] = useState<
@@ -108,9 +122,30 @@ const App: React.FC = () => {
             if (active) setIsLoggedIn(false);
         });
 
+        const disposeCoordination = startSessionCoordination({
+            onRemoteLogout: () => {
+                if (!active) return;
+                setIsLoggedIn(false);
+                setLogoutNotice('pending');
+            },
+            onLogoutConfirmed: () => {
+                if (active) setLogoutNotice('confirmed');
+            },
+            onLogoutFailed: () => {
+                if (active) setLogoutNotice('unconfirmed');
+            },
+        });
+
+        // A logout interrupted by a reload or a closed tab is retried once,
+        // automatically; the notice shows the outcome (retry stays manual).
+        if (hasPendingLogout()) runRevocation(retryLogout);
+
+        const bootGeneration = currentGeneration();
         bootstrapSession()
             .then((valid) => {
-                if (!active) return;
+                // A login/logout happened while the bootstrap was in flight:
+                // its (late) answer describes an older session. Ignore it.
+                if (!active || bootGeneration !== currentGeneration()) return;
                 if (valid) {
                     deactivateDemo();
                     setIsLoggedIn(true);
@@ -129,6 +164,7 @@ const App: React.FC = () => {
         return () => {
             active = false;
             disposeAuthInterceptor();
+            disposeCoordination();
         };
     }, []);
 
@@ -144,12 +180,27 @@ const App: React.FC = () => {
             runImportAtEntry();
         }
         setDemoActive(false);
+        revocationSeq.current += 1;
+        setLogoutNotice(null);
         setIsLoggedIn(true);
     };
 
+    // Only the most recent revocation may update the notice; a stale result
+    // ('superseded' or an older logout) never overwrites a newer state.
+    const revocationSeq = useRef(0);
+    const runRevocation = (request: () => Promise<LogoutResult>) => {
+        const seq = ++revocationSeq.current;
+        setLogoutNotice('pending');
+        void request().then((result) => {
+            if (seq !== revocationSeq.current) return;
+            // 'superseded': a newer session replaced this logout; claim nothing.
+            setLogoutNotice(result === 'superseded' ? null : result);
+        });
+    };
+
     const handleLogout = () => {
-        logoutRequest();
         setIsLoggedIn(false);
+        runRevocation(logoutRequest);
     };
 
     // From the demo banner: keep the sandbox for import, leave demo mode, and
@@ -218,6 +269,12 @@ const App: React.FC = () => {
 
     return (
         <div>
+            {logoutNotice && (
+                <LogoutNotice
+                    state={logoutNotice}
+                    onRetry={() => runRevocation(retryLogout)}
+                />
+            )}
             <LoginForm onLogin={handleLogin} />
         </div>
     );

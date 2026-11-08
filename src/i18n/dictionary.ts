@@ -208,6 +208,10 @@ export const DICTIONARY = {
         fr: 'Une erreur est survenue. Réessayez.',
         en: 'Something went wrong. Please try again.',
     },
+    'auth.error.busy': {
+        fr: 'Une autre fenêtre termine une opération de session. Réessayez dans un instant.',
+        en: 'Another window is still finishing a session operation. Try again in a moment.',
+    },
     'auth.error.server': {
         fr: 'Impossible de contacter le serveur.',
         en: 'Could not reach the server.',
@@ -403,6 +407,21 @@ export const DICTIONARY = {
     },
     'import.retry': { fr: 'Reprendre l’import', en: 'Resume import' },
     'import.dismiss': { fr: 'Ignorer', en: 'Dismiss' },
+
+    // --- logout confirmation -------------------------------------------------
+    'logout.pending': {
+        fr: 'Déconnexion en cours…',
+        en: 'Signing out…',
+    },
+    'logout.unconfirmed': {
+        fr: 'Vous êtes déconnecté de cet appareil, mais le serveur n’a pas confirmé la révocation de la session. Réessayez.',
+        en: 'You are signed out on this device, but the server did not confirm the session was revoked. Try again.',
+    },
+    'logout.confirmed': {
+        fr: 'Session révoquée.',
+        en: 'Session revoked.',
+    },
+    'logout.retry': { fr: 'Réessayer', en: 'Retry' },
 
     // --- share dialog --------------------------------------------------------
     'share.title': { fr: 'Partager « {name} »', en: 'Share “{name}”' },
