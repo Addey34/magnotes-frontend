@@ -17,6 +17,7 @@ import {
     resetPassword,
     verifyEmail,
 } from '../services/authApi';
+import { SessionLockTimeoutError } from '../services/sessionCoordinator';
 import { TranslationKey } from '../i18n/dictionary';
 import { useT } from '../i18n/LangContext';
 import { trackProductEvent } from '../services/analytics';
@@ -208,6 +209,11 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
                 setNotice(t('auth.notice.passwordReset'));
             }
         } catch (caughtError) {
+            if (caughtError instanceof SessionLockTimeoutError) {
+                // Another tab is still finishing a session operation.
+                setError(t('auth.error.busy'));
+                return;
+            }
             const axiosError = caughtError as AxiosError<ErrorResponse>;
             const data = axiosError.response?.data;
             // Login before verifying → route the user to the code step.

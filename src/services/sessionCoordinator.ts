@@ -17,8 +17,6 @@ import { removeToken, setTokens } from '../utils/tokenUtils';
 const CHANNEL_NAME = 'magnotes-session';
 const LOCK_NAME = 'magnotes-session-lock';
 const PENDING_KEY = 'magnotes:logout-pending';
-/** Longer than the HTTP timeout of the operation holding the lock. */
-export const LOCK_WAIT_MS = 20_000;
 const PEER_REFRESH_WAIT_MS = 250;
 const PEER_REFRESH_JITTER_MS = 250;
 
@@ -250,20 +248,123 @@ export function waitForPeerRefresh(): Promise<void> {
     });
 }
 
-// --- Web Locks ---------------------------------------------------------------
+// --- Cross-tab lock ----------------------------------------------------------
+
+export class SessionLockTimeoutError extends Error {
+    constructor() {
+        super('Session lock unavailable');
+        this.name = 'SessionLockTimeoutError';
+    }
+}
 
 /**
- * Run `task` while holding the cross-tab lock. Without Web Locks, or if the
- * lock cannot be obtained in time (stuck holder), the task runs unlocked: the
- * caller's single controlled retry then absorbs the race.
+ * What to do when the lock cannot be obtained in time (a holder is stuck):
+ * - `recoverable`: the operation has its own recovery strategy (refresh keeps
+ *   a controlled retry), so it may proceed unlocked.
+ * - `exclusive`: the operation replaces or clears the shared cookie (login,
+ *   verify, logout, reset-password). It is NEVER run unlocked: it fails with
+ *   `SessionLockTimeoutError` and the caller reports a controlled failure
+ *   (login form error / logout stays unconfirmed with a retry).
  */
-export async function withSessionLock<T>(task: () => Promise<T>): Promise<T> {
+export type LockPolicy = 'recoverable' | 'exclusive';
+
+const LEASE_KEY = 'magnotes:session-lease';
+let lockTimings = {
+    /** Max wait for the lock before the policy applies. */
+    waitMs: 20_000,
+    /** Lease lifetime without Web Locks; auto-expires, never permanent. */
+    leaseMs: 30_000,
+    /** Pause between writing a lease claim and confirming ownership. */
+    settleMs: 25,
+};
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function readLease(): { owner: string; until: number } | null {
+    try {
+        const raw = localStorage.getItem(LEASE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw) as { owner?: unknown; until?: unknown };
+        return typeof parsed.owner === 'string' &&
+            typeof parsed.until === 'number'
+            ? { owner: parsed.owner, until: parsed.until }
+            : null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Fallback mutex for browsers without Web Locks: a time-limited lease in
+ * localStorage (claim, settle, confirm). It carries no secret. Without usable
+ * storage either, operations are only ordered by their own claims in this tab
+ * (cross-tab exclusion is then impossible; documented limitation).
+ * Returns a release function, or null if the wait expired.
+ */
+async function acquireLease(): Promise<(() => void) | null> {
+    const owner = newLogoutId();
+    const deadline = Date.now() + lockTimings.waitMs;
+    for (;;) {
+        const current = readLease();
+        if (!current || current.until <= Date.now()) {
+            try {
+                localStorage.setItem(
+                    LEASE_KEY,
+                    JSON.stringify({
+                        owner,
+                        until: Date.now() + lockTimings.leaseMs,
+                    })
+                );
+            } catch {
+                return () => undefined; // storage unusable: nothing to coordinate on
+            }
+            await sleep(lockTimings.settleMs);
+            if (readLease()?.owner === owner) {
+                return () => {
+                    if (readLease()?.owner === owner) {
+                        try {
+                            localStorage.removeItem(LEASE_KEY);
+                        } catch {
+                            // lease simply expires
+                        }
+                    }
+                };
+            }
+        }
+        if (Date.now() >= deadline) return null;
+        await sleep(
+            lockTimings.settleMs + Math.random() * lockTimings.settleMs
+        );
+    }
+}
+
+/**
+ * Run `task` while holding the cross-tab lock (Web Locks when available, else
+ * the localStorage lease). See `LockPolicy` for the timeout behaviour.
+ */
+export async function withSessionLock<T>(
+    task: () => Promise<T>,
+    policy: LockPolicy
+): Promise<T> {
+    const unavailable = (): Promise<T> =>
+        policy === 'recoverable'
+            ? task()
+            : Promise.reject(new SessionLockTimeoutError());
+
     const locks =
         typeof navigator === 'undefined' ? undefined : navigator.locks;
-    if (!locks?.request) return task();
+    if (!locks?.request) {
+        const release = await acquireLease();
+        if (!release) return unavailable();
+        try {
+            return await task();
+        } finally {
+            release();
+        }
+    }
 
     const abort = new AbortController();
-    const timer = setTimeout(() => abort.abort(), LOCK_WAIT_MS);
+    const timer = setTimeout(() => abort.abort(), lockTimings.waitMs);
     let acquired = false;
     try {
         return await locks.request(
@@ -277,12 +378,19 @@ export async function withSessionLock<T>(task: () => Promise<T>): Promise<T> {
         );
     } catch (error) {
         if (!acquired && (error as Error)?.name === 'AbortError') {
-            return task();
+            return unavailable();
         }
         throw error;
     } finally {
         clearTimeout(timer);
     }
+}
+
+/** Test hook: shorten the lock timings. */
+export function __setLockTimingsForTests(
+    timings: Partial<typeof lockTimings>
+): void {
+    lockTimings = { ...lockTimings, ...timings };
 }
 
 /** Test hook: reset module state between tests. */
@@ -296,4 +404,5 @@ export function __resetSessionCoordinatorForTests(): void {
     pendingFallbackId = null;
     storageBroken = false;
     currentLogoutId = null;
+    lockTimings = { waitMs: 20_000, leaseMs: 30_000, settleMs: 25 };
 }

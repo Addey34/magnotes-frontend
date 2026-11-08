@@ -47,7 +47,7 @@ const authenticate = (path: string, body: object): Promise<AuthSession> =>
         );
         startSession(data.token);
         return data;
-    });
+    }, 'exclusive');
 
 export const verifyEmail = (email: string, code: string) =>
     authenticate('/api/auth/verify', { email, code });
@@ -68,14 +68,19 @@ export const forgotPassword = (email: string) =>
         .then((r) => r.data);
 
 export const resetPassword = (email: string, code: string, password: string) =>
-    withSessionLock(() =>
-        axios
-            .post<{ message: string }>(`${baseUrl}/api/auth/reset-password`, {
-                email,
-                code,
-                password,
-            })
-            .then((r) => r.data)
+    withSessionLock(
+        () =>
+            axios
+                .post<{ message: string }>(
+                    `${baseUrl}/api/auth/reset-password`,
+                    {
+                        email,
+                        code,
+                        password,
+                    }
+                )
+                .then((r) => r.data),
+        'exclusive'
     );
 
 const REFRESH_TIMEOUT_MS = 15_000;
@@ -107,7 +112,7 @@ function revokeSession(id: string): Promise<LogoutResult> {
             timeout: LOGOUT_TIMEOUT_MS,
         });
         return true;
-    })
+    }, 'exclusive')
         .then((sent): LogoutResult => {
             if (!sent) return 'superseded';
             return confirmLogout(id) ? 'confirmed' : 'superseded';
@@ -198,7 +203,10 @@ function refreshSession(): Promise<string | null> {
     if (refresh?.gen === gen) return refresh.promise;
     const entry = {
         gen,
-        promise: withSessionLock(() => attemptRefresh(gen)).finally(() => {
+        promise: withSessionLock(
+            () => attemptRefresh(gen),
+            'recoverable'
+        ).finally(() => {
             if (refresh === entry) refresh = null;
         }),
     };

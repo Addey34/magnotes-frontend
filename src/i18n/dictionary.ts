@@ -208,6 +208,10 @@ export const DICTIONARY = {
         fr: 'Une erreur est survenue. Réessayez.',
         en: 'Something went wrong. Please try again.',
     },
+    'auth.error.busy': {
+        fr: 'Une autre fenêtre termine une opération de session. Réessayez dans un instant.',
+        en: 'Another window is still finishing a session operation. Try again in a moment.',
+    },
     'auth.error.server': {
         fr: 'Impossible de contacter le serveur.',
         en: 'Could not reach the server.',

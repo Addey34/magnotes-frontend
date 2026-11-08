@@ -18,6 +18,7 @@ interface FakeServer {
     logoutCalls: number;
     loginCalls: number;
     logoutGate: Promise<void> | null;
+    loginGate: Promise<void> | null;
     revokedCookies: string[];
     failLogout: boolean;
     counter: number;
@@ -33,10 +34,25 @@ function installLocks(enabled: boolean) {
     const locks = {
         request: async (
             _name: string,
-            _opts: unknown,
+            opts: { signal?: AbortSignal },
             cb: () => Promise<unknown>
         ) => {
-            if (held) await new Promise<void>((r) => queue.push(r));
+            if (held) {
+                // Queued requests honour the AbortSignal like real Web Locks.
+                await new Promise<void>((resolve, reject) => {
+                    const wake = () => resolve();
+                    queue.push(wake);
+                    opts.signal?.addEventListener('abort', () => {
+                        const i = queue.indexOf(wake);
+                        if (i >= 0) queue.splice(i, 1);
+                        reject(
+                            Object.assign(new Error('aborted'), {
+                                name: 'AbortError',
+                            })
+                        );
+                    });
+                });
+            }
             held = true;
             try {
                 return await cb();
@@ -77,6 +93,7 @@ async function fakePost(url: string) {
     }
     if (url.endsWith('/api/auth/login')) {
         server.loginCalls += 1;
+        if (server.loginGate) await server.loginGate; // delayed delivery
         await sleep(LATENCY_MS);
         const next = `refresh-${++server.counter}`;
         server.valid.add(next);
@@ -156,6 +173,7 @@ beforeEach(() => {
         logoutCalls: 0,
         loginCalls: 0,
         logoutGate: null,
+        loginGate: null,
         revokedCookies: [],
         failLogout: false,
         counter: 0,
@@ -195,21 +213,6 @@ describe('multi-tab session coordination', () => {
         expect(server.valid.size).toBe(1);
         expect(a.token()).not.toBeNull();
         expect(b.token()).not.toBeNull();
-    });
-
-    it('without Web Locks, a late 401 is absorbed by one controlled retry on the rotated cookie', async () => {
-        installLocks(false);
-        const a = open();
-        const b = open();
-        const [okA, okB] = await Promise.all([
-            a.api.bootstrapSession(),
-            b.api.bootstrapSession(),
-        ]);
-        expect([okA, okB]).toEqual([true, true]);
-        expect(server.rejected).toBe(1); // exactly the raced loser
-        expect(server.refreshCalls).toBe(3); // 2 + one retry, no loop
-        expect(server.jar.cookie).not.toBeNull(); // cookie never deleted
-        expect(server.valid.size).toBe(1);
     });
 
     it('never makes a consumed refresh token reusable (replay) and does not loop', async () => {
@@ -498,6 +501,192 @@ describe('multi-tab session coordination', () => {
             expect(await booting).toBe(false);
             expect(a.token()).toBeNull();
             await expect(loggingOut).resolves.toBe('confirmed');
+        });
+    });
+
+    describe('lock timeout policy and browsers without Web Locks', () => {
+        const tight = (waitMs: number, ...list: Tab[]) =>
+            list.forEach((t) =>
+                t.coord.__setLockTimingsForTests({
+                    waitMs,
+                    leaseMs: 400,
+                    settleMs: 5,
+                })
+            );
+        const holdLogin = () => {
+            let release!: () => void;
+            server.loginGate = new Promise<void>((r) => (release = r));
+            return () => {
+                server.loginGate = null;
+                release();
+            };
+        };
+        const holdLogout = () => {
+            let release!: () => void;
+            server.logoutGate = new Promise<void>((r) => (release = r));
+            return () => {
+                server.logoutGate = null;
+                release();
+            };
+        };
+
+        describe.each([
+            ['Web Locks', true],
+            ['localStorage lease (no Web Locks)', false],
+        ])('%s', (_label, withLocks) => {
+            beforeEach(() => installLocks(withLocks));
+
+            it('a logout whose wait expires is NOT sent unlocked and cannot clear the new cookie', async () => {
+                const a = open();
+                const b = open();
+                tight(120, a, b);
+                const release = holdLogin(); // login A holds the lock > wait
+
+                const loggingIn = a.api.login('qa@example.test', 'pw');
+                await sleep(30);
+                const result = await b.api.logout(); // waits, then expires
+
+                expect(result).toBe('unconfirmed');
+                expect(server.logoutCalls).toBe(0); // never sent
+                expect(b.coord.hasPendingLogout()).toBe(true); // honest state
+
+                release();
+                await loggingIn;
+                // The cookie installed by A is intact and still valid.
+                expect(server.revokedCookies).toEqual([]);
+                expect(server.valid.has(server.jar.cookie!)).toBe(true);
+                expect(a.token()).not.toBeNull();
+                // A's session superseded B's logout: a retry sends nothing.
+                await expect(b.api.retryLogout()).resolves.toBe('superseded');
+                expect(server.logoutCalls).toBe(0);
+            });
+
+            it('a login whose wait expires fails in a controlled way, without any request', async () => {
+                const a = open();
+                const b = open();
+                tight(120, a, b);
+                await a.api.bootstrapSession();
+                const release = holdLogout(); // a long logout holds the lock
+
+                const loggingOut = a.api.logout();
+                await sleep(30);
+                await expect(
+                    b.api.login('qa@example.test', 'pw')
+                ).rejects.toBeInstanceOf(b.coord.SessionLockTimeoutError);
+                expect(server.loginCalls).toBe(0);
+                expect(b.token()).toBeNull();
+
+                release();
+                await expect(loggingOut).resolves.toBe('confirmed');
+            });
+
+            it('a refresh (recoverable) may proceed unlocked after the wait, with its own retry', async () => {
+                const a = open();
+                const c = open();
+                tight(120, a, c);
+                const release = holdLogin();
+                const loggingIn = a.api.login('qa@example.test', 'pw');
+                await sleep(30);
+
+                // refresh uses the pre-existing valid cookie, unlocked.
+                expect(await c.api.bootstrapSession()).toBe(true);
+                expect(server.refreshCalls).toBeGreaterThanOrEqual(1);
+                release();
+                await loggingIn;
+            });
+
+            it('a late logout response then a login in the other tab stay ordered', async () => {
+                const a = open();
+                const b = open();
+                tight(2000, a, b);
+                await a.api.bootstrapSession();
+                const release = holdLogout();
+
+                const loggingOut = a.api.logout();
+                await sleep(40);
+                const loggingIn = b.api.login('qa@example.test', 'pw');
+                await sleep(80);
+                expect(server.loginCalls).toBe(0); // waits for the logout
+
+                release();
+                await expect(loggingOut).resolves.toBe('confirmed');
+                await loggingIn;
+                expect(server.revokedCookies).toEqual(['refresh-1']);
+                expect(server.valid.has(server.jar.cookie!)).toBe(true);
+                expect(b.token()).not.toBeNull();
+            });
+        });
+
+        describe('without Web Locks', () => {
+            beforeEach(() => installLocks(false));
+
+            it('serialises two simultaneous refreshes through the lease (no 401)', async () => {
+                const a = open();
+                const b = open();
+                tight(2000, a, b);
+                const [okA, okB] = await Promise.all([
+                    a.api.bootstrapSession(),
+                    b.api.bootstrapSession(),
+                ]);
+                expect([okA, okB]).toEqual([true, true]);
+                expect(server.rejected).toBe(0);
+                expect(server.valid.size).toBe(1);
+            });
+
+            it('a crashed holder cannot block forever: its lease expires', async () => {
+                const a = open();
+                tight(2000, a);
+                store.set(
+                    'magnotes:session-lease',
+                    JSON.stringify({
+                        owner: 'crashed',
+                        until: Date.now() + 150,
+                    })
+                );
+                await a.api.login('qa@example.test', 'pw');
+                expect(server.loginCalls).toBe(1);
+                expect(a.token()).not.toBeNull();
+                // The lease is released afterwards.
+                expect(store.get('magnotes:session-lease')).toBeUndefined();
+            });
+
+            it('with a live foreign lease, a refresh falls back to its controlled retry', async () => {
+                const a = open();
+                const b = open();
+                tight(80, a, b);
+                store.set(
+                    'magnotes:session-lease',
+                    JSON.stringify({
+                        owner: 'foreign',
+                        until: Date.now() + 60_000,
+                    })
+                );
+                const [okA, okB] = await Promise.all([
+                    a.api.bootstrapSession(),
+                    b.api.bootstrapSession(),
+                ]);
+                expect([okA, okB]).toEqual([true, true]);
+                expect(server.rejected).toBe(1); // raced loser, absorbed by one retry
+                expect(server.jar.cookie).not.toBeNull();
+            });
+
+            it('with a live foreign lease, login and logout fail in a controlled way', async () => {
+                const a = open();
+                tight(80, a);
+                store.set(
+                    'magnotes:session-lease',
+                    JSON.stringify({
+                        owner: 'foreign',
+                        until: Date.now() + 60_000,
+                    })
+                );
+                await expect(
+                    a.api.login('qa@example.test', 'pw')
+                ).rejects.toBeInstanceOf(a.coord.SessionLockTimeoutError);
+                await expect(a.api.logout()).resolves.toBe('unconfirmed');
+                expect(server.loginCalls).toBe(0);
+                expect(server.logoutCalls).toBe(0);
+            });
         });
     });
 });
