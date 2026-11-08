@@ -39,11 +39,11 @@ export const register = (email: string, password: string) =>
  * revocation can therefore never run with the new cookie.
  */
 const authenticate = (path: string, body: object): Promise<AuthSession> =>
-    withSessionLock(async () => {
+    withSessionLock(async (signal) => {
         const { data } = await axios.post<AuthSession>(
             `${baseUrl}${path}`,
             body,
-            withCredentials
+            { ...withCredentials, signal, timeout: AUTH_TIMEOUT_MS }
         );
         startSession(data.token);
         return data;
@@ -69,15 +69,12 @@ export const forgotPassword = (email: string) =>
 
 export const resetPassword = (email: string, code: string, password: string) =>
     withSessionLock(
-        () =>
+        (signal) =>
             axios
                 .post<{ message: string }>(
                     `${baseUrl}/api/auth/reset-password`,
-                    {
-                        email,
-                        code,
-                        password,
-                    }
+                    { email, code, password },
+                    { signal, timeout: AUTH_TIMEOUT_MS }
                 )
                 .then((r) => r.data),
         'exclusive'
@@ -85,6 +82,8 @@ export const resetPassword = (email: string, code: string, password: string) =>
 
 const REFRESH_TIMEOUT_MS = 15_000;
 const LOGOUT_TIMEOUT_MS = 10_000;
+// Every lock-holding request is bounded well below the lease lifetime.
+const AUTH_TIMEOUT_MS = 15_000;
 
 /**
  * `superseded`: a newer session replaced this logout before its revocation
@@ -105,10 +104,11 @@ const revocations = new Map<string, Promise<LogoutResult>>();
 function revokeSession(id: string): Promise<LogoutResult> {
     const running = revocations.get(id);
     if (running) return running;
-    const request = withSessionLock(async (): Promise<boolean> => {
+    const request = withSessionLock(async (signal): Promise<boolean> => {
         if (!isLogoutPending(id)) return false;
         await axios.post(`${baseUrl}/api/auth/logout`, undefined, {
             ...withCredentials,
+            signal,
             timeout: LOGOUT_TIMEOUT_MS,
         });
         return true;

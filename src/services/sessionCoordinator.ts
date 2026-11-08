@@ -294,40 +294,69 @@ function readLease(): { owner: string; until: number } | null {
     }
 }
 
+interface Lease {
+    release: () => void;
+    /** Aborted if the lease is lost (taken over, or storage stopped working). */
+    signal: AbortSignal;
+    lost: () => boolean;
+}
+
 /**
  * Fallback mutex for browsers without Web Locks: a time-limited lease in
- * localStorage (claim, settle, confirm). It carries no secret. Without usable
- * storage either, operations are only ordered by their own claims in this tab
- * (cross-tab exclusion is then impossible; documented limitation).
- * Returns a release function, or null if the wait expired.
+ * localStorage (claim, settle, confirm), renewed by a heartbeat while the task
+ * runs so a long request cannot outlive it. It carries no secret. If storage
+ * cannot be written there is nothing to coordinate on, so no lease is granted
+ * (the policy then applies: exclusive operations fail, recoverable ones go on).
+ * If the lease is lost while the task runs (taken over, or renewal failing),
+ * the task's signal is aborted. Returns null if the wait expired.
  */
-async function acquireLease(): Promise<(() => void) | null> {
+async function acquireLease(): Promise<Lease | null> {
     const owner = newLogoutId();
     const deadline = Date.now() + lockTimings.waitMs;
+    const claim = (): boolean => {
+        try {
+            localStorage.setItem(
+                LEASE_KEY,
+                JSON.stringify({
+                    owner,
+                    until: Date.now() + lockTimings.leaseMs,
+                })
+            );
+            return true;
+        } catch {
+            return false;
+        }
+    };
     for (;;) {
         const current = readLease();
         if (!current || current.until <= Date.now()) {
-            try {
-                localStorage.setItem(
-                    LEASE_KEY,
-                    JSON.stringify({
-                        owner,
-                        until: Date.now() + lockTimings.leaseMs,
-                    })
-                );
-            } catch {
-                return () => undefined; // storage unusable: nothing to coordinate on
-            }
+            if (!claim()) return null; // storage unusable: no coordination
             await sleep(lockTimings.settleMs);
             if (readLease()?.owner === owner) {
-                return () => {
-                    if (readLease()?.owner === owner) {
-                        try {
-                            localStorage.removeItem(LEASE_KEY);
-                        } catch {
-                            // lease simply expires
+                const controller = new AbortController();
+                let lost = false;
+                const heartbeat = setInterval(
+                    () => {
+                        if (readLease()?.owner === owner && claim()) return;
+                        lost = true;
+                        controller.abort();
+                        clearInterval(heartbeat);
+                    },
+                    Math.max(1, lockTimings.leaseMs / 3)
+                );
+                return {
+                    signal: controller.signal,
+                    lost: () => lost,
+                    release: () => {
+                        clearInterval(heartbeat);
+                        if (readLease()?.owner === owner) {
+                            try {
+                                localStorage.removeItem(LEASE_KEY);
+                            } catch {
+                                // lease simply expires
+                            }
                         }
-                    }
+                    },
                 };
             }
         }
@@ -340,26 +369,31 @@ async function acquireLease(): Promise<(() => void) | null> {
 
 /**
  * Run `task` while holding the cross-tab lock (Web Locks when available, else
- * the localStorage lease). See `LockPolicy` for the timeout behaviour.
+ * the localStorage lease). See `LockPolicy` for the timeout behaviour. The
+ * task receives a signal that is aborted if the lock is lost (lease only); a
+ * task rejected because of that surfaces as `SessionLockTimeoutError`.
  */
 export async function withSessionLock<T>(
-    task: () => Promise<T>,
+    task: (signal: AbortSignal) => Promise<T>,
     policy: LockPolicy
 ): Promise<T> {
     const unavailable = (): Promise<T> =>
         policy === 'recoverable'
-            ? task()
+            ? task(new AbortController().signal)
             : Promise.reject(new SessionLockTimeoutError());
 
     const locks =
         typeof navigator === 'undefined' ? undefined : navigator.locks;
     if (!locks?.request) {
-        const release = await acquireLease();
-        if (!release) return unavailable();
+        const lease = await acquireLease();
+        if (!lease) return unavailable();
         try {
-            return await task();
+            return await task(lease.signal);
+        } catch (error) {
+            if (lease.lost()) throw new SessionLockTimeoutError();
+            throw error;
         } finally {
-            release();
+            lease.release();
         }
     }
 
@@ -373,7 +407,7 @@ export async function withSessionLock<T>(
             async () => {
                 acquired = true;
                 clearTimeout(timer);
-                return task();
+                return task(new AbortController().signal);
             }
         );
     } catch (error) {

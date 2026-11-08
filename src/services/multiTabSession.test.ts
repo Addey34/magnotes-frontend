@@ -689,4 +689,97 @@ describe('multi-tab session coordination', () => {
             });
         });
     });
+
+    describe('localStorage lease hardening (no Web Locks)', () => {
+        beforeEach(() => installLocks(false));
+
+        it('unusable storage: exclusive operations fail in a controlled way, recoverable ones go on', async () => {
+            const c = open();
+            c.coord.__setLockTimingsForTests({
+                waitMs: 80,
+                leaseMs: 400,
+                settleMs: 5,
+            });
+            // Writes fail (quota / blocked storage); nothing to coordinate on.
+            Object.defineProperty(globalThis, 'localStorage', {
+                value: {
+                    getItem: () => null,
+                    setItem: () => {
+                        throw new Error('QuotaExceededError');
+                    },
+                    removeItem: () => undefined,
+                },
+                configurable: true,
+            });
+
+            await expect(
+                c.api.login('qa@example.test', 'pw')
+            ).rejects.toBeInstanceOf(c.coord.SessionLockTimeoutError);
+            expect(server.loginCalls).toBe(0);
+
+            // Refresh is recoverable: still allowed, with its own retry.
+            expect(await c.api.bootstrapSession()).toBe(true);
+
+            await expect(c.api.logout()).resolves.toBe('unconfirmed');
+            expect(server.logoutCalls).toBe(0);
+        });
+
+        it('renews the lease while a long request is active: no second holder', async () => {
+            const a = open();
+            const b = open();
+            const timings = { waitMs: 150, leaseMs: 60, settleMs: 5 };
+            a.coord.__setLockTimingsForTests(timings);
+            b.coord.__setLockTimingsForTests(timings);
+            let release!: () => void;
+            server.loginGate = new Promise<void>((r) => (release = r));
+
+            const loggingIn = a.api.login('qa@example.test', 'pw');
+            await sleep(30);
+            // The login stays active for 3x the lease lifetime.
+            await expect(
+                b.api.login('qa@example.test', 'pw')
+            ).rejects.toBeInstanceOf(b.coord.SessionLockTimeoutError);
+            expect(server.loginCalls).toBe(1); // only A's request exists
+
+            server.loginGate = null;
+            release();
+            await loggingIn;
+            expect(a.token()).not.toBeNull();
+        });
+
+        it('a lease lost during the task aborts it instead of keeping two holders', async () => {
+            const a = open();
+            a.coord.__setLockTimingsForTests({
+                waitMs: 200,
+                leaseMs: 60,
+                settleMs: 5,
+            });
+            let aborted = false;
+            const running = a.coord.withSessionLock(
+                (signal) =>
+                    new Promise<never>((_resolve, reject) => {
+                        signal.addEventListener('abort', () => {
+                            aborted = true;
+                            reject(new Error('request aborted'));
+                        });
+                    }),
+                'exclusive'
+            );
+            await sleep(30);
+            // Another context takes the lease over (e.g. expiry while throttled).
+            store.set(
+                'magnotes:session-lease',
+                JSON.stringify({ owner: 'other', until: Date.now() + 60_000 })
+            );
+
+            await expect(running).rejects.toBeInstanceOf(
+                a.coord.SessionLockTimeoutError
+            );
+            expect(aborted).toBe(true);
+            // The foreign lease is left untouched by our release.
+            expect(JSON.parse(store.get('magnotes:session-lease')!).owner).toBe(
+                'other'
+            );
+        });
+    });
 });
