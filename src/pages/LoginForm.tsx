@@ -17,7 +17,7 @@ import {
     resetPassword,
     verifyEmail,
 } from '../services/authApi';
-import { setTokens } from '../utils/tokenUtils';
+import { startSession } from '../services/sessionCoordinator';
 import { TranslationKey } from '../i18n/dictionary';
 import { useT } from '../i18n/LangContext';
 import { trackProductEvent } from '../services/analytics';
@@ -126,7 +126,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
     };
 
     const finishSession = (token: string) => {
-        setTokens(token);
+        startSession(token);
         onLogin();
     };
 

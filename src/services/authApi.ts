@@ -1,13 +1,19 @@
 import axios from 'axios';
-import {
-    getToken,
-    isTokenExpired,
-    removeToken,
-    setTokens,
-} from '../utils/tokenUtils';
+import { getToken, isTokenExpired, removeToken } from '../utils/tokenUtils';
+import { baseUrl } from './apiBase';
 import { installAuthInterceptor } from './authInterceptor';
+import {
+    adoptRefreshedToken,
+    announceLogoutFailed,
+    announceRefreshed,
+    beginLocalLogout,
+    confirmLogout,
+    currentGeneration,
+    refreshAllowed,
+    waitForPeerRefresh,
+    withSessionLock,
+} from './sessionCoordinator';
 
-const baseUrl = import.meta.env.VITE_API_URL || '';
 const withCredentials = { withCredentials: true };
 
 export interface AuthSession {
@@ -62,36 +68,112 @@ export const resetPassword = (email: string, code: string, password: string) =>
         })
         .then((r) => r.data);
 
-export const logout = () => {
-    removeToken();
-    // Fire-and-forget: revoke the HttpOnly refresh cookie server-side.
-    axios
-        .post(`${baseUrl}/api/auth/logout`, undefined, withCredentials)
-        .catch(() => undefined);
-};
+const REFRESH_TIMEOUT_MS = 15_000;
+const LOGOUT_TIMEOUT_MS = 10_000;
+
+export type LogoutResult = 'confirmed' | 'unconfirmed';
+
+let revocation: Promise<LogoutResult> | null = null;
+
+/**
+ * Ask the server to revoke the refresh token held in the HttpOnly cookie.
+ * Serialised with refreshes through the cross-tab lock so it always revokes
+ * the most recently rotated token. Only a 2xx counts as confirmation.
+ */
+function revokeSession(): Promise<LogoutResult> {
+    if (!revocation) {
+        revocation = withSessionLock(() =>
+            axios.post(`${baseUrl}/api/auth/logout`, undefined, {
+                ...withCredentials,
+                timeout: LOGOUT_TIMEOUT_MS,
+            })
+        )
+            .then((): LogoutResult => {
+                confirmLogout();
+                return 'confirmed';
+            })
+            .catch((): LogoutResult => {
+                announceLogoutFailed();
+                return 'unconfirmed';
+            })
+            .finally(() => {
+                revocation = null;
+            });
+    }
+    return revocation;
+}
+
+/**
+ * Log out. The local session ends and the other tabs are told immediately;
+ * the returned promise reports whether the server confirmed the revocation.
+ * While it is not confirmed, silent re-authentication stays disabled.
+ */
+export function logout(): Promise<LogoutResult> {
+    beginLocalLogout();
+    return revokeSession();
+}
+
+/** Retry an unconfirmed revocation (cookie is kept server-side on failure). */
+export const retryLogout = (): Promise<LogoutResult> => revokeSession();
+
+type RefreshOutcome = { status: 'ok'; token: string } | { status: 'rejected' };
+
+/** 401 = rejected credential; anything else (network, 5xx) rethrows. */
+async function requestRefresh(): Promise<RefreshOutcome> {
+    try {
+        const r = await axios.post<AuthSession>(
+            `${baseUrl}/api/auth/refresh`,
+            undefined,
+            { ...withCredentials, timeout: REFRESH_TIMEOUT_MS }
+        );
+        return { status: 'ok', token: r.data.token };
+    } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 401) {
+            return { status: 'rejected' };
+        }
+        throw error;
+    }
+}
+
+async function attemptRefresh(gen: number): Promise<string | null> {
+    // A logout may have happened while this call waited for the lock.
+    if (gen !== currentGeneration() || !refreshAllowed()) return null;
+
+    let outcome = await requestRefresh();
+    if (outcome.status === 'rejected') {
+        // One controlled retry: a sibling tab may have just rotated the cookie
+        // (only possible without Web Locks, or against an older tab).
+        await waitForPeerRefresh();
+        if (gen !== currentGeneration() || !refreshAllowed()) return null;
+        outcome = await requestRefresh();
+    }
+
+    if (outcome.status === 'ok') {
+        // Drop the response if a logout/login happened while in flight.
+        if (!adoptRefreshedToken(outcome.token, gen)) return null;
+        announceRefreshed();
+        return outcome.token;
+    }
+    if (gen === currentGeneration()) removeToken();
+    return null;
+}
 
 let refreshPromise: Promise<string | null> | null = null;
 
-/** Exchange the HttpOnly refresh cookie for a fresh access token. */
-async function refreshSession(): Promise<string | null> {
+/**
+ * Exchange the HttpOnly refresh cookie for a fresh access token.
+ * Resolves `null` when the session is definitively gone; rejects when the
+ * outcome is unknown (network/server failure) so callers keep their state.
+ */
+function refreshSession(): Promise<string | null> {
+    if (!refreshAllowed()) return Promise.resolve(null);
     if (!refreshPromise) {
-        refreshPromise = axios
-            .post<AuthSession>(
-                `${baseUrl}/api/auth/refresh`,
-                undefined,
-                withCredentials
-            )
-            .then((r) => {
-                setTokens(r.data.token);
-                return r.data.token;
-            })
-            .catch(() => {
-                removeToken();
-                return null;
-            })
-            .finally(() => {
+        const gen = currentGeneration();
+        refreshPromise = withSessionLock(() => attemptRefresh(gen)).finally(
+            () => {
                 refreshPromise = null;
-            });
+            }
+        );
     }
     return refreshPromise;
 }
@@ -103,7 +185,12 @@ async function refreshSession(): Promise<string | null> {
 export async function bootstrapSession(): Promise<boolean> {
     const token = getToken();
     if (token && !isTokenExpired(token)) return true;
-    return (await refreshSession()) !== null;
+    try {
+        return (await refreshSession()) !== null;
+    } catch {
+        // Unknown outcome (offline / server down): stay signed out for now.
+        return false;
+    }
 }
 
 /**

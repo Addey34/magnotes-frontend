@@ -41,12 +41,20 @@ export default defineConfig({
         },
         {
             name: 'android-mobile',
-            testMatch: ['smoke.spec.ts', 'demoImport.real.spec.ts'],
+            testMatch: [
+                'smoke.spec.ts',
+                'demoImport.real.spec.ts',
+                'multiTab.real.spec.ts',
+            ],
             use: { ...devices['Pixel 7'] },
         },
         {
             name: 'webkit-iphone',
-            testMatch: ['smoke.spec.ts', 'demoImport.real.spec.ts'],
+            testMatch: [
+                'smoke.spec.ts',
+                'demoImport.real.spec.ts',
+                'multiTab.real.spec.ts',
+            ],
             grepInvert:
                 /sidebar expands on hover without covering the workspace/,
             use: { ...devices['iPhone 12'] },

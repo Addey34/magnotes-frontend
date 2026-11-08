@@ -1,0 +1,6 @@
+/* Sign-in screen: no floating action dock, keep the notice on the bottom edge. */
+@media (max-width: 900px) {
+    .logout-notice {
+        bottom: max(16px, env(safe-area-inset-bottom));
+    }
+}

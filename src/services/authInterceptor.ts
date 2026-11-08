@@ -23,7 +23,14 @@ export function installAuthInterceptor(
                 !isAuthCall
             ) {
                 original._retry = true;
-                const newToken = await refreshAccessToken();
+                let newToken: string | null;
+                try {
+                    newToken = await refreshAccessToken();
+                } catch {
+                    // Unknown outcome (offline / server error): keep the
+                    // session state and surface the original failure.
+                    return Promise.reject(error);
+                }
                 if (newToken) {
                     original.headers = original.headers || {};
                     original.headers.Authorization = `Bearer ${newToken}`;
