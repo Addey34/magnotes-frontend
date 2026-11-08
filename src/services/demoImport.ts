@@ -8,6 +8,11 @@
  * fake (see demoImport.test.ts). The runtime adapter in
  * `demoImportRuntime.ts` imports `boardApi` only for the application path, so this
  * pure remapping module remains safe to load in Jest.
+ *
+ * @deprecated Not used at runtime anymore: successive creates are not
+ * idempotent and cannot resume after a failure. The account import now goes
+ * through PUT /api/imports/:importId (see demoImportFlow.ts). Kept, with its
+ * tests, as the reference for the demo → server remapping rules.
  */
 
 import {

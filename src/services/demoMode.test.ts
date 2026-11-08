@@ -13,7 +13,10 @@ import {
 } from './demoMode';
 
 describe('demoMode flags', () => {
-    beforeEach(() => sessionStorage.clear());
+    beforeEach(() => {
+        sessionStorage.clear();
+        localStorage.clear();
+    });
 
     it('activates and deactivates the demo flag', () => {
         expect(isDemoActive()).toBe(false);
@@ -29,6 +32,15 @@ describe('demoMode flags', () => {
         expect(isDemoImportPending()).toBe(true);
         clearDemoImportPending();
         expect(isDemoImportPending()).toBe(false);
+    });
+
+    it('keeps the pending import and its id across reloads and new tabs', () => {
+        markDemoImportPending();
+        const stored = localStorage.getItem('magnotes-demo-import-v1');
+        sessionStorage.clear(); // a fresh tab no longer has the session flags
+        expect(isDemoImportPending()).toBe(true);
+        markDemoImportPending(); // a second signup click must not mint a new id
+        expect(localStorage.getItem('magnotes-demo-import-v1')).toBe(stored);
     });
 
     it('reads the ?demo request flag from the URL', () => {

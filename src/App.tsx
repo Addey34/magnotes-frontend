@@ -8,10 +8,15 @@ import {
     logout as logoutRequest,
     setupAuthInterceptor,
 } from './services/authApi';
+import DemoImportBanner from './components/ui/DemoImportBanner';
 import { importDemoBoardToAccount } from './services/demoImportRuntime';
 import {
+    dismissDemoImport,
+    DemoImportOutcome,
+} from './services/demoImportFlow';
+import { DemoImportFailure } from './services/demoImportState';
+import {
     activateDemo,
-    clearDemoImportPending,
     deactivateDemo,
     isDemoActive,
     isDemoImportPending,
@@ -47,6 +52,29 @@ const App: React.FC = () => {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [isBooting, setIsBooting] = useState(true);
     const [demoActive, setDemoActive] = useState(false);
+    // Demo → account import progress. `null` = nothing to show.
+    const [importUi, setImportUi] = useState<
+        | { state: 'running' }
+        | { state: 'failed'; reason: DemoImportFailure }
+        | null
+    >(null);
+    // Bumped after a confirmed import so the board reloads its data.
+    const [boardKey, setBoardKey] = useState(0);
+
+    // Never throws: a failed import must not block login or the session.
+    const runImport = async () => {
+        setImportUi({ state: 'running' });
+        const outcome: DemoImportOutcome =
+            await importDemoBoardToAccount().catch(
+                () => ({ status: 'failed', reason: 'unknown' }) as const
+            );
+        if (outcome.status === 'failed') {
+            setImportUi({ state: 'failed', reason: outcome.reason });
+            return;
+        }
+        setImportUi(null);
+        if (outcome.status === 'complete') setBoardKey((k) => k + 1);
+    };
 
     useEffect(() => {
         if (publicShareToken) return;
@@ -62,6 +90,8 @@ const App: React.FC = () => {
                 if (valid) {
                     deactivateDemo();
                     setIsLoggedIn(true);
+                    // Resume an import interrupted by a reload or a crash.
+                    if (isDemoImportPending()) void runImport();
                 } else if (isDemoRequested() || isDemoActive()) {
                     resetPristineDemoForLanguage(detectLang());
                     activateDemo();
@@ -81,14 +111,11 @@ const App: React.FC = () => {
     const handleLogin = async () => {
         // A visitor who tried the demo and then signed up gets their sandbox
         // board imported into the new account (demo mode is already off here).
+        // The import is resumable and idempotent; a failure shows a banner with
+        // a retry and never blocks login. Local data stays until confirmed.
         if (isDemoImportPending()) {
             deactivateDemo();
-            try {
-                await importDemoBoardToAccount();
-            } catch {
-                // A failed import must not block login; the sandbox stays local.
-            }
-            clearDemoImportPending();
+            await runImport();
         }
         setDemoActive(false);
         setIsLoggedIn(true);
@@ -119,7 +146,22 @@ const App: React.FC = () => {
     if (isLoggedIn) {
         return (
             <div>
-                <BoardApp onLogout={handleLogout} />
+                {importUi && (
+                    <DemoImportBanner
+                        state={importUi.state}
+                        reason={
+                            importUi.state === 'failed'
+                                ? importUi.reason
+                                : undefined
+                        }
+                        onRetry={() => void runImport()}
+                        onDismiss={() => {
+                            dismissDemoImport();
+                            setImportUi(null);
+                        }}
+                    />
+                )}
+                <BoardApp key={boardKey} onLogout={handleLogout} />
             </div>
         );
     }

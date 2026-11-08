@@ -20,6 +20,17 @@ export const isTokenExpired = (token: string): boolean => {
 
 export const getToken = (): string | null => accessToken;
 
+/** Account id carried by the in-memory access token, if any. */
+export const getTokenUserId = (): string | null => {
+    if (!accessToken) return null;
+    try {
+        const decoded: { userId?: unknown } = jwtDecode(accessToken);
+        return typeof decoded.userId === 'string' ? decoded.userId : null;
+    } catch {
+        return null;
+    }
+};
+
 export const setTokens = (token: string): void => {
     accessToken = token;
     // Remove credentials written by versions before the HttpOnly-cookie
