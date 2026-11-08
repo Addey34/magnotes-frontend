@@ -13,7 +13,9 @@ import { importDemoBoardToAccount } from './services/demoImportRuntime';
 import {
     dismissDemoImport,
     DemoImportOutcome,
+    eraseLocalAfterPartialImport,
 } from './services/demoImportFlow';
+import { resetDemoBoard } from './services/demoBoard';
 import { DemoImportFailure } from './services/demoImportState';
 import {
     activateDemo,
@@ -48,6 +50,8 @@ const stripDemoQuery = () => {
     }
 };
 
+const IMPORT_GATE_MS = 3000;
+
 const App: React.FC = () => {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [isBooting, setIsBooting] = useState(true);
@@ -56,8 +60,14 @@ const App: React.FC = () => {
     const [importUi, setImportUi] = useState<
         | { state: 'running' }
         | { state: 'failed'; reason: DemoImportFailure }
+        | { state: 'partial'; skipped: number }
         | null
     >(null);
+    // Brief head start for the import right after login, so the board does not
+    // race it (a board opened on an empty account creates its own default tab
+    // on the server). Bounded: the account always opens after IMPORT_GATE_MS,
+    // whatever the import API does.
+    const [importGate, setImportGate] = useState(false);
     // Bumped after a confirmed import so the board reloads its data.
     const [boardKey, setBoardKey] = useState(0);
 
@@ -72,8 +82,22 @@ const App: React.FC = () => {
             setImportUi({ state: 'failed', reason: outcome.reason });
             return;
         }
+        if (outcome.status === 'partial') {
+            setImportUi({ state: 'partial', skipped: outcome.skipped });
+            setBoardKey((k) => k + 1);
+            return;
+        }
         setImportUi(null);
         if (outcome.status === 'complete') setBoardKey((k) => k + 1);
+    };
+
+    const runImportAtEntry = () => {
+        setImportGate(true);
+        const timer = setTimeout(() => setImportGate(false), IMPORT_GATE_MS);
+        void runImport().finally(() => {
+            clearTimeout(timer);
+            setImportGate(false);
+        });
     };
 
     useEffect(() => {
@@ -91,7 +115,7 @@ const App: React.FC = () => {
                     deactivateDemo();
                     setIsLoggedIn(true);
                     // Resume an import interrupted by a reload or a crash.
-                    if (isDemoImportPending()) void runImport();
+                    if (isDemoImportPending()) runImportAtEntry();
                 } else if (isDemoRequested() || isDemoActive()) {
                     resetPristineDemoForLanguage(detectLang());
                     activateDemo();
@@ -108,14 +132,16 @@ const App: React.FC = () => {
         };
     }, []);
 
-    const handleLogin = async () => {
+    const handleLogin = () => {
         // A visitor who tried the demo and then signed up gets their sandbox
         // board imported into the new account (demo mode is already off here).
-        // The import is resumable and idempotent; a failure shows a banner with
-        // a retry and never blocks login. Local data stays until confirmed.
+        // Login itself is never gated on it: the account opens after at most
+        // IMPORT_GATE_MS and the import keeps running in the background
+        // (resumable, idempotent, banner + retry, local data kept until the
+        // server confirms).
         if (isDemoImportPending()) {
             deactivateDemo();
-            await runImport();
+            runImportAtEntry();
         }
         setDemoActive(false);
         setIsLoggedIn(true);
@@ -154,14 +180,25 @@ const App: React.FC = () => {
                                 ? importUi.reason
                                 : undefined
                         }
+                        skipped={
+                            importUi.state === 'partial'
+                                ? importUi.skipped
+                                : undefined
+                        }
                         onRetry={() => void runImport()}
                         onDismiss={() => {
                             dismissDemoImport();
                             setImportUi(null);
                         }}
+                        onEraseLocal={() => {
+                            eraseLocalAfterPartialImport(resetDemoBoard);
+                            setImportUi(null);
+                        }}
                     />
                 )}
-                <BoardApp key={boardKey} onLogout={handleLogout} />
+                {!importGate && (
+                    <BoardApp key={boardKey} onLogout={handleLogout} />
+                )}
             </div>
         );
     }

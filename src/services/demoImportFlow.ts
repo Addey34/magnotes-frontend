@@ -3,9 +3,9 @@
  *
  * The server owns idempotency (PUT /api/imports/:importId): this module only
  * guarantees the client side of the contract — the same importId is replayed
- * until the server confirms completion, local data is wiped only after that
- * confirmation, progress survives reloads, and a failure is reported instead
- * of thrown so login is never blocked.
+ * until the server confirms completion, local data is wiped only after a
+ * confirmation that left nothing out, progress survives reloads, and a failure
+ * is reported instead of thrown so it can never block the session.
  *
  * Dependencies are injected so every interruption scenario is unit-testable
  * (see demoImportFlow.test.ts); demoImportRuntime.ts wires the real ones.
@@ -15,13 +15,17 @@ import type { DemoSnapshot } from './demoBoard';
 import {
     clearDemoImportState,
     DemoImportFailure,
+    hashSnapshot,
     loadDemoImportState,
+    newImportId,
     saveDemoImportState,
 } from './demoImportState';
 
 export interface DemoImportResponse {
     importId: string;
     status: string;
+    counts?: { skipped?: number };
+    skippedItems?: { kind: string; id: string; reason: string }[];
 }
 
 export interface DemoImportDeps {
@@ -36,6 +40,9 @@ export interface DemoImportDeps {
 export type DemoImportOutcome =
     | { status: 'none' }
     | { status: 'complete' }
+    // Server wrote everything importable but left `skipped` items out: the
+    // local copy is kept until the visitor decides.
+    | { status: 'partial'; skipped: number }
     // The pending import belongs to another account: left untouched.
     | { status: 'other-account' }
     | { status: 'failed'; reason: DemoImportFailure };
@@ -82,11 +89,21 @@ async function attempt(
     userId: string,
     deps: DemoImportDeps
 ): Promise<DemoImportOutcome> {
-    const state = loadDemoImportState();
-    if (!state) return { status: 'none' };
+    let state = loadDemoImportState();
+    if (!state || state.abandoned) return { status: 'none' };
+
+    // Already confirmed with leftovers: wait for the visitor's decision.
+    if (state.partial) {
+        return { status: 'partial', skipped: state.partial.skipped };
+    }
+
+    const now = () => new Date().toISOString();
 
     if (state.userId && state.userId !== userId) {
-        return { status: 'other-account' };
+        // Only an explicit new signup request may move on to another account.
+        // The server scopes ids per user, so a fresh id cannot duplicate there.
+        if (!state.revived) return { status: 'other-account' };
+        state = { importId: newImportId(), attempts: 0, updatedAt: now() };
     }
 
     const snapshot = deps.getSnapshot();
@@ -96,41 +113,90 @@ async function attempt(
         return { status: 'none' };
     }
 
-    saveDemoImportState({
+    const hash = hashSnapshot(snapshot);
+    if (state.revived && state.snapshotHash && state.snapshotHash !== hash) {
+        // The sandbox changed since the abandoned attempt: it is new content,
+        // not a replay, so the old identity (bound to other content) is dropped.
+        state = { importId: newImportId(), attempts: 0, updatedAt: now() };
+    }
+
+    const current = {
         ...state,
         userId,
+        snapshotHash: hash,
+        revived: false,
         attempts: state.attempts + 1,
-        updatedAt: new Date().toISOString(),
-    });
+        updatedAt: now(),
+    };
+    saveDemoImportState(current);
 
+    let response: DemoImportResponse;
     try {
-        const response = await deps.putImport(state.importId, snapshot);
+        response = await deps.putImport(current.importId, snapshot);
         if (
             !response ||
             response.status !== 'complete' ||
-            response.importId !== state.importId
+            response.importId !== current.importId
         ) {
             throw new Error('Import not confirmed by the server');
         }
     } catch (error) {
         const reason = classifyImportError(error);
-        const current = loadDemoImportState() ?? state;
         saveDemoImportState({
-            ...current,
+            ...(loadDemoImportState() ?? current),
             userId,
             lastError: reason,
-            updatedAt: new Date().toISOString(),
+            updatedAt: now(),
         });
         return { status: 'failed', reason };
     }
 
-    // Confirmed: only now is the local copy disposable.
+    const skipped = Math.max(
+        response.counts?.skipped ?? 0,
+        response.skippedItems?.length ?? 0
+    );
+    if (skipped > 0) {
+        // Never wipe what the server did not take.
+        saveDemoImportState({
+            ...current,
+            lastError: undefined,
+            partial: { skipped },
+            updatedAt: now(),
+        });
+        return { status: 'partial', skipped };
+    }
+
+    // Confirmed with nothing left out: only now is the local copy disposable.
     deps.resetLocal();
     clearDemoImportState();
     return { status: 'complete' };
 }
 
-/** Visitor chose to abandon the import: keep local data, drop the pending id. */
+/**
+ * Visitor walks away from the import. Local data is kept. When an attempt
+ * already reached the server, the id and content fingerprint are remembered so
+ * asking again with the same content replays the same import (no duplicates).
+ */
 export function dismissDemoImport(): void {
+    const state = loadDemoImportState();
+    if (!state) return;
+    if (!state.snapshotHash) {
+        clearDemoImportState(); // nothing was ever sent
+        return;
+    }
+    saveDemoImportState({
+        ...state,
+        abandoned: true,
+        revived: false,
+        updatedAt: new Date().toISOString(),
+    });
+}
+
+/**
+ * Explicit visitor decision after a partial import: erase the local copy
+ * (the importable part already lives in the account).
+ */
+export function eraseLocalAfterPartialImport(resetLocal: () => void): void {
+    resetLocal();
     clearDemoImportState();
 }

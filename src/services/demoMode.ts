@@ -61,7 +61,8 @@ export function markDemoImportPending(): void {
 }
 
 export function isDemoImportPending(): boolean {
-    return loadDemoImportState() !== null;
+    const state = loadDemoImportState();
+    return state !== null && !state.abandoned;
 }
 
 export function clearDemoImportPending(): void {

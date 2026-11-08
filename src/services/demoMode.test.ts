@@ -36,11 +36,15 @@ describe('demoMode flags', () => {
 
     it('keeps the pending import and its id across reloads and new tabs', () => {
         markDemoImportPending();
-        const stored = localStorage.getItem('magnotes-demo-import-v1');
+        const idOf = () =>
+            JSON.parse(localStorage.getItem('magnotes-demo-import-v1') ?? '{}')
+                .importId;
+        const first = idOf();
+        expect(first).toEqual(expect.any(String));
         sessionStorage.clear(); // a fresh tab no longer has the session flags
         expect(isDemoImportPending()).toBe(true);
         markDemoImportPending(); // a second signup click must not mint a new id
-        expect(localStorage.getItem('magnotes-demo-import-v1')).toBe(stored);
+        expect(idOf()).toBe(first);
     });
 
     it('reads the ?demo request flag from the URL', () => {

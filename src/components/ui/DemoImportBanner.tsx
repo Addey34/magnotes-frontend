@@ -4,10 +4,12 @@ import type { DemoImportFailure } from '../../services/demoImportState';
 import '../../styles/DemoImportBanner.css';
 
 interface DemoImportBannerProps {
-    state: 'running' | 'failed';
+    state: 'running' | 'failed' | 'partial';
     reason?: DemoImportFailure;
     onRetry: () => void;
     onDismiss: () => void;
+    skipped?: number;
+    onEraseLocal?: () => void;
 }
 
 // Floating status for the demo → account import. Fixed and wrapping so it never
@@ -17,10 +19,13 @@ const DemoImportBanner: React.FC<DemoImportBannerProps> = ({
     reason,
     onRetry,
     onDismiss,
+    skipped,
+    onEraseLocal,
 }) => {
     const { t } = useT();
     const running = state === 'running';
     const conflict = reason === 'conflict';
+    const partial = state === 'partial';
 
     return (
         <div
@@ -32,13 +37,15 @@ const DemoImportBanner: React.FC<DemoImportBannerProps> = ({
             <span className="demo-import-banner__text">
                 {running
                     ? t('import.running')
-                    : conflict
-                      ? t('import.conflict')
-                      : t('import.failed')}
+                    : partial
+                      ? t('import.partial', { count: skipped ?? 0 })
+                      : conflict
+                        ? t('import.conflict')
+                        : t('import.failed')}
             </span>
             {!running && (
                 <span className="demo-import-banner__actions">
-                    {!conflict && (
+                    {!conflict && !partial && (
                         <button
                             type="button"
                             className="demo-import-banner__retry"
@@ -52,8 +59,17 @@ const DemoImportBanner: React.FC<DemoImportBannerProps> = ({
                         className="demo-import-banner__dismiss"
                         onClick={onDismiss}
                     >
-                        {t('import.dismiss')}
+                        {partial ? t('import.keepLocal') : t('import.dismiss')}
                     </button>
+                    {partial && (
+                        <button
+                            type="button"
+                            className="demo-import-banner__erase"
+                            onClick={onEraseLocal}
+                        >
+                            {t('import.eraseLocal')}
+                        </button>
+                    )}
                 </span>
             )}
         </div>

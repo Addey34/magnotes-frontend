@@ -171,4 +171,43 @@ test.describe('real demo import', () => {
         await expect.poll(() => localDemoTabs(page)).toBe(0);
         expect(await serverTabNames(page, creds)).toHaveLength(demoTabs);
     });
+
+    test('an orphan card is reported and the local copy is kept', async ({
+        page,
+    }, testInfo) => {
+        const creds = await accountCredentials(
+            `orphan-${testInfo.project.name}`
+        );
+        await page.goto('/app/?demo=1');
+        await expect(page.locator('.demo-banner')).toBeVisible();
+        await expect.poll(() => localDemoTabs(page)).toBeGreaterThan(0);
+        // Corrupt the sandbox: a card pointing at a board that does not exist.
+        await page.evaluate((key) => {
+            const store = JSON.parse(localStorage.getItem(key) as string);
+            store.postIts.push({
+                ...store.postIts[0],
+                _id: 'orphan-card',
+                tabId: 'ghost-tab',
+            });
+            localStorage.setItem(key, JSON.stringify(store));
+        }, DEMO_KEY);
+        const demoTabs = await localDemoTabs(page);
+
+        await authenticateFromDemo(page, creds);
+
+        const banner = page.getByTestId('demo-import-banner');
+        await expect(banner).toHaveAttribute('data-state', 'partial');
+        await expect(page.locator('.board-app')).toBeVisible();
+        await expect(banner).toBeInViewport();
+        await page.screenshot({
+            path: testInfo.outputPath('banner-partial.png'),
+        });
+        // Nothing local was discarded; the importable part is in the account.
+        expect(await localDemoTabs(page)).toBe(demoTabs);
+        expect(await serverTabNames(page, creds)).toHaveLength(demoTabs);
+
+        await banner.getByRole('button', { name: /keep|garder/i }).click();
+        await expect(banner).toHaveCount(0);
+        expect(await localDemoTabs(page)).toBe(demoTabs);
+    });
 });

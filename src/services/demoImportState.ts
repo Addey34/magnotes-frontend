@@ -20,7 +20,37 @@ export interface DemoImportState {
     userId?: string;
     attempts: number;
     lastError?: DemoImportFailure;
+    // Fingerprint of the sandbox content sent under `importId`.
+    snapshotHash?: string;
+    // Visitor walked away from the import (the sandbox is kept). The id is kept
+    // too, so asking again with the same content replays the SAME import
+    // instead of creating a second copy of whatever already reached the server.
+    abandoned?: boolean;
+    // Visitor explicitly asked again (signup click) after an abandon or from a
+    // possibly different account: allows a fresh id if content or account changed.
+    revived?: boolean;
+    // Server confirmed but left items out: local data must be kept.
+    partial?: { skipped: number };
     updatedAt: string;
+}
+
+/** Cheap, stable, non-cryptographic fingerprint (change detection only). */
+export function hashSnapshot(value: unknown): string {
+    const text = JSON.stringify(value) ?? '';
+    let h1 = 0xdeadbeef;
+    let h2 = 0x41c6ce57;
+    for (let i = 0; i < text.length; i += 1) {
+        const ch = text.charCodeAt(i);
+        h1 = Math.imul(h1 ^ ch, 2654435761);
+        h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 =
+        Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^
+        Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 =
+        Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^
+        Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16);
 }
 
 // Same shape the API accepts: a v4 UUID.
@@ -65,7 +95,9 @@ function isState(value: unknown): value is DemoImportState {
 export function loadDemoImportState(): DemoImportState | null {
     try {
         const raw = localStorage.getItem(STATE_KEY);
-        if (raw === null) return memoryState;
+        // Storage works and holds nothing: that is the truth (the in-memory
+        // copy is only a fallback for when storage itself is unavailable).
+        if (raw === null) return null;
         const parsed: unknown = JSON.parse(raw);
         return isState(parsed) ? parsed : null;
     } catch {
@@ -91,10 +123,24 @@ export function clearDemoImportState(): void {
     }
 }
 
-/** Existing import identity, or a fresh one. Never replaces a pending id. */
+/**
+ * Called when the visitor asks to sign up from the demo. Never replaces an
+ * existing id (so no accidental second copy); it only re-arms an abandoned or
+ * partial import and flags the explicit request.
+ */
 export function ensureDemoImportState(): DemoImportState {
     const existing = loadDemoImportState();
-    if (existing) return existing;
+    if (existing) {
+        const revived: DemoImportState = {
+            ...existing,
+            abandoned: false,
+            revived: true,
+            partial: undefined,
+            updatedAt: new Date().toISOString(),
+        };
+        saveDemoImportState(revived);
+        return revived;
+    }
     const created: DemoImportState = {
         importId: newImportId(),
         attempts: 0,
