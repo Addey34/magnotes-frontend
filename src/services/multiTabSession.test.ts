@@ -16,6 +16,9 @@ interface FakeServer {
     refreshCalls: number;
     rejected: number;
     logoutCalls: number;
+    loginCalls: number;
+    logoutGate: Promise<void> | null;
+    revokedCookies: string[];
     failLogout: boolean;
     counter: number;
     sentMessages: unknown[];
@@ -72,12 +75,24 @@ async function fakePost(url: string) {
         server.rejected += 1; // late 401: the server sends no Set-Cookie
         throw fakeAxiosError(401);
     }
+    if (url.endsWith('/api/auth/login')) {
+        server.loginCalls += 1;
+        await sleep(LATENCY_MS);
+        const next = `refresh-${++server.counter}`;
+        server.valid.add(next);
+        server.jar.cookie = next;
+        return { data: { token: `access-${server.counter}` } };
+    }
     if (url.endsWith('/api/auth/logout')) {
         server.logoutCalls += 1;
-        const sent = server.jar.cookie;
+        const sent = server.jar.cookie; // attached when the request is sent
+        if (server.logoutGate) await server.logoutGate; // delayed delivery
         await sleep(LATENCY_MS);
         if (server.failLogout) throw fakeAxiosError();
-        if (sent) server.valid.delete(sent);
+        if (sent) {
+            server.valid.delete(sent);
+            server.revokedCookies.push(sent);
+        }
         server.jar.cookie = null;
         return { data: { message: 'ok' } };
     }
@@ -139,6 +154,9 @@ beforeEach(() => {
         refreshCalls: 0,
         rejected: 0,
         logoutCalls: 0,
+        loginCalls: 0,
+        logoutGate: null,
+        revokedCookies: [],
         failLogout: false,
         counter: 0,
         sentMessages: [],
@@ -294,7 +312,11 @@ describe('multi-tab session coordination', () => {
         const a = open();
         a.coord.startSession('access-new');
         const stale = new BroadcastChannel('magnotes-session');
-        stale.postMessage({ type: 'logout', at: Date.now() - 60_000 });
+        stale.postMessage({
+            type: 'logout',
+            at: Date.now() - 60_000,
+            id: 'old',
+        });
         await settle();
         stale.close();
         expect(a.events).not.toContain('remote-logout');
@@ -309,7 +331,7 @@ describe('multi-tab session coordination', () => {
             onLogoutFailed: () => undefined,
         });
         const sender = new BroadcastChannel('magnotes-session');
-        sender.postMessage({ type: 'logout', at: Date.now() });
+        sender.postMessage({ type: 'logout', at: Date.now(), id: 'x1' });
         await settle();
         sender.close();
         second();
@@ -333,5 +355,149 @@ describe('multi-tab session coordination', () => {
         expect(everything).not.toMatch(/access-|refresh-/);
         expect(server.sentMessages.length).toBeGreaterThan(0);
         expect(typeof sessionStorage).toBe('undefined');
+    });
+
+    describe('logout / login races', () => {
+        const gate = () => {
+            let release!: () => void;
+            server.logoutGate = new Promise<void>((r) => (release = r));
+            return () => {
+                server.logoutGate = null;
+                release();
+            };
+        };
+
+        it('late logout response (A) cannot revoke or clear the cookie of a login made in B', async () => {
+            const a = open();
+            const b = open();
+            await a.api.bootstrapSession(); // cookie refresh-1
+            const release = gate();
+
+            const loggingOut = a.api.logout(); // request sent, response held
+            await sleep(40);
+            expect(server.logoutCalls).toBe(1);
+
+            const loggingIn = b.api.login('qa@example.test', 'pw'); // queued
+            await sleep(40);
+            expect(server.loginCalls).toBe(0); // blocked behind the logout
+
+            release();
+            await expect(loggingOut).resolves.toBe('confirmed');
+            await loggingIn;
+
+            expect(server.revokedCookies).toEqual(['refresh-1']);
+            expect(server.valid.has(server.jar.cookie!)).toBe(true);
+            expect(b.token()).not.toBeNull();
+            expect(b.coord.hasPendingLogout()).toBe(false);
+            expect(a.coord.hasPendingLogout()).toBe(false);
+            expect(await b.api.bootstrapSession()).toBe(true);
+        });
+
+        it('a logout still waiting for the lock is skipped when a login (B) got the lock first', async () => {
+            const a = open();
+            const b = open();
+            const c = open();
+            await a.api.bootstrapSession();
+            const holder = c.api.bootstrapSession(); // holds the lock
+            await sleep(5);
+
+            const loggingIn = b.api.login('qa@example.test', 'pw'); // queued first
+            const loggingOut = a.api.logout(); // queued second
+
+            await expect(loggingOut).resolves.toBe('superseded');
+            await Promise.all([loggingIn, holder]);
+
+            expect(server.logoutCalls).toBe(0); // no request at all
+            expect(server.revokedCookies).toEqual([]);
+            expect(server.valid.has(server.jar.cookie!)).toBe(true);
+            expect(b.token()).not.toBeNull();
+            expect(a.coord.hasPendingLogout()).toBe(false);
+            expect(b.coord.hasPendingLogout()).toBe(false);
+        });
+
+        it('logout in A then new login in B: B keeps a working session, A stays signed out', async () => {
+            const a = open();
+            const b = open();
+            await Promise.all([
+                a.api.bootstrapSession(),
+                b.api.bootstrapSession(),
+            ]);
+            await expect(a.api.logout()).resolves.toBe('confirmed');
+            await settle();
+            expect(b.events).toContain('remote-logout');
+
+            await b.api.login('qa@example.test', 'pw');
+            await settle();
+            expect(b.token()).not.toBeNull();
+            expect(a.token()).toBeNull();
+            expect(await b.api.bootstrapSession()).toBe(true);
+            // A stays blocked: it logged out and nobody re-enabled it.
+            const calls = server.refreshCalls;
+            expect(await a.api.bootstrapSession()).toBe(false);
+            expect(server.refreshCalls).toBe(calls);
+        });
+
+        it('an old confirmation never clears the marker of a more recent logout', async () => {
+            const a = open();
+            const id1 = a.coord.beginLocalLogout();
+            const id2 = a.coord.beginLocalLogout();
+            expect(a.coord.confirmLogout(id1)).toBe(false);
+            expect(a.coord.pendingLogoutId()).toBe(id2);
+            expect(a.coord.hasPendingLogout()).toBe(true);
+            expect(a.coord.confirmLogout(id2)).toBe(true);
+            expect(a.coord.hasPendingLogout()).toBe(false);
+        });
+
+        it('ignores confirmation / failure events that belong to another logout', async () => {
+            const a = open();
+            const b = open();
+            await a.api.bootstrapSession();
+            server.failLogout = true;
+            await a.api.logout();
+            await settle();
+            expect(b.events.filter((e) => e === 'failed')).toHaveLength(1);
+
+            const sender = new BroadcastChannel('magnotes-session');
+            sender.postMessage({
+                type: 'logout-confirmed',
+                id: 'someone-else',
+            });
+            sender.postMessage({ type: 'logout-failed', id: 'someone-else' });
+            await settle();
+            sender.close();
+            expect(b.events).not.toContain('confirmed');
+            expect(b.events.filter((e) => e === 'failed')).toHaveLength(1);
+        });
+
+        it('a late bootstrap refresh response cannot restore a session replaced by a login', async () => {
+            const a = open();
+            const booting = a.api.bootstrapSession(); // refresh in flight
+            await sleep(5);
+            a.coord.startSession('access-new'); // user logs in meanwhile
+            expect(await booting).toBe(false);
+            expect(a.token()).toBe('access-new');
+        });
+
+        it('a refresh started before a login is not shared with the new session', async () => {
+            const a = open();
+            const first = a.api.bootstrapSession();
+            await sleep(5);
+            a.coord.startSession('access-new');
+            const second = a.api.bootstrapSession(); // new generation
+            expect(await first).toBe(false);
+            expect(await second).toBe(true);
+            expect(a.token()).toMatch(/^access-\d+$/);
+            expect(a.token()).not.toBe('access-new');
+        });
+
+        it('a late bootstrap response after logout does not restore the session', async () => {
+            const a = open();
+            const booting = a.api.bootstrapSession();
+            await sleep(5);
+            const loggingOut = a.api.logout();
+            expect(await booting).toBe(false);
+            expect(a.token()).toBeNull();
+            await expect(loggingOut).resolves.toBe('confirmed');
+        });
     });
 });

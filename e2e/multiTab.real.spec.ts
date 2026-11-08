@@ -187,4 +187,39 @@ test.describe('multi-tab session coordination (real API)', () => {
         await expect(page.locator('.auth-page')).toBeVisible();
         await expect(page.getByTestId('logout-notice')).toHaveCount(0);
     });
+
+    test('a delayed logout in one tab cannot revoke a login made in another', async ({
+        page,
+        context,
+    }, testInfo) => {
+        const email = `mt-d-${testInfo.project.name}-${Date.now()}@example.test`;
+        await signUp(page, email);
+        const second = await openSecondTab(context);
+
+        // Hold the logout request of the first tab on the wire.
+        let release: () => void = () => undefined;
+        const held = new Promise<void>((resolve) => (release = resolve));
+        await page.route('**/api/auth/logout', async (route) => {
+            await held;
+            await route.continue();
+        });
+        await signOut(page);
+        await expect(page.locator('.auth-page')).toBeVisible();
+        await expect(second.locator('.auth-page')).toBeVisible();
+
+        // The second tab signs in again while the old revocation is pending.
+        await second.locator('#email').fill(email);
+        await second.locator('#password').fill(password);
+        await second.locator('.auth-submit').click();
+        // Login waits behind the pending revocation (shared lock).
+        await expect(second.locator('.board-app')).toHaveCount(0);
+
+        release();
+        await expect(second.locator('.board-app')).toBeVisible();
+
+        // The new session survives the late logout: a reload still resumes it.
+        await second.reload();
+        await expect(second.locator('.board-app')).toBeVisible();
+        await expect(second.locator('.auth-page')).toHaveCount(0);
+    });
 });

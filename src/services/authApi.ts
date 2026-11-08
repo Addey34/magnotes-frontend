@@ -9,7 +9,10 @@ import {
     beginLocalLogout,
     confirmLogout,
     currentGeneration,
+    isLogoutPending,
+    pendingLogoutId,
     refreshAllowed,
+    startSession,
     waitForPeerRefresh,
     withSessionLock,
 } from './sessionCoordinator';
@@ -29,14 +32,25 @@ export const register = (email: string, password: string) =>
         )
         .then((r) => r.data);
 
-export const verifyEmail = (email: string, code: string) =>
-    axios
-        .post<AuthSession>(
-            `${baseUrl}/api/auth/verify`,
-            { email, code },
+/**
+ * Login/verify rewrite the shared refresh cookie, so they run under the same
+ * cross-tab lock as refresh/logout, and the new session (which also supersedes
+ * any pending logout) is established while the lock is still held. A queued
+ * revocation can therefore never run with the new cookie.
+ */
+const authenticate = (path: string, body: object): Promise<AuthSession> =>
+    withSessionLock(async () => {
+        const { data } = await axios.post<AuthSession>(
+            `${baseUrl}${path}`,
+            body,
             withCredentials
-        )
-        .then((r) => r.data);
+        );
+        startSession(data.token);
+        return data;
+    });
+
+export const verifyEmail = (email: string, code: string) =>
+    authenticate('/api/auth/verify', { email, code });
 
 export const resendCode = (email: string) =>
     axios
@@ -44,13 +58,7 @@ export const resendCode = (email: string) =>
         .then((r) => r.data);
 
 export const login = (email: string, password: string) =>
-    axios
-        .post<AuthSession>(
-            `${baseUrl}/api/auth/login`,
-            { email, password },
-            withCredentials
-        )
-        .then((r) => r.data);
+    authenticate('/api/auth/login', { email, password });
 
 export const forgotPassword = (email: string) =>
     axios
@@ -60,47 +68,62 @@ export const forgotPassword = (email: string) =>
         .then((r) => r.data);
 
 export const resetPassword = (email: string, code: string, password: string) =>
-    axios
-        .post<{ message: string }>(`${baseUrl}/api/auth/reset-password`, {
-            email,
-            code,
-            password,
-        })
-        .then((r) => r.data);
+    withSessionLock(() =>
+        axios
+            .post<{ message: string }>(`${baseUrl}/api/auth/reset-password`, {
+                email,
+                code,
+                password,
+            })
+            .then((r) => r.data)
+    );
 
 const REFRESH_TIMEOUT_MS = 15_000;
 const LOGOUT_TIMEOUT_MS = 10_000;
 
-export type LogoutResult = 'confirmed' | 'unconfirmed';
+/**
+ * `superseded`: a newer session replaced this logout before its revocation
+ * ran, so no request was sent (the old cookie is already gone) and nothing is
+ * claimed about the old server-side session.
+ */
+export type LogoutResult = 'confirmed' | 'unconfirmed' | 'superseded';
 
-let revocation: Promise<LogoutResult> | null = null;
+const revocations = new Map<string, Promise<LogoutResult>>();
 
 /**
- * Ask the server to revoke the refresh token held in the HttpOnly cookie.
- * Serialised with refreshes through the cross-tab lock so it always revokes
- * the most recently rotated token. Only a 2xx counts as confirmation.
+ * Ask the server to revoke the refresh token held in the HttpOnly cookie for
+ * logout `id`. Runs under the cross-tab lock and re-checks, once the lock is
+ * held, that this logout is still the pending one: a login that happened in
+ * the meantime (any tab) has already swapped the cookie, and a stale request
+ * must neither revoke nor clear the new session. Only a 2xx confirms.
  */
-function revokeSession(): Promise<LogoutResult> {
-    if (!revocation) {
-        revocation = withSessionLock(() =>
-            axios.post(`${baseUrl}/api/auth/logout`, undefined, {
-                ...withCredentials,
-                timeout: LOGOUT_TIMEOUT_MS,
-            })
-        )
-            .then((): LogoutResult => {
-                confirmLogout();
-                return 'confirmed';
-            })
-            .catch((): LogoutResult => {
-                announceLogoutFailed();
+function revokeSession(id: string): Promise<LogoutResult> {
+    const running = revocations.get(id);
+    if (running) return running;
+    const request = withSessionLock(async (): Promise<boolean> => {
+        if (!isLogoutPending(id)) return false;
+        await axios.post(`${baseUrl}/api/auth/logout`, undefined, {
+            ...withCredentials,
+            timeout: LOGOUT_TIMEOUT_MS,
+        });
+        return true;
+    })
+        .then((sent): LogoutResult => {
+            if (!sent) return 'superseded';
+            return confirmLogout(id) ? 'confirmed' : 'superseded';
+        })
+        .catch((): LogoutResult => {
+            if (isLogoutPending(id)) {
+                announceLogoutFailed(id);
                 return 'unconfirmed';
-            })
-            .finally(() => {
-                revocation = null;
-            });
-    }
-    return revocation;
+            }
+            return 'superseded';
+        })
+        .finally(() => {
+            revocations.delete(id);
+        });
+    revocations.set(id, request);
+    return request;
 }
 
 /**
@@ -109,12 +132,14 @@ function revokeSession(): Promise<LogoutResult> {
  * While it is not confirmed, silent re-authentication stays disabled.
  */
 export function logout(): Promise<LogoutResult> {
-    beginLocalLogout();
-    return revokeSession();
+    return revokeSession(beginLocalLogout());
 }
 
-/** Retry an unconfirmed revocation (cookie is kept server-side on failure). */
-export const retryLogout = (): Promise<LogoutResult> => revokeSession();
+/** Retry the pending revocation (the cookie is kept server-side on failure). */
+export function retryLogout(): Promise<LogoutResult> {
+    const id = pendingLogoutId();
+    return id ? revokeSession(id) : Promise.resolve('superseded');
+}
 
 type RefreshOutcome = { status: 'ok'; token: string } | { status: 'rejected' };
 
@@ -158,24 +183,27 @@ async function attemptRefresh(gen: number): Promise<string | null> {
     return null;
 }
 
-let refreshPromise: Promise<string | null> | null = null;
+let refresh: { gen: number; promise: Promise<string | null> } | null = null;
 
 /**
  * Exchange the HttpOnly refresh cookie for a fresh access token.
  * Resolves `null` when the session is definitively gone; rejects when the
  * outcome is unknown (network/server failure) so callers keep their state.
+ * A refresh started under an older session generation is never shared with
+ * (nor can it end) a newer session.
  */
 function refreshSession(): Promise<string | null> {
     if (!refreshAllowed()) return Promise.resolve(null);
-    if (!refreshPromise) {
-        const gen = currentGeneration();
-        refreshPromise = withSessionLock(() => attemptRefresh(gen)).finally(
-            () => {
-                refreshPromise = null;
-            }
-        );
-    }
-    return refreshPromise;
+    const gen = currentGeneration();
+    if (refresh?.gen === gen) return refresh.promise;
+    const entry = {
+        gen,
+        promise: withSessionLock(() => attemptRefresh(gen)).finally(() => {
+            if (refresh === entry) refresh = null;
+        }),
+    };
+    refresh = entry;
+    return entry.promise;
 }
 
 /**
@@ -199,5 +227,9 @@ export async function bootstrapSession(): Promise<boolean> {
  * The returned disposer must be called when the app effect is cleaned up.
  */
 export function setupAuthInterceptor(onSessionLost: () => void): () => void {
-    return installAuthInterceptor(refreshSession, onSessionLost);
+    return installAuthInterceptor(
+        refreshSession,
+        onSessionLost,
+        currentGeneration
+    );
 }

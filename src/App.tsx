@@ -1,15 +1,17 @@
 import * as React from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import BoardApp from './pages/BoardApp';
 import LoginForm from './pages/LoginForm';
 import PublicBoardView from './pages/PublicBoardView';
 import {
     bootstrapSession,
     logout as logoutRequest,
+    LogoutResult,
     retryLogout,
     setupAuthInterceptor,
 } from './services/authApi';
 import {
+    currentGeneration,
     hasPendingLogout,
     startSessionCoordination,
 } from './services/sessionCoordinator';
@@ -134,9 +136,16 @@ const App: React.FC = () => {
             },
         });
 
+        // A logout interrupted by a reload or a closed tab is retried once,
+        // automatically; the notice shows the outcome (retry stays manual).
+        if (hasPendingLogout()) runRevocation(retryLogout);
+
+        const bootGeneration = currentGeneration();
         bootstrapSession()
             .then((valid) => {
-                if (!active) return;
+                // A login/logout happened while the bootstrap was in flight:
+                // its (late) answer describes an older session. Ignore it.
+                if (!active || bootGeneration !== currentGeneration()) return;
                 if (valid) {
                     deactivateDemo();
                     setIsLoggedIn(true);
@@ -171,15 +180,22 @@ const App: React.FC = () => {
             runImportAtEntry();
         }
         setDemoActive(false);
+        revocationSeq.current += 1;
         setLogoutNotice(null);
         setIsLoggedIn(true);
     };
 
-    const runRevocation = (
-        request: () => Promise<'confirmed' | 'unconfirmed'>
-    ) => {
+    // Only the most recent revocation may update the notice; a stale result
+    // ('superseded' or an older logout) never overwrites a newer state.
+    const revocationSeq = useRef(0);
+    const runRevocation = (request: () => Promise<LogoutResult>) => {
+        const seq = ++revocationSeq.current;
         setLogoutNotice('pending');
-        void request().then((result) => setLogoutNotice(result));
+        void request().then((result) => {
+            if (seq !== revocationSeq.current) return;
+            // 'superseded': a newer session replaced this logout; claim nothing.
+            setLogoutNotice(result === 'superseded' ? null : result);
+        });
     };
 
     const handleLogout = () => {

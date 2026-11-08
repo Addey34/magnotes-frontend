@@ -17,7 +17,6 @@ import {
     resetPassword,
     verifyEmail,
 } from '../services/authApi';
-import { startSession } from '../services/sessionCoordinator';
 import { TranslationKey } from '../i18n/dictionary';
 import { useT } from '../i18n/LangContext';
 import { trackProductEvent } from '../services/analytics';
@@ -125,10 +124,9 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
         if (next === 'login' || next === 'register') setNotice('');
     };
 
-    const finishSession = (token: string) => {
-        startSession(token);
-        onLogin();
-    };
+    // The session (token + supersession of a pending logout) is established
+    // by authApi while it still holds the cross-tab lock.
+    const finishSession = () => onLogin();
 
     const requireMatchingPasswords = () => {
         if (password !== passwordConfirmation) {
@@ -183,7 +181,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
                 requireValidEmail();
                 requireLoginPassword();
                 const session = await loginRequest(email.trim(), password);
-                finishSession(session.token);
+                finishSession();
                 trackProductEvent('login_completed');
             } else if (mode === 'register') {
                 requireValidEmail();
@@ -195,7 +193,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
             } else if (mode === 'verify') {
                 requireValidCode();
                 const session = await verifyEmail(email.trim(), code.trim());
-                finishSession(session.token);
+                finishSession();
                 trackProductEvent('email_verified');
             } else if (mode === 'forgot') {
                 requireValidEmail();

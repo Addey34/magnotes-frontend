@@ -23,9 +23,9 @@ const PEER_REFRESH_WAIT_MS = 250;
 const PEER_REFRESH_JITTER_MS = 250;
 
 export type SessionEvent =
-    | { type: 'logout'; at: number }
-    | { type: 'logout-confirmed' }
-    | { type: 'logout-failed' }
+    | { type: 'logout'; at: number; id: string }
+    | { type: 'logout-confirmed'; id: string }
+    | { type: 'logout-failed'; id: string }
     | { type: 'refreshed' };
 
 export interface CoordinationHandlers {
@@ -45,29 +45,46 @@ let generation = 0;
 let signedOut = false;
 /** When the current session started; older logout events are ignored. */
 let sessionStartedAt = 0;
-let pendingFallback = false;
+/** In-memory copy of the pending-logout id, used if storage is unavailable. */
+let pendingFallbackId: string | null = null;
+let storageBroken = false;
+/** Logout this tab currently cares about; events for other ids are stale. */
+let currentLogoutId: string | null = null;
 
 export const currentGeneration = (): number => generation;
 
-export function hasPendingLogout(): boolean {
+const newLogoutId = (): string =>
+    `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+
+/**
+ * Id of the logout whose server revocation is not confirmed yet, if any.
+ * localStorage is the cross-tab source of truth; the in-memory copy is used
+ * only when storage is unusable (blocked, private mode), so a marker cleared
+ * by another tab is never resurrected from a stale local copy.
+ */
+export function pendingLogoutId(): string | null {
+    if (storageBroken) return pendingFallbackId;
     try {
-        return localStorage.getItem(PENDING_KEY) !== null || pendingFallback;
+        return localStorage.getItem(PENDING_KEY);
     } catch {
-        return pendingFallback;
+        storageBroken = true;
+        return pendingFallbackId;
     }
 }
 
-function setPendingLogout(): void {
-    pendingFallback = true;
+export const hasPendingLogout = (): boolean => pendingLogoutId() !== null;
+
+function setPendingLogout(id: string): void {
+    pendingFallbackId = id;
     try {
-        localStorage.setItem(PENDING_KEY, String(Date.now()));
+        localStorage.setItem(PENDING_KEY, id);
     } catch {
-        // Storage unavailable: the in-memory flag still protects this tab.
+        storageBroken = true;
     }
 }
 
 function clearPendingLogout(): void {
-    pendingFallback = false;
+    pendingFallbackId = null;
     try {
         localStorage.removeItem(PENDING_KEY);
     } catch {
@@ -83,6 +100,9 @@ export function startSession(token: string): void {
     generation += 1;
     signedOut = false;
     sessionStartedAt = Date.now();
+    // A newer session supersedes any logout still waiting to be revoked: the
+    // queued revocation sees the marker gone and never touches the new cookie.
+    currentLogoutId = null;
     clearPendingLogout();
     setTokens(token);
 }
@@ -109,18 +129,24 @@ function post(event: SessionEvent): void {
 }
 
 export const announceRefreshed = (): void => post({ type: 'refreshed' });
-export const announceLogoutConfirmed = (): void =>
-    post({ type: 'logout-confirmed' });
-export const announceLogoutFailed = (): void => post({ type: 'logout-failed' });
+export const announceLogoutFailed = (id: string): void =>
+    post({ type: 'logout-failed', id });
 
 function parseEvent(data: unknown): SessionEvent | null {
     if (typeof data !== 'object' || data === null) return null;
-    const { type, at } = data as { type?: unknown; at?: unknown };
+    const { type, at, id } = data as {
+        type?: unknown;
+        at?: unknown;
+        id?: unknown;
+    };
     switch (type) {
         case 'logout':
-            return typeof at === 'number' ? { type, at } : null;
+            return typeof at === 'number' && typeof id === 'string'
+                ? { type, at, id }
+                : null;
         case 'logout-confirmed':
         case 'logout-failed':
+            return typeof id === 'string' ? { type, id } : null;
         case 'refreshed':
             return { type };
         default:
@@ -141,6 +167,9 @@ export function startSessionCoordination(
         channel = null;
         return () => undefined;
     }
+    // After a reload, adopt the persisted unconfirmed logout so that its
+    // retry/confirmation events are not discarded as stale.
+    currentLogoutId = pendingLogoutId();
     const own = new BroadcastChannel(CHANNEL_NAME);
     channel = own;
     own.onmessage = (message: MessageEvent) => {
@@ -152,14 +181,15 @@ export function startSessionCoordination(
                 if (event.at < sessionStartedAt) return;
                 generation += 1;
                 signedOut = true;
+                currentLogoutId = event.id;
                 removeToken();
                 handlers.onRemoteLogout();
                 break;
             case 'logout-confirmed':
-                handlers.onLogoutConfirmed();
+                if (event.id === currentLogoutId) handlers.onLogoutConfirmed();
                 break;
             case 'logout-failed':
-                handlers.onLogoutFailed();
+                if (event.id === currentLogoutId) handlers.onLogoutFailed();
                 break;
             case 'refreshed':
                 refreshedWaiters.forEach((wake) => wake());
@@ -174,19 +204,34 @@ export function startSessionCoordination(
     };
 }
 
-/** Local logout: invalidate in-memory state first, then tell the other tabs. */
-export function beginLocalLogout(): void {
+/**
+ * Local logout: invalidate in-memory state first, then tell the other tabs.
+ * Returns the id identifying this logout's pending revocation.
+ */
+export function beginLocalLogout(): string {
+    const id = newLogoutId();
     generation += 1;
     signedOut = true;
+    currentLogoutId = id;
     removeToken();
-    setPendingLogout();
-    post({ type: 'logout', at: Date.now() });
+    setPendingLogout(id);
+    post({ type: 'logout', at: Date.now(), id });
+    return id;
 }
 
-/** Revocation confirmed by the server. */
-export function confirmLogout(): void {
+/** Whether `id` is still the logout awaiting revocation (not superseded). */
+export const isLogoutPending = (id: string): boolean =>
+    pendingLogoutId() === id;
+
+/**
+ * Revocation `id` confirmed by the server. Clears the marker only if it still
+ * belongs to `id`, so a late confirmation never erases a newer logout's marker.
+ */
+export function confirmLogout(id: string): boolean {
+    if (!isLogoutPending(id)) return false;
     clearPendingLogout();
-    announceLogoutConfirmed();
+    post({ type: 'logout-confirmed', id });
+    return true;
 }
 
 /** Resolve on a peer's `refreshed` event, or after a short jittered delay. */
@@ -248,5 +293,7 @@ export function __resetSessionCoordinatorForTests(): void {
     generation = 0;
     signedOut = false;
     sessionStartedAt = 0;
-    pendingFallback = false;
+    pendingFallbackId = null;
+    storageBroken = false;
+    currentLogoutId = null;
 }
