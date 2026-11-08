@@ -379,6 +379,31 @@ export const DICTIONARY = {
         en: 'Create an account to keep them →',
     },
 
+    // --- demo import banner --------------------------------------------------
+    'import.running': {
+        fr: 'Import de votre tableau de démo…',
+        en: 'Importing your demo board…',
+    },
+    'import.failed': {
+        fr: 'Votre tableau de démo n’a pas pu être importé. Vos notes restent sur cet appareil.',
+        en: 'Your demo board could not be imported. Your notes stay on this device.',
+    },
+    'import.conflict': {
+        fr: 'Cet import a déjà été utilisé avec un contenu différent. Vos notes restent sur cet appareil.',
+        en: 'This import was already used with different content. Your notes stay on this device.',
+    },
+    'import.partial': {
+        fr: 'Import terminé, mais {count} élément(s) n\u2019ont pas pu être transférés. Votre copie locale est conservée.',
+        en: 'Import finished, but {count} item(s) could not be transferred. Your local copy is kept.',
+    },
+    'import.keepLocal': { fr: 'Garder la copie locale', en: 'Keep local copy' },
+    'import.eraseLocal': {
+        fr: 'Effacer la copie locale',
+        en: 'Erase local copy',
+    },
+    'import.retry': { fr: 'Reprendre l’import', en: 'Resume import' },
+    'import.dismiss': { fr: 'Ignorer', en: 'Dismiss' },
+
     // --- share dialog --------------------------------------------------------
     'share.title': { fr: 'Partager « {name} »', en: 'Share “{name}”' },
     'share.close': { fr: 'Fermer', en: 'Close' },

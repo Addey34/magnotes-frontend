@@ -10,8 +10,13 @@
  * so a returning visitor keeps their sandbox until they sign up.
  */
 
+import {
+    clearDemoImportState,
+    ensureDemoImportState,
+    loadDemoImportState,
+} from './demoImportState';
+
 const ACTIVE_KEY = 'magnotes-demo-active';
-const IMPORT_PENDING_KEY = 'magnotes-demo-import-pending';
 
 function safeSession(): Storage | null {
     try {
@@ -49,14 +54,17 @@ export function deactivateDemo(): void {
 
 // Set when a demo visitor asks to create an account, so that after a successful
 // login/signup App knows to import their sandbox board into the new account.
+// Backed by persistent storage (see demoImportState.ts): the pending import and
+// its id survive reloads and failed attempts until the server confirms.
 export function markDemoImportPending(): void {
-    safeSession()?.setItem(IMPORT_PENDING_KEY, '1');
+    ensureDemoImportState();
 }
 
 export function isDemoImportPending(): boolean {
-    return safeSession()?.getItem(IMPORT_PENDING_KEY) === '1';
+    const state = loadDemoImportState();
+    return state !== null && !state.abandoned;
 }
 
 export function clearDemoImportPending(): void {
-    safeSession()?.removeItem(IMPORT_PENDING_KEY);
+    clearDemoImportState();
 }
