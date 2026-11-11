@@ -32,6 +32,27 @@ export function isDemoRequested(): boolean {
     return new URLSearchParams(window.location.search).has('demo');
 }
 
+// True when the URL asks to open the sign-up form directly (`?signup` /
+// `?signup=1`). Pure read, no side effect: it is called from a React state
+// initializer, which StrictMode runs twice. The demo has priority: a URL that
+// asks for both stays in the demo.
+export function isSignupRequested(search?: string): boolean {
+    if (typeof window === 'undefined' && search === undefined) return false;
+    const params = new URLSearchParams(search ?? window.location.search);
+    return params.has('signup') && !params.has('demo');
+}
+
+// Drops `signup` from the address bar without a reload, so a refresh or a
+// later return to the login screen does not reopen the sign-up form. Idempotent
+// and separate from the read above.
+export function stripSignupQuery(): void {
+    if (typeof window === 'undefined' || !window.history) return;
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has('signup')) return;
+    url.searchParams.delete('signup');
+    window.history.replaceState({}, '', url.toString());
+}
+
 export function requestedDemoTemplateId(search?: string): string | undefined {
     if (typeof window === 'undefined' && search === undefined) return undefined;
     const value = new URLSearchParams(search ?? window.location.search).get(
