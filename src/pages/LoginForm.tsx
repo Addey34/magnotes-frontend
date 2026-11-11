@@ -26,6 +26,9 @@ import '../styles/LoginForm.css';
 
 interface LoginFormProps {
     onLogin: () => void;
+    // Form shown first. Read once, when the form mounts; the switch link
+    // between sign in and sign up behaves as before.
+    initialMode?: 'login' | 'register';
 }
 
 type Translate = (
@@ -104,9 +107,12 @@ const DEMO_NOTES = [
     { color: 'sky' as DemoColor, index: 5, x: '49%', y: '75%', rot: -2 },
 ];
 
-const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
+const LoginForm: React.FC<LoginFormProps> = ({
+    onLogin,
+    initialMode = 'login',
+}) => {
     const { t, lang } = useT();
-    const [mode, setMode] = useState<Mode>('login');
+    const [mode, setMode] = useState<Mode>(initialMode);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [passwordConfirmation, setPasswordConfirmation] = useState('');

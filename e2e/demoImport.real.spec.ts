@@ -49,13 +49,17 @@ async function authenticateFromDemo(
 ) {
     await page.locator('.demo-banner__cta').click();
     await expect(page.locator('.auth-page')).toBeVisible();
+    // The demo's "keep my notes" button opens the sign-up form directly.
+    await expect(page.locator('#confirm-password')).toBeVisible();
     if (creds.seeded) {
+        // An existing account switches to sign in from there.
+        await page.locator('.auth-switch button').click();
+        await expect(page.locator('#confirm-password')).toHaveCount(0);
         await page.locator('#email').fill(creds.email);
         await page.locator('#password').fill(creds.password);
         await page.locator('.auth-submit').click();
         return;
     }
-    await page.locator('.auth-switch button').click();
     await page.locator('#email').fill(creds.email);
     await page.locator('#password').fill(creds.password);
     await page.locator('#confirm-password').fill(creds.password);
@@ -333,6 +337,10 @@ test.describe('real demo import', () => {
         expect(demoCards.every((c) => c.title && c.content)).toBe(true);
         await page.locator('.demo-banner__cta').click();
         await expect(page.locator('.auth-page')).toBeVisible();
+        // The button opens the sign-up form; an existing user switches to sign in.
+        await expect(page.locator('#confirm-password')).toBeVisible();
+        await page.locator('.auth-switch button').click();
+        await expect(page.locator('#confirm-password')).toHaveCount(0);
         await page.locator('#email').fill(creds.email);
         await page.locator('#password').fill(creds.password);
         await page.locator('.auth-submit').click();

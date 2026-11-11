@@ -1,6 +1,8 @@
 /** @jest-environment jsdom */
 
+import '@testing-library/jest-dom';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import * as React from 'react';
 import { LangProvider } from '../i18n/LangContext';
 import { login, register, verifyEmail } from '../services/authApi';
 import { trackProductEvent } from '../services/analytics';
@@ -30,11 +32,15 @@ const mockedTrack = trackProductEvent as jest.MockedFunction<
     typeof trackProductEvent
 >;
 
-function renderLogin(onLogin = jest.fn(), lang: 'fr' | 'en' = 'fr') {
+function renderLogin(
+    onLogin = jest.fn(),
+    lang: 'fr' | 'en' = 'fr',
+    initialMode?: 'login' | 'register'
+) {
     localStorage.setItem('magnotes-lang', lang);
     const rendered = render(
         <LangProvider>
-            <LoginForm onLogin={onLogin} />
+            <LoginForm onLogin={onLogin} initialMode={initialMode} />
         </LangProvider>
     );
     return { ...rendered, onLogin };
@@ -165,5 +171,59 @@ describe('LoginForm analytics', () => {
         expect((await screen.findByRole('alert')).textContent).toBe(
             'Incorrect email address or password.'
         );
+    });
+});
+
+describe('LoginForm initial mode', () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+        localStorage.clear();
+    });
+
+    it('opens on sign in by default', () => {
+        renderLogin();
+        expect(
+            screen.getByRole('button', { name: 'Se connecter' })
+        ).toBeInTheDocument();
+        expect(document.querySelector('#confirm-password')).toBeNull();
+    });
+
+    it.each([
+        ['fr', 'Créer mon compte', 'Se connecter'],
+        ['en', 'Create my account', 'Sign in'],
+    ] as const)(
+        'opens directly on sign up in %s, with a way back to sign in',
+        (lang, submit, back) => {
+            renderLogin(jest.fn(), lang, 'register');
+            expect(
+                screen.getByRole('button', { name: submit })
+            ).toBeInTheDocument();
+            expect(document.querySelector('#confirm-password')).not.toBeNull();
+
+            fireEvent.click(screen.getByRole('button', { name: back }));
+            expect(document.querySelector('#confirm-password')).toBeNull();
+        }
+    );
+
+    it('emits no analytics event when it mounts on sign up (StrictMode too)', () => {
+        render(
+            <React.StrictMode>
+                <LangProvider>
+                    <LoginForm onLogin={jest.fn()} initialMode="register" />
+                </LangProvider>
+            </React.StrictMode>
+        );
+        expect(mockedTrack).not.toHaveBeenCalled();
+    });
+
+    it('still reports one signup_started per switch to sign up', () => {
+        renderLogin(jest.fn(), 'fr', 'register');
+        fireEvent.click(screen.getByRole('button', { name: 'Se connecter' }));
+        fireEvent.click(
+            screen.getByRole('button', { name: 'Créer un compte' })
+        );
+        expect(
+            mockedTrack.mock.calls.filter(([e]) => e === 'signup_started')
+        ).toHaveLength(1);
     });
 });
