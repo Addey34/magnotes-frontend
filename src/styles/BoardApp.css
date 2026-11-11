@@ -2895,13 +2895,13 @@
 }
 
 .card-edit-done {
-    background: #16a34a;
-    border-color: #15803d;
+    background: #15803d;
+    border-color: #166534;
     color: #fff;
 }
 
 .card-edit-done:hover {
-    background: #15803d;
+    background: #166534;
 }
 
 /* Move-first cards: outside edit mode the title and body never capture the

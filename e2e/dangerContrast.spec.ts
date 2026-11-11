@@ -119,6 +119,11 @@ for (const theme of THEMES) {
                 selectionDelete: '.board-selection-bar button.is-danger',
             });
             expect(selection.selectionDelete).toBeGreaterThanOrEqual(4.5);
+            // The new card is in edit mode: its green "Done" button too.
+            const done = await measure(page, {
+                editDone: '.card-edit-done > span',
+            });
+            expect(done.editDone).toBeGreaterThanOrEqual(4.5);
 
             for (const view of ['kanban', 'timeline']) {
                 await page.locator(`[data-view-tab="${view}"]`).click();
