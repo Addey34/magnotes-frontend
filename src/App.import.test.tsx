@@ -14,14 +14,18 @@ jest.mock('./pages/BoardApp', () => ({
     __esModule: true,
     default: function BoardAppMock({
         initialTabId,
+        onLogout,
     }: {
         initialTabId?: string;
+        onLogout?: () => void;
     }) {
         React.useEffect(() => {
             boardMounts();
         }, []);
         return (
-            <div data-testid="board" data-initial-tab={initialTabId ?? ''} />
+            <div data-testid="board" data-initial-tab={initialTabId ?? ''}>
+                <button onClick={onLogout}>logout</button>
+            </div>
         );
     },
 }));
@@ -37,7 +41,7 @@ jest.mock('./pages/PublicBoardView', () => ({
 }));
 jest.mock('./services/authApi', () => ({
     bootstrapSession: jest.fn(() => Promise.resolve(false)),
-    logout: jest.fn(),
+    logout: jest.fn(() => Promise.resolve('confirmed')),
     setupAuthInterceptor: jest.fn(() => () => undefined),
 }));
 jest.mock('./services/demoBoard', () => ({
@@ -211,5 +215,79 @@ describe('login is never gated on the demo import', () => {
         expect(
             screen.getByRole('button', { name: /erase local copy/i })
         ).toBeInTheDocument();
+    });
+});
+
+describe('a late import answer never leaks into a newer session', () => {
+    const lateOutcome = {
+        status: 'complete',
+        boards: 1,
+        cards: 6,
+        focusTabId: 'srv-old',
+    };
+
+    async function loginPastGateThenLogout(finishImport: {
+        current: (v: unknown) => void;
+    }) {
+        markDemoImportPending();
+        importDemoBoardToAccount.mockReturnValueOnce(
+            new Promise((resolve) => {
+                finishImport.current = resolve;
+            })
+        );
+        fireEvent.click(await renderAtLogin());
+        // The grace period elapses while the import is still in flight.
+        await act(async () => {
+            jest.advanceTimersByTime(3_100);
+        });
+        expect(screen.getByTestId('board')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'logout' }));
+        await screen.findByText('login');
+    }
+
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    it('drops the answer that arrives after logout and re-login', async () => {
+        const finish = { current: (_v: unknown) => undefined };
+        await loginPastGateThenLogout(finish);
+
+        // The late answer lands while signed out…
+        await act(async () => finish.current(lateOutcome));
+        // …and the visitor signs in again (the completed import cleared its
+        // own pending state, as the real flow does).
+        localStorage.clear();
+        fireEvent.click(screen.getByText('login'));
+
+        const board = await screen.findByTestId('board');
+        expect(board).toHaveAttribute('data-initial-tab', '');
+        expect(screen.queryByTestId('demo-import-banner')).toBeNull();
+    });
+
+    it('drops the answer that arrives after re-login too', async () => {
+        const finish = { current: (_v: unknown) => undefined };
+        await loginPastGateThenLogout(finish);
+
+        localStorage.clear();
+        fireEvent.click(screen.getByText('login'));
+        await screen.findByTestId('board');
+        await act(async () => finish.current(lateOutcome));
+
+        expect(screen.getByTestId('board')).toHaveAttribute(
+            'data-initial-tab',
+            ''
+        );
+        expect(screen.queryByTestId('demo-import-banner')).toBeNull();
+    });
+
+    it('does not show the old running banner in the next session', async () => {
+        const finish = { current: (_v: unknown) => undefined };
+        await loginPastGateThenLogout(finish);
+
+        localStorage.clear();
+        fireEvent.click(screen.getByText('login'));
+
+        await screen.findByTestId('board');
+        expect(screen.queryByTestId('demo-import-banner')).toBeNull();
     });
 });

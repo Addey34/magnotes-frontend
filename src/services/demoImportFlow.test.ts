@@ -244,6 +244,34 @@ describe('demo import flow', () => {
         expect(server.requests).toHaveLength(1);
     });
 
+    it('does not hand the confirmation of one account to another signing in meanwhile', async () => {
+        const server = createFakeServer();
+        const local = createLocal();
+        ensureDemoImportState();
+        let release: () => void = () => undefined;
+        const gate = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        const slowPut = server.putFor('user-a');
+
+        const first = runDemoImport('user-a', {
+            ...local,
+            putImport: async (id, snap) => {
+                await gate;
+                return slowPut(id, snap);
+            },
+        });
+        const other = await runDemoImport('user-b', {
+            ...local,
+            putImport: server.putFor('user-b'),
+        });
+
+        expect(other).toEqual({ status: 'other-account' });
+        release();
+        expect(await first).toMatchObject({ status: 'complete' });
+        expect(server.countFor('user-b')).toBe(0);
+    });
+
     it('survives a reload: the persisted id is reused by the next page', async () => {
         const server = createFakeServer();
         const local = createLocal();

@@ -150,18 +150,24 @@ export function verifyImportConfirmation(
 // One run at a time per page: a double click or a retry racing the login
 // import must not send the same request twice from this tab. Other tabs are
 // covered by the server-side idempotency.
-let inFlight: Promise<DemoImportOutcome> | null = null;
+let inFlight: { userId: string; run: Promise<DemoImportOutcome> } | null = null;
 
 export function runDemoImport(
     userId: string,
     deps: DemoImportDeps
 ): Promise<DemoImportOutcome> {
-    if (!inFlight) {
-        inFlight = attempt(userId, deps).finally(() => {
-            inFlight = null;
-        });
+    // Shared only with the same account: another account signing in meanwhile
+    // must get its own answer (the pending import is bound to the first one),
+    // never the confirmation of an import that is not its own.
+    if (!inFlight || inFlight.userId !== userId) {
+        const run: Promise<DemoImportOutcome> = attempt(userId, deps).finally(
+            () => {
+                if (inFlight?.run === run) inFlight = null;
+            }
+        );
+        inFlight = { userId, run };
     }
-    return inFlight;
+    return inFlight.run;
 }
 
 async function attempt(

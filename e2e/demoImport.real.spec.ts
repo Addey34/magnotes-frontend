@@ -83,11 +83,50 @@ async function serverTabNames(
     return ((await tabs.json()) as Array<{ name: string }>).map((t) => t.name);
 }
 
+// Everything the visitor wrote or styled, compared field by field. Ids,
+// tabId and timestamps legitimately differ between the sandbox and the account.
+type CardContent = {
+    title: string;
+    content: string;
+    color: string;
+    textColor: string;
+    textSize: number;
+    fontFamily: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    rotation: number;
+    status?: string;
+    priority?: string;
+    tags?: string[];
+};
+
+const contentOf = (c: CardContent): CardContent => ({
+    title: c.title,
+    content: c.content,
+    color: c.color,
+    textColor: c.textColor,
+    textSize: c.textSize,
+    fontFamily: c.fontFamily,
+    x: c.x,
+    y: c.y,
+    width: c.width,
+    height: c.height,
+    rotation: c.rotation,
+    ...(c.status ? { status: c.status } : {}),
+    ...(c.priority ? { priority: c.priority } : {}),
+    ...(c.tags && c.tags.length > 0 ? { tags: c.tags } : {}),
+});
+
+const byTitle = (a: CardContent, b: CardContent) =>
+    a.title.localeCompare(b.title);
+
 type ServerBoard = {
     id: string;
     name: string;
     order: number;
-    titles: string[];
+    cards: CardContent[];
     allCardsOnThisBoard: boolean;
 };
 
@@ -111,27 +150,28 @@ async function serverBoards(
             await page.request.get(`${apiUrl}/api/postits?tabId=${tab._id}`, {
                 headers,
             })
-        ).json()) as Array<{ title: string; tabId: string }>;
+        ).json()) as Array<CardContent & { tabId: string }>;
         boards.push({
             id: tab._id,
             name: tab.name,
             order: tab.order,
-            titles: cards.map((c) => c.title).sort(),
+            cards: cards.map(contentOf).sort(byTitle),
             allCardsOnThisBoard: cards.every((c) => c.tabId === tab._id),
         });
     }
     return boards;
 }
 
-const localDemoTitles = (page: Page) =>
-    page.evaluate((key) => {
-        const raw = localStorage.getItem(key);
-        return raw
-            ? (JSON.parse(raw).postIts as Array<{ title: string }>)
-                  .map((c) => c.title)
-                  .sort()
-            : [];
-    }, DEMO_KEY);
+const localDemoCards = async (page: Page): Promise<CardContent[]> => {
+    const raw = await page.evaluate(
+        (key) => localStorage.getItem(key),
+        DEMO_KEY
+    );
+    const cards = raw
+        ? (JSON.parse(raw).postIts as CardContent[]).map(contentOf)
+        : [];
+    return cards.sort(byTitle);
+};
 
 const localDemoTabs = (page: Page) =>
     page.evaluate((key) => {
@@ -168,8 +208,10 @@ test.describe('real demo import', () => {
         // The sandbox is seeded asynchronously after the banner shows.
         await expect.poll(() => localDemoTabs(page)).toBeGreaterThan(0);
         const demoTabs = await localDemoTabs(page);
-        const demoTitles = await localDemoTitles(page);
-        expect(demoTitles).toHaveLength(6);
+        const demoCards = await localDemoCards(page);
+        expect(demoCards).toHaveLength(6);
+        // The synthetic sandbox really carries text, not just titles.
+        expect(demoCards.every((c) => c.title && c.content)).toBe(true);
 
         const calls = await loseFirstImportResponse(page);
         await authenticateFromDemo(page, creds);
@@ -202,9 +244,9 @@ test.describe('real demo import', () => {
         // exactly once (the replayed request created no duplicate).
         const boards = await serverBoards(page, creds);
         expect(boards).toHaveLength(demoTabs);
-        const imported = boards.filter((b) => b.titles.length > 0);
+        const imported = boards.filter((b) => b.cards.length > 0);
         expect(imported).toHaveLength(1);
-        expect(imported[0].titles).toEqual(demoTitles);
+        expect(imported[0].cards).toEqual(demoCards);
         expect(imported[0].allCardsOnThisBoard).toBe(true);
     });
 
@@ -285,8 +327,10 @@ test.describe('real demo import', () => {
         await page.goto('/app/?demo=1');
         await expect(page.locator('.demo-banner')).toBeVisible();
         await expect.poll(() => localDemoTabs(page)).toBeGreaterThan(0);
-        const demoTitles = await localDemoTitles(page);
-        expect(demoTitles).toHaveLength(6);
+        const demoCards = await localDemoCards(page);
+        expect(demoCards).toHaveLength(6);
+        // The synthetic sandbox really carries text, not just titles.
+        expect(demoCards.every((c) => c.title && c.content)).toBe(true);
         await page.locator('.demo-banner__cta').click();
         await expect(page.locator('.auth-page')).toBeVisible();
         await page.locator('#email').fill(creds.email);
@@ -306,13 +350,13 @@ test.describe('real demo import', () => {
         const importedBoard = boards.find(
             (b) => !before.some((old) => old.id === b.id)
         )!;
-        // Notes, contents and ownership: all six, on the new board only.
-        expect(importedBoard.titles).toEqual(demoTitles);
+        // Notes, full contents and ownership: all six, on the new board only.
+        expect(importedBoard.cards).toEqual(demoCards);
         expect(importedBoard.allCardsOnThisBoard).toBe(true);
         // Existing boards were not touched.
         for (const old of before) {
-            expect(boards.find((b) => b.id === old.id)?.titles).toEqual(
-                old.titles
+            expect(boards.find((b) => b.id === old.id)?.cards).toEqual(
+                old.cards
             );
         }
         // The open board is the imported one (shown name + visible cards).
