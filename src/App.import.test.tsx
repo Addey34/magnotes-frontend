@@ -191,6 +191,18 @@ describe('login is never gated on the demo import', () => {
         );
     });
 
+    it('shows nothing and keeps the board when the answer was for a superseded import', async () => {
+        markDemoImportPending();
+        importDemoBoardToAccount.mockResolvedValue({ status: 'stale' });
+
+        fireEvent.click(await renderAtLogin());
+
+        const board = await screen.findByTestId('board');
+        expect(board).toHaveAttribute('data-initial-tab', '');
+        expect(screen.queryByTestId('demo-import-banner')).toBeNull();
+        expect(boardMounts).toHaveBeenCalledTimes(1);
+    });
+
     it('does not call the import at all when none is pending', async () => {
         fireEvent.click(await renderAtLogin());
         expect(await screen.findByTestId('board')).toBeInTheDocument();

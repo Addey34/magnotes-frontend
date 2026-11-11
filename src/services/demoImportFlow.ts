@@ -60,6 +60,8 @@ export type DemoImportOutcome =
     | ({ status: 'partial'; skipped: number } & Partial<DemoImportSummary>)
     // The pending import belongs to another account: left untouched.
     | { status: 'other-account' }
+    // The answer belongs to an import that is no longer the current one.
+    | { status: 'stale' }
     | { status: 'failed'; reason: DemoImportFailure };
 
 export function classifyImportError(error: unknown): DemoImportFailure {
@@ -215,6 +217,21 @@ async function attempt(
     };
     saveDemoImportState(current);
 
+    // The answer below is about THIS attempt only. While the request was in
+    // flight the page may have started another import (new id), the sandbox may
+    // have gained notes, or another tab may have finished or dropped this one.
+    // An answer for a superseded attempt must neither erase local data nor
+    // overwrite the state of a newer one.
+    const isStillCurrentAttempt = () => {
+        const live = loadDemoImportState();
+        return (
+            live !== null &&
+            live.importId === current.importId &&
+            live.userId === userId &&
+            live.snapshotHash === hash
+        );
+    };
+
     let response: DemoImportResponse;
     try {
         response = await deps.putImport(current.importId, snapshot);
@@ -226,15 +243,19 @@ async function attempt(
             throw new Error('Import not confirmed by the server');
         }
     } catch (error) {
+        if (!isStillCurrentAttempt()) return { status: 'stale' };
         const reason = classifyImportError(error);
         saveDemoImportState({
-            ...(loadDemoImportState() ?? current),
+            ...current,
+            ...(loadDemoImportState() ?? {}),
             userId,
             lastError: reason,
             updatedAt: now(),
         });
         return { status: 'failed', reason };
     }
+
+    if (!isStillCurrentAttempt()) return { status: 'stale' };
 
     const verified = verifyImportConfirmation(snapshot, response);
     if (!verified) {
@@ -258,7 +279,9 @@ async function attempt(
         return { status: 'partial', skipped, ...summary };
     }
 
-    // Confirmed with nothing left out: only now is the local copy disposable.
+    // Confirmed with nothing left out: only now is the local copy disposable —
+    // and only if it is still exactly what was sent under this import.
+    if (hashSnapshot(deps.getSnapshot()) !== hash) return { status: 'stale' };
     deps.resetLocal();
     clearDemoImportState();
     return { status: 'complete', ...summary };

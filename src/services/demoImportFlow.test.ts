@@ -10,9 +10,13 @@ import {
     runDemoImport,
 } from './demoImportFlow';
 import {
+    clearDemoImportState,
+    DemoImportState,
     ensureDemoImportState,
+    hashSnapshot,
     loadDemoImportState,
     newImportId,
+    saveDemoImportState,
 } from './demoImportState';
 
 const snapshot = (): DemoSnapshot =>
@@ -114,6 +118,9 @@ function createLocal(initial: DemoSnapshot = snapshot()) {
     });
     return {
         getSnapshot: () => current,
+        setSnapshot: (next: DemoSnapshot) => {
+            current = next;
+        },
         resetLocal,
         isIntact: () => current.tabs.length > 0,
     };
@@ -572,5 +579,150 @@ describe('confirmation must match the snapshot (fail-closed)', () => {
             cards: 1,
             focusTabId: 'srv-dt1',
         });
+    });
+});
+
+describe('an answer for an older import never erases newer local work', () => {
+    // Import A is in flight (its answer is deferred) while something changes
+    // locally; then A's perfectly valid confirmation arrives.
+    async function startDeferredA(
+        opts: { respond?: 'ok' | 'network-error' | 'skipped' } = {}
+    ) {
+        const server = createFakeServer();
+        const local = createLocal();
+        const stateA = ensureDemoImportState();
+        const put = server.putFor('user-a');
+        let release: () => void = () => undefined;
+        const gate = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        const run = runDemoImport('user-a', {
+            ...local,
+            putImport: async (id, snap) => {
+                await gate;
+                if (opts.respond === 'network-error') throw networkError();
+                const res = await put(id, snap);
+                return opts.respond === 'skipped'
+                    ? {
+                          ...res,
+                          counts: { ...res.counts!, cards: 1, skipped: 1 },
+                          skippedItems: [
+                              {
+                                  kind: 'card',
+                                  id: 'dc2',
+                                  reason: 'unknown-tab',
+                              },
+                          ],
+                      }
+                    : res;
+            },
+        });
+        return { local, stateA, release, run };
+    }
+
+    const editedSnapshot = () => {
+        const edited = snapshot();
+        edited.postIts.push({ _id: 'dc-new', tabId: 'dt1' } as never);
+        return edited;
+    };
+
+    const stateB = (): DemoImportState => ({
+        importId: newImportId(),
+        userId: 'user-a',
+        attempts: 1,
+        snapshotHash: hashSnapshot(editedSnapshot()),
+        updatedAt: new Date().toISOString(),
+    });
+
+    it('keeps notes written locally while A was in flight', async () => {
+        const { local, stateA, release, run } = await startDeferredA();
+
+        local.setSnapshot(editedSnapshot());
+        release();
+        const outcome = await run;
+
+        expect(outcome).toEqual({ status: 'stale' });
+        expect(local.resetLocal).not.toHaveBeenCalled();
+        expect(local.getSnapshot().postIts).toHaveLength(3);
+        // Nothing is forgotten: the pending import is still there.
+        expect(loadDemoImportState()?.importId).toBe(stateA.importId);
+    });
+
+    it('keeps state B and the local data when B replaced A', async () => {
+        const { local, stateA, release, run } = await startDeferredA();
+
+        const b = stateB();
+        expect(b.importId).not.toBe(stateA.importId);
+        local.setSnapshot(editedSnapshot());
+        saveDemoImportState(b);
+        release();
+        const outcome = await run;
+
+        expect(outcome).toEqual({ status: 'stale' });
+        expect(local.resetLocal).not.toHaveBeenCalled();
+        expect(local.getSnapshot().postIts).toHaveLength(3);
+        expect(loadDemoImportState()).toEqual(b);
+    });
+
+    it('does not clear state B even if the local content is unchanged', async () => {
+        const { local, release, run } = await startDeferredA();
+
+        const b = { ...stateB(), snapshotHash: hashSnapshot(snapshot()) };
+        saveDemoImportState(b);
+        release();
+
+        expect(await run).toEqual({ status: 'stale' });
+        expect(local.resetLocal).not.toHaveBeenCalled();
+        expect(loadDemoImportState()).toEqual(b);
+    });
+
+    it('does not resurrect or clear anything when the state vanished', async () => {
+        const { local, release, run } = await startDeferredA();
+
+        clearDemoImportState();
+        local.setSnapshot(editedSnapshot());
+        release();
+
+        expect(await run).toEqual({ status: 'stale' });
+        expect(local.resetLocal).not.toHaveBeenCalled();
+        expect(loadDemoImportState()).toBeNull();
+    });
+
+    it('leaves state B untouched when A fails after B replaced it', async () => {
+        const { release, run } = await startDeferredA({
+            respond: 'network-error',
+        });
+
+        const b = stateB();
+        saveDemoImportState(b);
+        release();
+        await run;
+
+        expect(loadDemoImportState()).toEqual(b);
+    });
+
+    it('leaves state B untouched when A comes back partial', async () => {
+        const { local, release, run } = await startDeferredA({
+            respond: 'skipped',
+        });
+
+        const b = stateB();
+        saveDemoImportState(b);
+        release();
+        const outcome = await run;
+
+        expect(outcome).toEqual({ status: 'stale' });
+        expect(loadDemoImportState()).toEqual(b);
+        expect(local.isIntact()).toBe(true);
+    });
+
+    it('still completes normally when nothing changed in between', async () => {
+        const { local, release, run } = await startDeferredA();
+
+        release();
+
+        expect(await run).toMatchObject({ status: 'complete', cards: 2 });
+        expect(local.resetLocal).toHaveBeenCalledTimes(1);
+        expect(loadDemoImportState()).toBeNull();
     });
 });
