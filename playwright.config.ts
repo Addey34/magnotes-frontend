@@ -46,6 +46,7 @@ export default defineConfig({
                 'authLegalLinks.spec.ts',
                 'demoImport.real.spec.ts',
                 'multiTab.real.spec.ts',
+                'signupEntry.spec.ts',
             ],
             use: { ...devices['Pixel 7'] },
         },
@@ -56,6 +57,7 @@ export default defineConfig({
                 'authLegalLinks.spec.ts',
                 'demoImport.real.spec.ts',
                 'multiTab.real.spec.ts',
+                'signupEntry.spec.ts',
             ],
             grepInvert:
                 /sidebar expands on hover without covering the workspace/,

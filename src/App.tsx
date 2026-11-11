@@ -31,6 +31,8 @@ import {
     isDemoActive,
     isDemoImportPending,
     isDemoRequested,
+    isSignupRequested,
+    stripSignupQuery,
     markDemoImportPending,
     requestedDemoTemplateId,
 } from './services/demoMode';
@@ -70,6 +72,18 @@ const App: React.FC = () => {
         () => (hasPendingLogout() ? 'unconfirmed' : null)
     );
     const [demoActive, setDemoActive] = useState(false);
+    // Which form the sign-in screen opens on. Pure read of `?signup` (the URL is
+    // cleaned in an effect below), and dropped back to "login" once a session
+    // exists, so a later logout never reopens the sign-up form.
+    const [authIntent, setAuthIntent] = useState<'login' | 'register'>(() =>
+        isSignupRequested() ? 'register' : 'login'
+    );
+    useEffect(() => {
+        stripSignupQuery();
+    }, []);
+    useEffect(() => {
+        if (isLoggedIn) setAuthIntent('login');
+    }, [isLoggedIn]);
     // Demo → account import progress. `null` = nothing to show.
     const [importUi, setImportUi] = useState<
         | { state: 'running' }
@@ -248,6 +262,7 @@ const App: React.FC = () => {
         markDemoImportPending();
         deactivateDemo();
         stripDemoQuery();
+        setAuthIntent('register');
         setDemoActive(false);
     };
 
@@ -328,7 +343,7 @@ const App: React.FC = () => {
                     onRetry={() => runRevocation(retryLogout)}
                 />
             )}
-            <LoginForm onLogin={handleLogin} />
+            <LoginForm onLogin={handleLogin} initialMode={authIntent} />
         </div>
     );
 };
