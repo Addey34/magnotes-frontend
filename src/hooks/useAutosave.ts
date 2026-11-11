@@ -15,6 +15,7 @@ export const useAutosave = <T extends object, TResult = void>(
     const pending = useRef<Record<string, PendingSave<T>>>({});
     const failed = useRef<Record<string, T>>({});
     const inFlight = useRef<Record<string, Promise<void>>>({});
+    const fieldVersions = useRef<Record<string, Record<string, number>>>({});
     const mounted = useRef(true);
     const saveRef = useRef(save);
     const onErrorRef = useRef(onError);
@@ -40,6 +41,7 @@ export const useAutosave = <T extends object, TResult = void>(
             ...queued.updates,
         } as T;
         delete failed.current[id];
+        const savedVersions = { ...fieldVersions.current[id] };
 
         if (mounted.current) {
             setSaveState({ status: 'saving', postItId: id });
@@ -60,10 +62,22 @@ export const useAutosave = <T extends object, TResult = void>(
                 const staleKeys = Object.keys({
                     ...(pending.current[id]?.updates || {}),
                     ...(failed.current[id] || {}),
+                    ...Object.fromEntries(
+                        Object.entries(fieldVersions.current[id] || {}).filter(
+                            ([key, version]) => version !== savedVersions[key]
+                        )
+                    ),
                 });
                 onSavedRef.current?.(id, result, staleKeys);
                 if (mounted.current) {
-                    setSaveState({ status: 'saved', postItId: id });
+                    setSaveState({
+                        status:
+                            inFlight.current[id] !== operation ||
+                            pending.current[id]
+                                ? 'saving'
+                                : 'saved',
+                        postItId: id,
+                    });
                 }
             })
             .catch((error) => {
@@ -89,6 +103,10 @@ export const useAutosave = <T extends object, TResult = void>(
 
     const scheduleSave = useCallback(
         (id: string, updates: T) => {
+            const versions = (fieldVersions.current[id] ||= {});
+            Object.keys(updates).forEach((key) => {
+                versions[key] = (versions[key] || 0) + 1;
+            });
             const current = pending.current[id];
             if (current) window.clearTimeout(current.timer);
 
@@ -108,6 +126,7 @@ export const useAutosave = <T extends object, TResult = void>(
         const ids = new Set([
             ...Object.keys(pending.current),
             ...Object.keys(failed.current),
+            ...Object.keys(inFlight.current),
         ]);
         ids.forEach((id) => {
             if (!pending.current[id] && failed.current[id]) {

@@ -69,6 +69,17 @@ describe('usePostIts rollbacks', () => {
         mockedFetch.mockResolvedValue([card]);
     });
 
+    it('retries a failed board load when connectivity returns without looping', async () => {
+        mockedFetch.mockRejectedValueOnce(new Error('offline'));
+        const onLoadError = jest.fn();
+        const { result } = renderHook(() => usePostIts('tab-1', onLoadError));
+        await waitFor(() => expect(onLoadError).toHaveBeenCalledTimes(1));
+        expect(mockedFetch).toHaveBeenCalledTimes(1);
+        act(() => window.dispatchEvent(new Event('online')));
+        await waitFor(() => expect(result.current.postIts).toEqual([card]));
+        expect(mockedFetch).toHaveBeenCalledTimes(2);
+    });
+
     it('restores a card when moving it to another board fails', async () => {
         mockedUpdate.mockRejectedValue(new Error('network'));
         const onMutationError = jest.fn();

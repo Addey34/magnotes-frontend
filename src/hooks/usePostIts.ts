@@ -54,6 +54,7 @@ export const usePostIts = (
         {}
     );
     const [loadedTabs, setLoadedTabs] = useState<Set<string>>(() => new Set());
+    const [failedTabs, setFailedTabs] = useState<Set<string>>(() => new Set());
     const [loadingTabs, setLoadingTabs] = useState<Set<string>>(
         () => new Set()
     );
@@ -77,14 +78,20 @@ export const usePostIts = (
                     ...current,
                     [tabId]: loadedPostIts,
                 }));
-            } catch {
-                onLoadError?.();
-            } finally {
                 setLoadedTabs((current) => {
                     const next = new Set(current);
                     next.add(tabId);
                     return next;
                 });
+                setFailedTabs((current) => {
+                    const next = new Set(current);
+                    next.delete(tabId);
+                    return next;
+                });
+            } catch {
+                setFailedTabs((current) => new Set(current).add(tabId));
+                onLoadError?.();
+            } finally {
                 setLoadingTabs((current) => {
                     const next = new Set(current);
                     next.delete(tabId);
@@ -985,11 +992,28 @@ export const usePostIts = (
         if (
             activeTabId &&
             !loadedTabs.has(activeTabId) &&
+            !failedTabs.has(activeTabId) &&
             !loadingTabs.has(activeTabId)
         ) {
             loadPostIts(activeTabId);
         }
-    }, [activeTabId, loadPostIts, loadedTabs, loadingTabs]);
+    }, [activeTabId, loadPostIts, loadedTabs, loadingTabs, failedTabs]);
+
+    useEffect(() => {
+        const retry = () => setFailedTabs(new Set());
+        window.addEventListener('online', retry);
+        return () => window.removeEventListener('online', retry);
+    }, []);
+
+    useEffect(() => {
+        if (!activeTabId) return;
+        setFailedTabs((current) => {
+            if (!current.has(activeTabId)) return current;
+            const next = new Set(current);
+            next.delete(activeTabId);
+            return next;
+        });
+    }, [activeTabId]);
 
     // Undo history is scoped to the active board; reset it when switching tabs
     // so entries never target cards from another board.
