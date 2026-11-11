@@ -24,6 +24,8 @@
     --lum-ink: #f4f5fb;
     --lum-ink-soft: #c7cadc;
     --lum-ink-muted: #a3aac6;
+    /* Destructive/error text: 4.5:1 on every surface of its luminosity. */
+    --lum-danger: #fb7185;
     /* Sheen blended into the top of raised surfaces. */
     --lum-lift: #ffffff;
     --lum-lift-amount: 7%;
@@ -39,7 +41,7 @@
     --scrollbar-track: color-mix(in srgb, var(--canvas-bg) 38%, transparent);
     --scrollbar-thumb: color-mix(in srgb, var(--accent) 55%, var(--text-muted));
     --scrollbar-thumb-hover: var(--accent-strong);
-    --danger: #fb7185;
+    --danger: var(--lum-danger);
     --board-topbar-height: 56px;
     --demo-banner-height: 0px;
     --sidebar-expanded-width: 216px;
@@ -72,6 +74,7 @@
     --lum-ink: #191d2d;
     --lum-ink-soft: #42485f;
     --lum-ink-muted: #4d5464;
+    --lum-danger: #b91c1c;
     --lum-lift: #ffffff;
     --lum-lift-amount: 55%;
 }
@@ -2024,13 +2027,13 @@
     cursor: text;
 }
 
-.post-it-drag-handle {
-    cursor: grab;
+.post-it-rotate-handle {
+    cursor: pointer;
     touch-action: none;
 }
 
-/* Combined drag + rotate handle — single button at bottom-right. Shows a
-   move icon by default; hovering reveals the rotate icon to signal dual use. */
+/* Rotate handle — single button at bottom-right. Moving a card is done by
+   dragging its surface, never through this button. */
 .post-it-card > .post-it-action-handle {
     align-items: center;
     background: rgba(255, 255, 255, 0.9);
@@ -2039,7 +2042,7 @@
     bottom: -14px;
     box-shadow: 0 6px 16px rgba(15, 23, 42, 0.18);
     color: #273047;
-    cursor: grab;
+    cursor: pointer;
     display: inline-flex;
     height: 32px;
     justify-content: center;
@@ -2063,26 +2066,9 @@
     pointer-events: auto;
 }
 
-/* Move icon visible at rest, rotate icon on hover */
-.post-it-action-handle .handle-icon-move {
-    height: 15px;
-    width: 15px;
-    transition: opacity 120ms ease;
-}
 .post-it-action-handle .handle-icon-rotate {
     height: 14px;
-    position: absolute;
     width: 14px;
-    opacity: 0;
-    transition: opacity 120ms ease;
-}
-.post-it-action-handle:hover .handle-icon-move,
-.post-it-action-handle:active .handle-icon-move {
-    opacity: 0;
-}
-.post-it-action-handle:hover .handle-icon-rotate,
-.post-it-action-handle:active .handle-icon-rotate {
-    opacity: 1;
 }
 
 /* Dashed ring suggests rotation affordance on hover */
@@ -2108,15 +2094,6 @@
     color: #172033;
     outline: 2px solid var(--accent, #6253d1);
     outline-offset: 2px;
-}
-
-.post-it-action-handle:active {
-    cursor: grabbing;
-}
-
-.post-it-drag-handle:active,
-.post-it-card.is-dragging .post-it-action-handle {
-    cursor: grabbing;
 }
 
 .post-it-surface-glow {
@@ -2614,7 +2591,7 @@
 }
 
 .post-it-badge.due-badge.is-overdue {
-    background: #ef4444;
+    background: #dc2626;
     color: #fff;
 }
 
@@ -2918,13 +2895,13 @@
 }
 
 .card-edit-done {
-    background: #16a34a;
-    border-color: #15803d;
+    background: #15803d;
+    border-color: #166534;
     color: #fff;
 }
 
 .card-edit-done:hover {
-    background: #15803d;
+    background: #166534;
 }
 
 /* Move-first cards: outside edit mode the title and body never capture the
@@ -2962,7 +2939,7 @@
     width: 13px;
 }
 
-.post-it-drag-handle svg {
+.post-it-rotate-handle svg {
     height: 16px;
     width: 16px;
 }
@@ -3962,11 +3939,11 @@
 .board-brand-menu button.is-danger,
 .board-brand-menu button.is-danger strong,
 .board-brand-menu button.is-danger > span {
-    color: #ef4444;
+    color: var(--lum-danger);
 }
 
 .board-brand-menu button.is-danger svg {
-    color: #ef4444;
+    color: var(--lum-danger);
 }
 
 .account-dialog-backdrop {
@@ -4054,7 +4031,7 @@
 }
 
 .account-dialog-error {
-    color: #ef4444;
+    color: var(--lum-danger);
     font-size: 12px;
     margin: 8px 0 0;
 }
@@ -4081,7 +4058,7 @@
 }
 
 .account-dialog-actions button.is-danger {
-    background: #ef4444;
+    background: #dc2626;
     color: #fff;
 }
 
@@ -4320,7 +4297,7 @@
 }
 
 .feedback-dialog__error {
-    color: #f87171;
+    color: var(--lum-danger);
     font-size: 13px;
     margin: -4px 0 12px;
 }
@@ -4463,7 +4440,7 @@
 
 .kanban-card-meta .is-overdue {
     color: #fff;
-    background: #ef4444;
+    background: #dc2626;
     border-radius: 4px;
     padding: 1px 5px;
 }
@@ -4683,7 +4660,7 @@
 }
 
 .connection-tools button.is-danger {
-    color: #ff6b6b;
+    color: var(--lum-danger);
 }
 
 .post-it-card.is-link-source {
@@ -4820,7 +4797,7 @@
 
 .board-selection-bar button.is-danger {
     border-color: transparent;
-    color: #ef4444;
+    color: var(--lum-danger);
 }
 
 .board-selection-bar button.is-danger:hover {

@@ -61,7 +61,7 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
                     'Statut, priorité, échéance, tags et checklist : chaque post-it peut devenir une tâche. Cochez la case ci-dessous 👇',
                 color: '#bbf7d0',
                 x: 0,
-                y: 262,
+                y: 272,
                 status: 'doing',
                 tags: ['exemple'],
                 checklist: [
@@ -83,7 +83,7 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
                     'Citez une carte avec [[Bienvenue sur MagNotes 👋]]. Elle devient cliquable sous cette carte. Le bouton lien crée aussi des flèches entre cartes.',
                 color: '#fbcfe8',
                 x: 284,
-                y: 262,
+                y: 272,
             },
             {
                 title: 'Changez de vue',
@@ -91,7 +91,7 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
                     'En haut : **Kanban** (colonnes par statut), **Agenda** (par échéance) et **Planning** (frise). Les mêmes cartes, projetées autrement.',
                 color: '#fed7aa',
                 x: 568,
-                y: 262,
+                y: 272,
             },
         ],
     },

@@ -14,7 +14,11 @@ concurrency:
 
 jobs:
     production-health:
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
+        # Official image ships the browsers: avoids the apt mirror stalls of
+        # `playwright install --with-deps`. Keep the tag equal to @playwright/test.
+        container:
+            image: mcr.microsoft.com/playwright:v1.62.1-noble
         timeout-minutes: 25
         steps:
             - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -27,7 +31,8 @@ jobs:
                   cache: pnpm
                   cache-dependency-path: pnpm-lock.yaml
             - run: pnpm install --frozen-lockfile
-            - run: pnpm exec playwright install --with-deps chromium
+            - name: Check Playwright image version
+              run: test "$(pnpm exec playwright --version)" = "Version 1.62.1"
             - run: pnpm run monitor:production
               env:
                   PRODUCTION_URL: https://magnotes.adrianguichard.dev
@@ -42,8 +47,10 @@ jobs:
                       test-results/
                   if-no-files-found: ignore
                   retention-days: 7
-            - run: pnpm run monitor:lighthouse
+            - name: Lighthouse (Playwright Chromium)
               if: always()
+              run: |
+                  CHROME_PATH="$(node -e "process.stdout.write(require('@playwright/test').chromium.executablePath())")" pnpm run monitor:lighthouse
             - name: Upload Lighthouse reports
               if: always()
               uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

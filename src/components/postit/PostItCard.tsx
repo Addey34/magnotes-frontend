@@ -15,7 +15,6 @@ import {
     PlusIcon,
     TrashIcon,
     XMarkIcon,
-    ArrowsUpDownIcon,
 } from '@heroicons/react/24/outline';
 import React, {
     useCallback,
@@ -746,14 +745,15 @@ const PostItCard: React.FC<PostItCardProps> = ({
                 </span>
             )}
 
-            {/* Combined drag + rotate handle — drag to move, rotate gesture
-                on pointer-hold offset from center, click to step +15°. */}
+            {/* Rotate handle only. Moving a card is done by dragging its
+                surface (handlePointerDown); this button rotates it: click
+                steps +15°, drag sets a free angle, arrow keys step ±15°. */}
             <button
                 type="button"
-                className="post-it-action-handle post-it-drag-handle"
-                title={`${t('card.tool.move')} · ${t('card.tool.rotate')}`}
-                aria-label={`${t('card.tool.move')} / ${t('card.tool.rotate')}`}
-                aria-keyshortcuts="ArrowLeft ArrowRight"
+                className="post-it-action-handle post-it-rotate-handle"
+                title={t('card.tool.rotateHint')}
+                aria-label={t('card.tool.rotate')}
+                aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown"
                 style={{
                     backgroundColor: postIt.color,
                     color: postIt.textColor,
@@ -782,10 +782,6 @@ const PostItCard: React.FC<PostItCardProps> = ({
                     }
                 }}
             >
-                <ArrowsUpDownIcon
-                    aria-hidden="true"
-                    className="handle-icon-move"
-                />
                 <ArrowPathIcon
                     aria-hidden="true"
                     className="handle-icon-rotate"

@@ -948,8 +948,11 @@ export const DICTIONARY = {
         en: 'Image not found.',
     },
     'card.tool.color': { fr: 'Couleur de carte', en: 'Card color' },
-    'card.tool.move': { fr: 'Maintenir pour déplacer', en: 'Hold to move' },
     'card.tool.rotate': { fr: 'Faire pivoter la note', en: 'Rotate note' },
+    'card.tool.rotateHint': {
+        fr: 'Faire pivoter : clic = +15°, glisser = angle libre',
+        en: 'Rotate: click = +15°, drag = free angle',
+    },
     'card.tool.text': { fr: 'Texte', en: 'Text' },
     'card.tool.task': {
         fr: 'Tâche (statut, échéance, checklist)',
