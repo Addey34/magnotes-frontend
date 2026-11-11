@@ -24,8 +24,23 @@ import {
 export interface DemoImportResponse {
     importId: string;
     status: string;
-    counts?: { skipped?: number };
+    counts?: {
+        tabs?: number;
+        stacks?: number;
+        cards?: number;
+        connections?: number;
+        skipped?: number;
+    };
     skippedItems?: { kind: string; id: string; reason: string }[];
+    idMap?: { tabs?: Record<string, string> };
+}
+
+/** What the visitor gets to see after an import reached the account. */
+export interface DemoImportSummary {
+    boards: number;
+    cards: number;
+    // Server id of the first imported board, so the UI can open it.
+    focusTabId?: string;
 }
 
 export interface DemoImportDeps {
@@ -39,12 +54,14 @@ export interface DemoImportDeps {
 
 export type DemoImportOutcome =
     | { status: 'none' }
-    | { status: 'complete' }
+    | ({ status: 'complete' } & DemoImportSummary)
     // Server wrote everything importable but left `skipped` items out: the
     // local copy is kept until the visitor decides.
-    | { status: 'partial'; skipped: number }
+    | ({ status: 'partial'; skipped: number } & Partial<DemoImportSummary>)
     // The pending import belongs to another account: left untouched.
     | { status: 'other-account' }
+    // The answer belongs to an import that is no longer the current one.
+    | { status: 'stale' }
     | { status: 'failed'; reason: DemoImportFailure };
 
 export function classifyImportError(error: unknown): DemoImportFailure {
@@ -68,21 +85,91 @@ export function classifyImportError(error: unknown): DemoImportFailure {
     return 'unknown';
 }
 
+const isCount = (value: unknown): value is number =>
+    typeof value === 'number' && Number.isInteger(value) && value >= 0;
+
+/**
+ * The server's confirmation must account for everything that was sent. Counts
+ * that are absent, malformed or that do not add up are never trusted: the local
+ * copy is the only one left, so doubt keeps it.
+ *
+ * Boards are never skipped. Stacks, cards and links are either written or
+ * skipped, so written + skipped must equal what was sent (the per-kind split of
+ * skipped items is capped server-side, hence the sum).
+ */
+export function verifyImportConfirmation(
+    snapshot: DemoSnapshot,
+    response: DemoImportResponse
+): { skipped: number; summary: DemoImportSummary } | null {
+    const counts = response.counts;
+    if (!counts) return null;
+    const { tabs, stacks, cards, connections, skipped } = counts;
+    if (
+        !isCount(tabs) ||
+        !isCount(stacks) ||
+        !isCount(cards) ||
+        !isCount(connections) ||
+        !isCount(skipped)
+    ) {
+        return null;
+    }
+    if (tabs !== snapshot.tabs.length) return null;
+    const sent =
+        snapshot.stacks.length +
+        snapshot.postIts.length +
+        snapshot.connections.length;
+    if (stacks + cards + connections + skipped !== sent) return null;
+    // Per kind: nothing can be written beyond what was sent, so a shortfall in
+    // one kind can never be hidden by a surplus in another.
+    if (
+        stacks > snapshot.stacks.length ||
+        cards > snapshot.postIts.length ||
+        connections > snapshot.connections.length
+    ) {
+        return null;
+    }
+    if ((response.skippedItems?.length ?? 0) > skipped) return null;
+
+    const idMap = response.idMap?.tabs;
+    if (!idMap) return null;
+    for (const tab of snapshot.tabs) {
+        const mapped = idMap[tab._id];
+        if (typeof mapped !== 'string' || mapped.length === 0) return null;
+    }
+    const first = [...snapshot.tabs].sort(
+        (a, b) => (a.order ?? 0) - (b.order ?? 0)
+    )[0];
+    return {
+        skipped,
+        summary: {
+            boards: tabs,
+            cards,
+            focusTabId: first ? idMap[first._id] : undefined,
+        },
+    };
+}
+
 // One run at a time per page: a double click or a retry racing the login
 // import must not send the same request twice from this tab. Other tabs are
 // covered by the server-side idempotency.
-let inFlight: Promise<DemoImportOutcome> | null = null;
+let inFlight: { userId: string; run: Promise<DemoImportOutcome> } | null = null;
 
 export function runDemoImport(
     userId: string,
     deps: DemoImportDeps
 ): Promise<DemoImportOutcome> {
-    if (!inFlight) {
-        inFlight = attempt(userId, deps).finally(() => {
-            inFlight = null;
-        });
+    // Shared only with the same account: another account signing in meanwhile
+    // must get its own answer (the pending import is bound to the first one),
+    // never the confirmation of an import that is not its own.
+    if (!inFlight || inFlight.userId !== userId) {
+        const run: Promise<DemoImportOutcome> = attempt(userId, deps).finally(
+            () => {
+                if (inFlight?.run === run) inFlight = null;
+            }
+        );
+        inFlight = { userId, run };
     }
-    return inFlight;
+    return inFlight.run;
 }
 
 async function attempt(
@@ -130,6 +217,21 @@ async function attempt(
     };
     saveDemoImportState(current);
 
+    // The answer below is about THIS attempt only. While the request was in
+    // flight the page may have started another import (new id), the sandbox may
+    // have gained notes, or another tab may have finished or dropped this one.
+    // An answer for a superseded attempt must neither erase local data nor
+    // overwrite the state of a newer one.
+    const isStillCurrentAttempt = () => {
+        const live = loadDemoImportState();
+        return (
+            live !== null &&
+            live.importId === current.importId &&
+            live.userId === userId &&
+            live.snapshotHash === hash
+        );
+    };
+
     let response: DemoImportResponse;
     try {
         response = await deps.putImport(current.importId, snapshot);
@@ -141,9 +243,11 @@ async function attempt(
             throw new Error('Import not confirmed by the server');
         }
     } catch (error) {
+        if (!isStillCurrentAttempt()) return { status: 'stale' };
         const reason = classifyImportError(error);
         saveDemoImportState({
-            ...(loadDemoImportState() ?? current),
+            ...current,
+            ...(loadDemoImportState() ?? {}),
             userId,
             lastError: reason,
             updatedAt: now(),
@@ -151,10 +255,19 @@ async function attempt(
         return { status: 'failed', reason };
     }
 
-    const skipped = Math.max(
-        response.counts?.skipped ?? 0,
-        response.skippedItems?.length ?? 0
-    );
+    if (!isStillCurrentAttempt()) return { status: 'stale' };
+
+    const verified = verifyImportConfirmation(snapshot, response);
+    if (!verified) {
+        // "complete" that does not match what was sent: keep the local copy.
+        saveDemoImportState({
+            ...current,
+            lastError: 'unknown',
+            updatedAt: now(),
+        });
+        return { status: 'failed', reason: 'unknown' };
+    }
+    const { skipped, summary } = verified;
     if (skipped > 0) {
         // Never wipe what the server did not take.
         saveDemoImportState({
@@ -163,13 +276,15 @@ async function attempt(
             partial: { skipped },
             updatedAt: now(),
         });
-        return { status: 'partial', skipped };
+        return { status: 'partial', skipped, ...summary };
     }
 
-    // Confirmed with nothing left out: only now is the local copy disposable.
+    // Confirmed with nothing left out: only now is the local copy disposable —
+    // and only if it is still exactly what was sent under this import.
+    if (hashSnapshot(deps.getSnapshot()) !== hash) return { status: 'stale' };
     deps.resetLocal();
     clearDemoImportState();
-    return { status: 'complete' };
+    return { status: 'complete', ...summary };
 }
 
 /**

@@ -12,11 +12,21 @@ import { markDemoImportPending } from './services/demoMode';
 const boardMounts = jest.fn();
 jest.mock('./pages/BoardApp', () => ({
     __esModule: true,
-    default: function BoardAppMock() {
+    default: function BoardAppMock({
+        initialTabId,
+        onLogout,
+    }: {
+        initialTabId?: string;
+        onLogout?: () => void;
+    }) {
         React.useEffect(() => {
             boardMounts();
         }, []);
-        return <div data-testid="board" />;
+        return (
+            <div data-testid="board" data-initial-tab={initialTabId ?? ''}>
+                <button onClick={onLogout}>logout</button>
+            </div>
+        );
     },
 }));
 jest.mock('./pages/LoginForm', () => ({
@@ -31,7 +41,7 @@ jest.mock('./pages/PublicBoardView', () => ({
 }));
 jest.mock('./services/authApi', () => ({
     bootstrapSession: jest.fn(() => Promise.resolve(false)),
-    logout: jest.fn(),
+    logout: jest.fn(() => Promise.resolve('confirmed')),
     setupAuthInterceptor: jest.fn(() => () => undefined),
 }));
 jest.mock('./services/demoBoard', () => ({
@@ -98,7 +108,12 @@ describe('login is never gated on the demo import', () => {
 
     it('opens the board right away when the import answers quickly', async () => {
         markDemoImportPending();
-        importDemoBoardToAccount.mockResolvedValue({ status: 'complete' });
+        importDemoBoardToAccount.mockResolvedValue({
+            status: 'complete',
+            boards: 1,
+            cards: 6,
+            focusTabId: 'srv-1',
+        });
 
         fireEvent.click(await renderAtLogin());
 
@@ -132,10 +147,60 @@ describe('login is never gated on the demo import', () => {
         );
 
         fireEvent.click(await renderAtLogin());
-        await act(async () => finish({ status: 'complete' }));
+        await act(async () =>
+            finish({
+                status: 'complete',
+                boards: 2,
+                cards: 6,
+                focusTabId: 'srv-1',
+            })
+        );
 
-        expect(await screen.findByTestId('board')).toBeInTheDocument();
+        const board = await screen.findByTestId('board');
+        // The imported board is opened, and the visitor is told what arrived.
+        expect(board).toHaveAttribute('data-initial-tab', 'srv-1');
+        const banner = screen.getByTestId('demo-import-banner');
+        expect(banner).toHaveAttribute('data-state', 'done');
+        expect(banner).toHaveTextContent(
+            'Import complete: 6 note(s) in 2 board(s)'
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'OK' }));
         expect(screen.queryByTestId('demo-import-banner')).toBeNull();
+    });
+
+    it('opens the imported board even when only part of the import arrived', async () => {
+        markDemoImportPending();
+        importDemoBoardToAccount.mockResolvedValue({
+            status: 'partial',
+            skipped: 1,
+            boards: 1,
+            cards: 5,
+            focusTabId: 'srv-9',
+        });
+
+        fireEvent.click(await renderAtLogin());
+
+        expect(await screen.findByTestId('board')).toHaveAttribute(
+            'data-initial-tab',
+            'srv-9'
+        );
+        expect(screen.getByTestId('demo-import-banner')).toHaveAttribute(
+            'data-state',
+            'partial'
+        );
+    });
+
+    it('shows nothing and keeps the board when the answer was for a superseded import', async () => {
+        markDemoImportPending();
+        importDemoBoardToAccount.mockResolvedValue({ status: 'stale' });
+
+        fireEvent.click(await renderAtLogin());
+
+        const board = await screen.findByTestId('board');
+        expect(board).toHaveAttribute('data-initial-tab', '');
+        expect(screen.queryByTestId('demo-import-banner')).toBeNull();
+        expect(boardMounts).toHaveBeenCalledTimes(1);
     });
 
     it('does not call the import at all when none is pending', async () => {
@@ -162,5 +227,79 @@ describe('login is never gated on the demo import', () => {
         expect(
             screen.getByRole('button', { name: /erase local copy/i })
         ).toBeInTheDocument();
+    });
+});
+
+describe('a late import answer never leaks into a newer session', () => {
+    const lateOutcome = {
+        status: 'complete',
+        boards: 1,
+        cards: 6,
+        focusTabId: 'srv-old',
+    };
+
+    async function loginPastGateThenLogout(finishImport: {
+        current: (v: unknown) => void;
+    }) {
+        markDemoImportPending();
+        importDemoBoardToAccount.mockReturnValueOnce(
+            new Promise((resolve) => {
+                finishImport.current = resolve;
+            })
+        );
+        fireEvent.click(await renderAtLogin());
+        // The grace period elapses while the import is still in flight.
+        await act(async () => {
+            jest.advanceTimersByTime(3_100);
+        });
+        expect(screen.getByTestId('board')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'logout' }));
+        await screen.findByText('login');
+    }
+
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    it('drops the answer that arrives after logout and re-login', async () => {
+        const finish = { current: (_v: unknown) => undefined };
+        await loginPastGateThenLogout(finish);
+
+        // The late answer lands while signed out…
+        await act(async () => finish.current(lateOutcome));
+        // …and the visitor signs in again (the completed import cleared its
+        // own pending state, as the real flow does).
+        localStorage.clear();
+        fireEvent.click(screen.getByText('login'));
+
+        const board = await screen.findByTestId('board');
+        expect(board).toHaveAttribute('data-initial-tab', '');
+        expect(screen.queryByTestId('demo-import-banner')).toBeNull();
+    });
+
+    it('drops the answer that arrives after re-login too', async () => {
+        const finish = { current: (_v: unknown) => undefined };
+        await loginPastGateThenLogout(finish);
+
+        localStorage.clear();
+        fireEvent.click(screen.getByText('login'));
+        await screen.findByTestId('board');
+        await act(async () => finish.current(lateOutcome));
+
+        expect(screen.getByTestId('board')).toHaveAttribute(
+            'data-initial-tab',
+            ''
+        );
+        expect(screen.queryByTestId('demo-import-banner')).toBeNull();
+    });
+
+    it('does not show the old running banner in the next session', async () => {
+        const finish = { current: (_v: unknown) => undefined };
+        await loginPastGateThenLogout(finish);
+
+        localStorage.clear();
+        fireEvent.click(screen.getByText('login'));
+
+        await screen.findByTestId('board');
+        expect(screen.queryByTestId('demo-import-banner')).toBeNull();
     });
 });

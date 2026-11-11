@@ -75,8 +75,17 @@ const App: React.FC = () => {
         | { state: 'running' }
         | { state: 'failed'; reason: DemoImportFailure }
         | { state: 'partial'; skipped: number }
+        | { state: 'done'; boards: number; cards: number }
         | null
     >(null);
+    // Board to open after an import (a logged-in account lands on its own
+    // first board otherwise, which hides what was just imported).
+    const [focusTabId, setFocusTabId] = useState<string | undefined>();
+    // Identifies the import run of the current session. A logout invalidates
+    // it, so an answer that comes back later (the request itself keeps going and
+    // stays idempotent server-side) can never touch the next session's UI.
+    const importRun = useRef(0);
+    const importGateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     // Brief head start for the import right after login, so the board does not
     // race it (a board opened on an empty account creates its own default tab
     // on the server). Bounded: the account always opens after IMPORT_GATE_MS,
@@ -87,32 +96,62 @@ const App: React.FC = () => {
 
     // Never throws: a failed import must not block login or the session.
     const runImport = async () => {
+        const run = ++importRun.current;
         setImportUi({ state: 'running' });
         const outcome: DemoImportOutcome =
             await importDemoBoardToAccount().catch(
                 () => ({ status: 'failed', reason: 'unknown' }) as const
             );
+        // Signed out (or replaced by a newer run) while the request was in
+        // flight: nothing of this answer belongs to the current session.
+        if (run !== importRun.current) return;
         if (outcome.status === 'failed') {
             setImportUi({ state: 'failed', reason: outcome.reason });
             return;
         }
         if (outcome.status === 'partial') {
             setImportUi({ state: 'partial', skipped: outcome.skipped });
+            if (outcome.focusTabId) setFocusTabId(outcome.focusTabId);
+            setBoardKey((k) => k + 1);
+            return;
+        }
+        if (outcome.status === 'complete') {
+            setFocusTabId(outcome.focusTabId);
+            setImportUi({
+                state: 'done',
+                boards: outcome.boards,
+                cards: outcome.cards,
+            });
             setBoardKey((k) => k + 1);
             return;
         }
         setImportUi(null);
-        if (outcome.status === 'complete') setBoardKey((k) => k + 1);
     };
 
     const runImportAtEntry = () => {
         setImportGate(true);
+        if (importGateTimer.current) clearTimeout(importGateTimer.current);
         const timer = setTimeout(() => setImportGate(false), IMPORT_GATE_MS);
-        void runImport().finally(() => {
+        importGateTimer.current = timer;
+        const pending = runImport();
+        const run = importRun.current;
+        void pending.finally(() => {
             clearTimeout(timer);
-            setImportGate(false);
+            if (run === importRun.current) setImportGate(false);
         });
     };
+
+    // End of a session: forget everything the import of that session produced
+    // (banner, board to open, grace period) and invalidate its pending answer.
+    useEffect(() => {
+        if (isLoggedIn) return;
+        importRun.current += 1;
+        if (importGateTimer.current) clearTimeout(importGateTimer.current);
+        importGateTimer.current = null;
+        setImportUi(null);
+        setImportGate(false);
+        setFocusTabId(undefined);
+    }, [isLoggedIn]);
 
     useEffect(() => {
         if (publicShareToken) return;
@@ -236,6 +275,16 @@ const App: React.FC = () => {
                                 ? importUi.skipped
                                 : undefined
                         }
+                        boards={
+                            importUi.state === 'done'
+                                ? importUi.boards
+                                : undefined
+                        }
+                        cards={
+                            importUi.state === 'done'
+                                ? importUi.cards
+                                : undefined
+                        }
                         onRetry={() => void runImport()}
                         onDismiss={() => {
                             dismissDemoImport();
@@ -248,7 +297,11 @@ const App: React.FC = () => {
                     />
                 )}
                 {!importGate && (
-                    <BoardApp key={boardKey} onLogout={handleLogout} />
+                    <BoardApp
+                        key={boardKey}
+                        onLogout={handleLogout}
+                        initialTabId={focusTabId}
+                    />
                 )}
             </div>
         );

@@ -82,6 +82,31 @@ describe('useTabs loading state', () => {
         expect(result.current.tabs).toEqual([{ ...tab, icon: '📝' }]);
     });
 
+    it('opens the preferred board on first load, else the first one', async () => {
+        mockedFetch.mockResolvedValue([tab, tab2, tab3]);
+        const preferred = renderHook(() =>
+            useTabs(undefined, undefined, 'tab-3')
+        );
+        await waitFor(() =>
+            expect(preferred.result.current.hasLoadedTabs).toBe(true)
+        );
+        expect(preferred.result.current.activeTabId).toBe('tab-3');
+
+        const unknown = renderHook(() =>
+            useTabs(undefined, undefined, 'ghost')
+        );
+        await waitFor(() =>
+            expect(unknown.result.current.hasLoadedTabs).toBe(true)
+        );
+        expect(unknown.result.current.activeTabId).toBe('tab-1');
+
+        const none = renderHook(() => useTabs());
+        await waitFor(() =>
+            expect(none.result.current.hasLoadedTabs).toBe(true)
+        );
+        expect(none.result.current.activeTabId).toBe('tab-1');
+    });
+
     it('marks an empty account as loaded only after the response succeeds', async () => {
         mockedFetch.mockResolvedValue([]);
         const { result } = renderHook(() => useTabs());

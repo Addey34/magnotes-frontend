@@ -400,6 +400,11 @@ export const DICTIONARY = {
         fr: 'Import terminé, mais {count} élément(s) n\u2019ont pas pu être transférés. Votre copie locale est conservée.',
         en: 'Import finished, but {count} item(s) could not be transferred. Your local copy is kept.',
     },
+    'import.done': {
+        fr: 'Import terminé : {cards} note(s) dans {boards} tableau(x). Le tableau importé est ouvert.',
+        en: 'Import complete: {cards} note(s) in {boards} board(s). The imported board is open.',
+    },
+    'import.ok': { fr: 'OK', en: 'OK' },
     'import.keepLocal': { fr: 'Garder la copie locale', en: 'Keep local copy' },
     'import.eraseLocal': {
         fr: 'Effacer la copie locale',
