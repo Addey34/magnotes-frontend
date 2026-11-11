@@ -4,6 +4,38 @@ import { act, renderHook } from '@testing-library/react';
 import { useAutosave } from './useAutosave';
 
 describe('useAutosave', () => {
+    it('keeps newer queued writes stale until they are acknowledged', async () => {
+        let resolveFirst: (value: unknown) => void = () => {};
+        const save = jest
+            .fn()
+            .mockImplementationOnce(
+                () =>
+                    new Promise((resolve) => {
+                        resolveFirst = resolve;
+                    })
+            )
+            .mockResolvedValue({ content: 'new' });
+        const onSaved = jest.fn();
+        const { result } = renderHook(() =>
+            useAutosave(save, 500, undefined, onSaved)
+        );
+        await act(async () => {
+            result.current.scheduleSave('card', { content: 'old' });
+            jest.advanceTimersByTime(500);
+            await Promise.resolve();
+        });
+        act(() => {
+            result.current.scheduleSave('card', { content: 'new' });
+            jest.advanceTimersByTime(500);
+        });
+        await act(async () => {
+            resolveFirst({ content: 'old' });
+            await result.current.flushPending();
+        });
+        expect(onSaved.mock.calls[0][2]).toContain('content');
+        expect(save).toHaveBeenLastCalledWith('card', { content: 'new' });
+        expect(result.current.saveState.status).toBe('saved');
+    });
     beforeEach(() => {
         jest.useFakeTimers();
     });
