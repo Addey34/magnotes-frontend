@@ -16,9 +16,15 @@ concurrency:
 
 jobs:
     quality:
-        # Pinned: ubuntu-latest moved to 26.04, where `playwright install
-        # --with-deps` hangs on apt mirror DNS failures until the job timeout.
         runs-on: ubuntu-24.04
+        # Browsers and their system libraries come from the official Playwright
+        # image instead of `playwright install --with-deps`: that step runs
+        # `apt-get` against the Ubuntu mirrors, which hung on the runners
+        # (DNS failures, then stalled downloads) until the job timeout, so the
+        # E2E never ran. Keep the tag equal to the @playwright/test version;
+        # the "Check Playwright image version" step fails loudly if it drifts.
+        container:
+            image: mcr.microsoft.com/playwright:v1.62.1-noble
         timeout-minutes: 25
         steps:
             - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -39,10 +45,8 @@ jobs:
               env:
                   VITE_API_URL: https://api-magnotes.adrianguichard.dev
             - run: pnpm audit --prod --audit-level=high
-            - name: Install Playwright browsers
-              run: pnpm exec playwright install --with-deps chromium webkit
-              # Fail fast if apt/network hangs instead of burning the full job.
-              timeout-minutes: 10
+            - name: Check Playwright image version
+              run: test "$(pnpm exec playwright --version)" = "Version 1.62.1"
             - run: pnpm run e2e
             - run: pnpm run e2e:touch
             - name: Upload visual failure artifacts
