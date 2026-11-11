@@ -385,6 +385,34 @@
     padding: 0;
 }
 
+.auth-legal {
+    color: #8289aa;
+    display: flex;
+    flex-wrap: wrap;
+    font-size: 11px;
+    gap: 4px 16px;
+    justify-content: center;
+    line-height: 1.5;
+    margin: 14px 0 0;
+}
+
+.auth-legal a {
+    color: inherit;
+    padding: 6px 2px;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.auth-legal a:hover {
+    color: #b6a8ff;
+}
+
+.auth-legal a:focus-visible {
+    border-radius: 3px;
+    outline: 2px solid #9b88ff;
+    outline-offset: 2px;
+}
+
 .auth-switch button:hover {
     color: #b6a8ff;
 }

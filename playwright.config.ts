@@ -43,6 +43,7 @@ export default defineConfig({
             name: 'android-mobile',
             testMatch: [
                 'smoke.spec.ts',
+                'authLegalLinks.spec.ts',
                 'demoImport.real.spec.ts',
                 'multiTab.real.spec.ts',
             ],
@@ -52,6 +53,7 @@ export default defineConfig({
             name: 'webkit-iphone',
             testMatch: [
                 'smoke.spec.ts',
+                'authLegalLinks.spec.ts',
                 'demoImport.real.spec.ts',
                 'multiTab.real.spec.ts',
             ],
