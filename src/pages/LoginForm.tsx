@@ -46,6 +46,8 @@ type Mode = 'login' | 'register' | 'verify' | 'forgot' | 'reset';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const EMAIL_MAX = 254;
+// Public contact address already published in the privacy policy.
+const CONTACT_HREF = 'mailto:contact@adrianguichard.dev';
 const PASSWORD_MAX = 128;
 const CODE_PATTERN = /^\d{6}$/;
 
@@ -523,6 +525,24 @@ const LoginForm: React.FC<LoginFormProps> = ({
                             </button>
                         </p>
                     )}
+
+                    <nav
+                        className="auth-legal"
+                        aria-label={t('auth.legal.nav')}
+                    >
+                        <a
+                            href={
+                                lang === 'fr'
+                                    ? '/confidentialite/'
+                                    : '/en/privacy/'
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            {t('auth.legal.privacy')}
+                        </a>
+                        <a href={CONTACT_HREF}>{t('auth.legal.contact')}</a>
+                    </nav>
                 </div>
             </section>
         </main>

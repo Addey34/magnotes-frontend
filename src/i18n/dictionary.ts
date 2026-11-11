@@ -116,6 +116,9 @@ export const DICTIONARY = {
         en: 'Didn’t get anything?',
     },
     'auth.verify.resend': { fr: 'Renvoyer le code', en: 'Resend the code' },
+    'auth.legal.nav': { fr: 'Informations', en: 'Information' },
+    'auth.legal.privacy': { fr: 'Confidentialité', en: 'Privacy' },
+    'auth.legal.contact': { fr: 'Contact', en: 'Contact' },
     'auth.backToLogin': { fr: 'Retour à la connexion', en: 'Back to sign in' },
     'auth.switch.toRegister': {
         fr: 'Vous découvrez MagNotes ?',
