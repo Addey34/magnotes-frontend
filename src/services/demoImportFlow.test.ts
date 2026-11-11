@@ -5,6 +5,7 @@ import type { DemoSnapshot } from './demoBoard';
 import {
     classifyImportError,
     DemoImportDeps,
+    DemoImportResponse,
     dismissDemoImport,
     runDemoImport,
 } from './demoImportFlow';
@@ -42,6 +43,8 @@ function createFakeServer() {
         crashAfterWrites: null as number | null,
         loseResponse: false,
         status: 'complete',
+        // Rewrites the confirmation (e.g. to simulate a faulty server/proxy).
+        tamper: null as null | ((r: DemoImportResponse) => DemoImportResponse),
     };
 
     const putFor =
@@ -78,7 +81,24 @@ function createFakeServer() {
                 opts.loseResponse = false;
                 throw networkError();
             }
-            return { importId, status: opts.status };
+            const response: DemoImportResponse = {
+                importId,
+                status: opts.status,
+                counts: {
+                    tabs: snap.tabs.length,
+                    stacks: snap.stacks.length,
+                    cards: snap.postIts.length,
+                    connections: snap.connections.length,
+                    skipped: 0,
+                },
+                skippedItems: [],
+                idMap: {
+                    tabs: Object.fromEntries(
+                        snap.tabs.map((t) => [t._id, 'srv-' + t._id])
+                    ),
+                },
+            };
+            return opts.tamper ? opts.tamper(response) : response;
         };
 
     const countFor = (user: string) =>
@@ -116,7 +136,12 @@ describe('demo import flow', () => {
             putImport: server.putFor('user-a'),
         });
 
-        expect(outcome).toEqual({ status: 'complete' });
+        expect(outcome).toEqual({
+            status: 'complete',
+            boards: 1,
+            cards: 2,
+            focusTabId: 'srv-dt1',
+        });
         expect(server.countFor('user-a')).toBe(TOTAL);
         expect(local.resetLocal).toHaveBeenCalledTimes(1);
         expect(loadDemoImportState()).toBeNull();
@@ -146,7 +171,7 @@ describe('demo import flow', () => {
 
             const second = await runDemoImport('user-a', deps);
 
-            expect(second).toEqual({ status: 'complete' });
+            expect(second).toMatchObject({ status: 'complete' });
             expect(server.countFor('user-a')).toBe(TOTAL);
             expect(new Set(server.requests.map((r) => r.importId))).toEqual(
                 new Set([state.importId])
@@ -168,7 +193,7 @@ describe('demo import flow', () => {
         expect(server.countFor('user-a')).toBe(TOTAL);
         expect(local.isIntact()).toBe(true);
 
-        expect(await runDemoImport('user-a', deps)).toEqual({
+        expect(await runDemoImport('user-a', deps)).toMatchObject({
             status: 'complete',
         });
         expect(server.countFor('user-a')).toBe(TOTAL);
@@ -236,7 +261,7 @@ describe('demo import flow', () => {
                 ...local,
                 putImport: server.putFor('user-a'),
             })
-        ).toEqual({ status: 'complete' });
+        ).toMatchObject({ status: 'complete' });
         expect(server.countFor('user-a')).toBe(TOTAL);
     });
 
@@ -266,7 +291,7 @@ describe('demo import flow', () => {
                 ...local,
                 putImport: server.putFor('user-a'),
             })
-        ).toEqual({ status: 'complete' });
+        ).toMatchObject({ status: 'complete' });
     });
 
     it('reports a conflict (409) without wiping anything', async () => {
@@ -351,5 +376,173 @@ describe('import id', () => {
         expect(newImportId()).toMatch(
             /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
         );
+    });
+});
+
+describe('confirmation must match the snapshot (fail-closed)', () => {
+    const run = async (
+        tamper: ((r: DemoImportResponse) => DemoImportResponse) | null,
+        initial?: DemoSnapshot
+    ) => {
+        const server = createFakeServer();
+        const local = createLocal(initial);
+        ensureDemoImportState();
+        server.opts.tamper = tamper;
+        const outcome = await runDemoImport('user-a', {
+            ...local,
+            putImport: server.putFor('user-a'),
+        });
+        return { outcome, local, server };
+    };
+
+    it.each<[string, (r: DemoImportResponse) => DemoImportResponse]>([
+        ['counts absent', (r) => ({ ...r, counts: undefined })],
+        ['idMap absent', (r) => ({ ...r, idMap: undefined })],
+        [
+            'no tab mapping for the sent tab',
+            (r) => ({ ...r, idMap: { tabs: {} } }),
+        ],
+        [
+            'cards below the snapshot',
+            (r) => ({ ...r, counts: { ...r.counts!, cards: 1 } }),
+        ],
+        [
+            'cards above the snapshot',
+            (r) => ({ ...r, counts: { ...r.counts!, cards: 3 } }),
+        ],
+        [
+            'tabs below the snapshot',
+            (r) => ({ ...r, counts: { ...r.counts!, tabs: 0 } }),
+        ],
+        [
+            'a shortfall in one kind hidden by a surplus in another',
+            (r) => ({
+                ...r,
+                counts: { ...r.counts!, stacks: 1, cards: 1, connections: 2 },
+            }),
+        ],
+        [
+            'stacks missing',
+            (r) => ({ ...r, counts: { ...r.counts!, stacks: 0 } }),
+        ],
+        [
+            'connections missing',
+            (r) => ({ ...r, counts: { ...r.counts!, connections: 0 } }),
+        ],
+        [
+            'a non numeric counter',
+            (r) => ({
+                ...r,
+                counts: { ...r.counts!, cards: '2' as unknown as number },
+            }),
+        ],
+        [
+            'a negative counter',
+            (r) => ({ ...r, counts: { ...r.counts!, cards: -2, stacks: 3 } }),
+        ],
+        [
+            'more skipped items than the declared skipped count',
+            (r) => ({
+                ...r,
+                skippedItems: [{ kind: 'card', id: 'x', reason: 'duplicate' }],
+            }),
+        ],
+    ])('keeps local data when %s', async (_label, tamper) => {
+        const { outcome, local } = await run(tamper);
+
+        expect(outcome).toEqual({ status: 'failed', reason: 'unknown' });
+        expect(local.resetLocal).not.toHaveBeenCalled();
+        expect(local.isIntact()).toBe(true);
+        expect(loadDemoImportState()?.lastError).toBe('unknown');
+    });
+
+    it('can still resume once the confirmation is consistent', async () => {
+        const server = createFakeServer();
+        const local = createLocal();
+        ensureDemoImportState();
+        const deps = { ...local, putImport: server.putFor('user-a') };
+
+        server.opts.tamper = (r) => ({ ...r, counts: undefined });
+        expect((await runDemoImport('user-a', deps)).status).toBe('failed');
+
+        server.opts.tamper = null;
+        expect(await runDemoImport('user-a', deps)).toMatchObject({
+            status: 'complete',
+            cards: 2,
+        });
+        expect(server.countFor('user-a')).toBe(TOTAL);
+    });
+
+    it('accounts for skipped items and keeps the local copy', async () => {
+        const { outcome, local } = await run((r) => ({
+            ...r,
+            counts: { ...r.counts!, cards: 1, skipped: 1 },
+            skippedItems: [{ kind: 'card', id: 'dc2', reason: 'unknown-tab' }],
+        }));
+
+        expect(outcome).toMatchObject({
+            status: 'partial',
+            skipped: 1,
+            focusTabId: 'srv-dt1',
+        });
+        expect(local.resetLocal).not.toHaveBeenCalled();
+    });
+
+    it('accepts a skipped count larger than the capped skipped list', async () => {
+        const { outcome } = await run((r) => ({
+            ...r,
+            counts: { ...r.counts!, stacks: 0, cards: 0, skipped: 3 },
+            skippedItems: [{ kind: 'card', id: 'dc1', reason: 'unknown-tab' }],
+        }));
+
+        expect(outcome).toMatchObject({ status: 'partial', skipped: 3 });
+    });
+
+    it('rejects skipped counts that do not add up to what was sent', async () => {
+        const { outcome, local } = await run((r) => ({
+            ...r,
+            counts: { ...r.counts!, cards: 0, skipped: 1 },
+        }));
+
+        expect(outcome).toEqual({ status: 'failed', reason: 'unknown' });
+        expect(local.isIntact()).toBe(true);
+    });
+
+    it('still imports a legitimate demo without any note', async () => {
+        const empty = {
+            tabs: [{ _id: 'dt1', name: 'A', order: 1 }],
+            stacks: [],
+            postIts: [],
+            connections: [],
+        } as unknown as DemoSnapshot;
+        const { outcome, local } = await run(null, empty);
+
+        expect(outcome).toEqual({
+            status: 'complete',
+            boards: 1,
+            cards: 0,
+            focusTabId: 'srv-dt1',
+        });
+        expect(local.resetLocal).toHaveBeenCalledTimes(1);
+    });
+
+    it('focuses the first board by order when several are imported', async () => {
+        const multi = {
+            tabs: [
+                { _id: 'dt2', name: 'B', order: 2 },
+                { _id: 'dt1', name: 'A', order: 1 },
+            ],
+            stacks: [],
+            postIts: [{ _id: 'dc1', tabId: 'dt2' }],
+            connections: [],
+        } as unknown as DemoSnapshot;
+        const { outcome } = await run(null, multi);
+
+        expect(outcome).toEqual({
+            status: 'complete',
+            boards: 2,
+            cards: 1,
+            focusTabId: 'srv-dt1',
+        });
     });
 });

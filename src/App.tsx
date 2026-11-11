@@ -75,8 +75,16 @@ const App: React.FC = () => {
         | { state: 'running' }
         | { state: 'failed'; reason: DemoImportFailure }
         | { state: 'partial'; skipped: number }
+        | { state: 'done'; boards: number; cards: number }
         | null
     >(null);
+    // Board to open after an import (a logged-in account lands on its own
+    // first board otherwise, which hides what was just imported).
+    const [focusTabId, setFocusTabId] = useState<string | undefined>();
+    // The preference belongs to one session: never carried over a logout.
+    useEffect(() => {
+        if (!isLoggedIn) setFocusTabId(undefined);
+    }, [isLoggedIn]);
     // Brief head start for the import right after login, so the board does not
     // race it (a board opened on an empty account creates its own default tab
     // on the server). Bounded: the account always opens after IMPORT_GATE_MS,
@@ -98,11 +106,21 @@ const App: React.FC = () => {
         }
         if (outcome.status === 'partial') {
             setImportUi({ state: 'partial', skipped: outcome.skipped });
+            if (outcome.focusTabId) setFocusTabId(outcome.focusTabId);
+            setBoardKey((k) => k + 1);
+            return;
+        }
+        if (outcome.status === 'complete') {
+            setFocusTabId(outcome.focusTabId);
+            setImportUi({
+                state: 'done',
+                boards: outcome.boards,
+                cards: outcome.cards,
+            });
             setBoardKey((k) => k + 1);
             return;
         }
         setImportUi(null);
-        if (outcome.status === 'complete') setBoardKey((k) => k + 1);
     };
 
     const runImportAtEntry = () => {
@@ -236,6 +254,16 @@ const App: React.FC = () => {
                                 ? importUi.skipped
                                 : undefined
                         }
+                        boards={
+                            importUi.state === 'done'
+                                ? importUi.boards
+                                : undefined
+                        }
+                        cards={
+                            importUi.state === 'done'
+                                ? importUi.cards
+                                : undefined
+                        }
                         onRetry={() => void runImport()}
                         onDismiss={() => {
                             dismissDemoImport();
@@ -248,7 +276,11 @@ const App: React.FC = () => {
                     />
                 )}
                 {!importGate && (
-                    <BoardApp key={boardKey} onLogout={handleLogout} />
+                    <BoardApp
+                        key={boardKey}
+                        onLogout={handleLogout}
+                        initialTabId={focusTabId}
+                    />
                 )}
             </div>
         );

@@ -120,6 +120,8 @@ interface BoardAppProps {
     demo?: boolean;
     onRequestSignup?: () => void;
     initialTemplateId?: string;
+    // Board opened first when it exists (after a demo import).
+    initialTabId?: string;
 }
 
 const BoardApp: React.FC<BoardAppProps> = ({
@@ -127,6 +129,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
     demo = false,
     onRequestSignup,
     initialTemplateId,
+    initialTabId,
 }) => {
     const { t, lang } = useT();
     const boardTemplates = useMemo(() => getBoardTemplates(lang), [lang]);
@@ -246,7 +249,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
         setTabShareToken,
         reorderTabs,
         removeTab,
-    } = useTabs(notifyLoadError, notifyActionError);
+    } = useTabs(notifyLoadError, notifyActionError, initialTabId);
     const {
         postIts,
         isLoadingPostIts,

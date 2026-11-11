@@ -12,11 +12,17 @@ import { markDemoImportPending } from './services/demoMode';
 const boardMounts = jest.fn();
 jest.mock('./pages/BoardApp', () => ({
     __esModule: true,
-    default: function BoardAppMock() {
+    default: function BoardAppMock({
+        initialTabId,
+    }: {
+        initialTabId?: string;
+    }) {
         React.useEffect(() => {
             boardMounts();
         }, []);
-        return <div data-testid="board" />;
+        return (
+            <div data-testid="board" data-initial-tab={initialTabId ?? ''} />
+        );
     },
 }));
 jest.mock('./pages/LoginForm', () => ({
@@ -98,7 +104,12 @@ describe('login is never gated on the demo import', () => {
 
     it('opens the board right away when the import answers quickly', async () => {
         markDemoImportPending();
-        importDemoBoardToAccount.mockResolvedValue({ status: 'complete' });
+        importDemoBoardToAccount.mockResolvedValue({
+            status: 'complete',
+            boards: 1,
+            cards: 6,
+            focusTabId: 'srv-1',
+        });
 
         fireEvent.click(await renderAtLogin());
 
@@ -132,10 +143,48 @@ describe('login is never gated on the demo import', () => {
         );
 
         fireEvent.click(await renderAtLogin());
-        await act(async () => finish({ status: 'complete' }));
+        await act(async () =>
+            finish({
+                status: 'complete',
+                boards: 2,
+                cards: 6,
+                focusTabId: 'srv-1',
+            })
+        );
 
-        expect(await screen.findByTestId('board')).toBeInTheDocument();
+        const board = await screen.findByTestId('board');
+        // The imported board is opened, and the visitor is told what arrived.
+        expect(board).toHaveAttribute('data-initial-tab', 'srv-1');
+        const banner = screen.getByTestId('demo-import-banner');
+        expect(banner).toHaveAttribute('data-state', 'done');
+        expect(banner).toHaveTextContent(
+            'Import complete: 6 note(s) in 2 board(s)'
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'OK' }));
         expect(screen.queryByTestId('demo-import-banner')).toBeNull();
+    });
+
+    it('opens the imported board even when only part of the import arrived', async () => {
+        markDemoImportPending();
+        importDemoBoardToAccount.mockResolvedValue({
+            status: 'partial',
+            skipped: 1,
+            boards: 1,
+            cards: 5,
+            focusTabId: 'srv-9',
+        });
+
+        fireEvent.click(await renderAtLogin());
+
+        expect(await screen.findByTestId('board')).toHaveAttribute(
+            'data-initial-tab',
+            'srv-9'
+        );
+        expect(screen.getByTestId('demo-import-banner')).toHaveAttribute(
+            'data-state',
+            'partial'
+        );
     });
 
     it('does not call the import at all when none is pending', async () => {

@@ -28,7 +28,9 @@ const normalizeTabs = (tabs: BoardTab[]) =>
 
 export const useTabs = (
     onLoadError?: () => void,
-    onMutationError?: () => void
+    onMutationError?: () => void,
+    // Board to open on the first load (e.g. the one a demo import just created).
+    preferredTabId?: string
 ) => {
     const [tabs, setTabs] = useState<BoardTab[]>([]);
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
@@ -45,7 +47,10 @@ export const useTabs = (
             setActiveTabId((currentTabId) =>
                 loadedTabs.some((tab) => tab._id === currentTabId)
                     ? currentTabId
-                    : loadedTabs[0]?._id || null
+                    : loadedTabs.find((tab) => tab._id === preferredTabId)
+                          ?._id ||
+                      loadedTabs[0]?._id ||
+                      null
             );
             setHasLoadedTabs(true);
         } catch {
@@ -53,7 +58,7 @@ export const useTabs = (
         } finally {
             setIsLoadingTabs(false);
         }
-    }, [onLoadError]);
+    }, [onLoadError, preferredTabId]);
 
     const addTab = async (
         backgroundColor?: string,

@@ -45,6 +45,8 @@ function createServer() {
             const tabs = new Set(snap.tabs.map((t) => t._id));
             const skippedItems: DemoImportResponse['skippedItems'] = [];
             const cards = new Set<string>();
+            const writtenStacks = 0;
+            let writtenLinks = 0;
             for (const t of snap.tabs) rows.add(`${user}:${importId}:${t._id}`);
             for (const c of snap.postIts) {
                 if (!tabs.has(c.tabId)) {
@@ -68,12 +70,24 @@ function createServer() {
                     continue;
                 }
                 rows.add(`${user}:${importId}:${l.sourceId}>${l.targetId}`);
+                writtenLinks += 1;
             }
             return {
                 importId,
                 status: 'complete',
-                counts: { skipped: skippedItems.length },
+                counts: {
+                    tabs: snap.tabs.length,
+                    stacks: writtenStacks,
+                    cards: cards.size,
+                    connections: writtenLinks,
+                    skipped: skippedItems.length,
+                },
                 skippedItems,
+                idMap: {
+                    tabs: Object.fromEntries(
+                        snap.tabs.map((t) => [t._id, 'srv-' + t._id])
+                    ),
+                },
             };
         };
 
@@ -120,7 +134,7 @@ describe('skipped resources never cause silent loss', () => {
             putImport: server.putFor('user-a'),
         });
 
-        expect(outcome).toEqual({ status: 'partial', skipped: 1 });
+        expect(outcome).toMatchObject({ status: 'partial', skipped: 1 });
         expect(local.resetLocal).not.toHaveBeenCalled();
         expect(local.isIntact()).toBe(true);
         expect(loadDemoImportState()?.partial).toEqual({ skipped: 1 });
@@ -142,7 +156,7 @@ describe('skipped resources never cause silent loss', () => {
             putImport: server.putFor('user-a'),
         });
 
-        expect(outcome).toEqual({ status: 'partial', skipped: 1 });
+        expect(outcome).toMatchObject({ status: 'partial', skipped: 1 });
         expect(local.isIntact()).toBe(true);
     });
 
@@ -154,10 +168,17 @@ describe('skipped resources never cause silent loss', () => {
             putImport: async (importId) => ({
                 importId,
                 status: 'complete',
-                counts: { skipped: 3 },
+                counts: {
+                    tabs: 1,
+                    stacks: 0,
+                    cards: 0,
+                    connections: 0,
+                    skipped: 3,
+                },
+                idMap: { tabs: { dt1: 'srv-dt1' } },
             }),
         });
-        expect(outcome).toEqual({ status: 'partial', skipped: 3 });
+        expect(outcome).toMatchObject({ status: 'partial', skipped: 3 });
         expect(local.isIntact()).toBe(true);
     });
 
@@ -172,7 +193,7 @@ describe('skipped resources never cause silent loss', () => {
         await runDemoImport('user-a', deps);
         const again = await runDemoImport('user-a', deps);
 
-        expect(again).toEqual({ status: 'partial', skipped: 1 });
+        expect(again).toMatchObject({ status: 'partial', skipped: 1 });
         expect(server.requests).toHaveLength(1);
     });
 
@@ -204,7 +225,7 @@ describe('skipped resources never cause silent loss', () => {
                 ...local,
                 putImport: server.putFor('user-a'),
             })
-        ).toEqual({ status: 'complete' });
+        ).toMatchObject({ status: 'complete' });
         expect(local.isIntact()).toBe(false);
     });
 });
@@ -257,7 +278,7 @@ describe('abandon then ask again', () => {
             putImport: server.putFor('user-a'),
         });
 
-        expect(outcome).toEqual({ status: 'complete' });
+        expect(outcome).toMatchObject({ status: 'complete' });
         expect(server.requests.map((r) => r.importId)).toEqual([
             importId,
             importId,
@@ -316,7 +337,7 @@ describe('abandon then ask again', () => {
             putImport: server.putFor('user-b'),
         });
 
-        expect(outcome).toEqual({ status: 'complete' });
+        expect(outcome).toMatchObject({ status: 'complete' });
         const last = server.requests[server.requests.length - 1];
         expect(last.user).toBe('user-b');
         expect(last.importId).not.toBe(importId);
