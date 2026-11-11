@@ -24,8 +24,8 @@
     --lum-ink: #f4f5fb;
     --lum-ink-soft: #c7cadc;
     --lum-ink-muted: #a3aac6;
-    /* Destructive text: 4.5:1 on every control surface of its luminosity. */
-    --lum-danger: #f87171;
+    /* Destructive/error text: 4.5:1 on every surface of its luminosity. */
+    --lum-danger: #fb7185;
     /* Sheen blended into the top of raised surfaces. */
     --lum-lift: #ffffff;
     --lum-lift-amount: 7%;
@@ -41,7 +41,7 @@
     --scrollbar-track: color-mix(in srgb, var(--canvas-bg) 38%, transparent);
     --scrollbar-thumb: color-mix(in srgb, var(--accent) 55%, var(--text-muted));
     --scrollbar-thumb-hover: var(--accent-strong);
-    --danger: #fb7185;
+    --danger: var(--lum-danger);
     --board-topbar-height: 56px;
     --demo-banner-height: 0px;
     --sidebar-expanded-width: 216px;
@@ -2591,7 +2591,7 @@
 }
 
 .post-it-badge.due-badge.is-overdue {
-    background: #ef4444;
+    background: #dc2626;
     color: #fff;
 }
 
@@ -3939,11 +3939,11 @@
 .board-brand-menu button.is-danger,
 .board-brand-menu button.is-danger strong,
 .board-brand-menu button.is-danger > span {
-    color: #ef4444;
+    color: var(--lum-danger);
 }
 
 .board-brand-menu button.is-danger svg {
-    color: #ef4444;
+    color: var(--lum-danger);
 }
 
 .account-dialog-backdrop {
@@ -4031,7 +4031,7 @@
 }
 
 .account-dialog-error {
-    color: #ef4444;
+    color: var(--lum-danger);
     font-size: 12px;
     margin: 8px 0 0;
 }
@@ -4058,7 +4058,7 @@
 }
 
 .account-dialog-actions button.is-danger {
-    background: #ef4444;
+    background: #dc2626;
     color: #fff;
 }
 
@@ -4297,7 +4297,7 @@
 }
 
 .feedback-dialog__error {
-    color: #f87171;
+    color: var(--lum-danger);
     font-size: 13px;
     margin: -4px 0 12px;
 }
@@ -4440,7 +4440,7 @@
 
 .kanban-card-meta .is-overdue {
     color: #fff;
-    background: #ef4444;
+    background: #dc2626;
     border-radius: 4px;
     padding: 1px 5px;
 }
@@ -4660,7 +4660,7 @@
 }
 
 .connection-tools button.is-danger {
-    color: #ff6b6b;
+    color: var(--lum-danger);
 }
 
 .post-it-card.is-link-source {

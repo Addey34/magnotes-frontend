@@ -80,6 +80,10 @@ const drag = async (
     await session.detach();
 };
 
+/** A real user press: a tap on the touch project, a mouse click otherwise. */
+const press = (locator: Locator, isTouch: boolean) =>
+    isTouch ? locator.tap() : locator.click();
+
 const noHorizontalOverflow = async (page: Page) => {
     const overflow = await page.evaluate(
         () =>
@@ -111,9 +115,24 @@ test.describe('cards and stacks journey', () => {
         page,
         isMobile,
     }) => {
-        // Desktop runs at 1440x900; the mobile project keeps its 390x844 profile.
-        if (!isMobile) await page.setViewportSize({ width: 1440, height: 900 });
+        // Explicit sizes: 1440x900 on desktop, 390x844 on mobile (the iPhone 12
+        // device profile alone is 390x664, so it is set, not assumed).
+        await page.setViewportSize(
+            isMobile
+                ? { width: 390, height: 844 }
+                : { width: 1440, height: 900 }
+        );
         await openDemo(page);
+        const expectedSize = isMobile
+            ? { width: 390, height: 844 }
+            : { width: 1440, height: 900 };
+        expect(page.viewportSize()).toEqual(expectedSize);
+        expect(
+            await page.evaluate(() => ({
+                width: window.innerWidth,
+                height: window.innerHeight,
+            }))
+        ).toEqual(expectedSize);
         const cards = page.locator('.post-it-card');
         const initialCards = await cards.count();
         const initialPiles = await page
@@ -180,7 +199,8 @@ test.describe('cards and stacks journey', () => {
             has: page.locator('.post-it-title[value^="UX02"]'),
         });
         await expect(pile).toHaveCount(1);
-        await pile.locator('.post-it-stack-badge').dispatchEvent('click');
+        // A real press on the folded pile's top card opens the fan.
+        await press(pile, Boolean(isMobile));
         const tabs = page.locator('.post-it-fan-tab');
         await expect(tabs).toHaveCount(1);
         await expect(tabs.first()).toBeVisible();
@@ -208,10 +228,19 @@ test.describe('cards and stacks journey', () => {
             )
         ).toBeVisible();
 
-        // 8. Fold the pile again.
-        await page
-            .locator('.post-it-card .post-it-stack-badge[aria-expanded="true"]')
-            .dispatchEvent('click');
+        // 8. Fold the pile again with a real press on its fold badge...
+        await press(
+            page.locator(
+                '.post-it-card .post-it-stack-badge[aria-expanded="true"]'
+            ),
+            Boolean(isMobile)
+        );
+        await expect(tabs).toHaveCount(0);
+        await expect(piles).toHaveCount(initialPiles + 1);
+        // ...and, reopened by pressing the pile, with the Escape key.
+        await press(pile, Boolean(isMobile));
+        await expect(tabs).toHaveCount(1);
+        await page.keyboard.press('Escape');
         await expect(tabs).toHaveCount(0);
         await expect(piles).toHaveCount(initialPiles + 1);
 
@@ -239,7 +268,10 @@ test.describe('cards and stacks journey', () => {
         await noHorizontalOverflow(page);
     });
 
-    test('the corner handle only rotates and says so', async ({ page }) => {
+    test('the corner handle only rotates and says so', async ({
+        page,
+        isMobile,
+    }) => {
         await openDemo(page);
         await page.locator('.create-card-button').click();
         const card = page.locator('.post-it-card').last();
@@ -255,7 +287,9 @@ test.describe('cards and stacks journey', () => {
                 return cards[cards.length - 1]?.rotation ?? 0;
             }, DEMO_KEY);
         const before = await rotationOf();
-        await handle.dispatchEvent('click');
+        // A real press on the handle: hover reveals it on desktop, a tap
+        // reaches it on touch.
+        await press(handle, Boolean(isMobile));
         await expect.poll(rotationOf).toBe(before + 15);
     });
 });
