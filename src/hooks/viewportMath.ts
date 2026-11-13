@@ -143,3 +143,40 @@ export function computeFocusView(
         },
     };
 }
+
+/** Below this canvas width the board is read on a phone. */
+export const PHONE_CANVAS_WIDTH = 600;
+/** Smallest zoom at which a card's text is still comfortable to read. */
+export const READABLE_ZOOM = 0.85;
+const OPENING_MARGIN_X = 16;
+// The canvas has a floating status row (storage pill, help button) along its
+// top edge; start below it so it never covers the first card.
+const OPENING_MARGIN_Y = 72;
+
+/**
+ * The view a board opens on the first time. Same as `computeFocusView`, except
+ * on a phone: fitting a wide board into a narrow portrait canvas shrinks every
+ * card to a speck of unreadable text. There it keeps a readable zoom and pins
+ * the content's top-left corner (where the first card is) to the canvas corner,
+ * so the user starts on something legible and pans to the rest.
+ */
+export function computeOpeningView(
+    bounds: ViewportBounds | null,
+    rect: ViewportRect
+): ViewportState {
+    const fit = computeFocusView(bounds, rect);
+    if (
+        !bounds ||
+        rect.width >= PHONE_CANVAS_WIDTH ||
+        fit.zoom >= READABLE_ZOOM
+    ) {
+        return fit;
+    }
+    return {
+        zoom: READABLE_ZOOM,
+        offset: {
+            x: OPENING_MARGIN_X - bounds.minX * READABLE_ZOOM,
+            y: OPENING_MARGIN_Y - bounds.minY * READABLE_ZOOM,
+        },
+    };
+}

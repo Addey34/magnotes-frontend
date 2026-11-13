@@ -6,6 +6,8 @@ import { readViewport, writeViewport } from './viewportStorage';
 
 const LOCAL_DEBOUNCE_MS = 200;
 const SERVER_DEBOUNCE_MS = 1500;
+/** How long a loaded board may stay without measurable cards before it counts as empty. */
+const EMPTY_BOARD_GRACE_MS = 600;
 
 interface ViewportPersistenceParams {
     activeTabId: string | null;
@@ -15,7 +17,7 @@ interface ViewportPersistenceParams {
     isLoading: boolean;
     contentBounds: BoardBounds | null;
     setViewport: (next: { zoom: number; offset: BoardPoint }) => void;
-    focusBounds: (bounds: BoardBounds | null) => void;
+    openBounds: (bounds: BoardBounds | null) => void;
 }
 
 /**
@@ -38,7 +40,7 @@ export function useViewportPersistence({
     isLoading,
     contentBounds,
     setViewport,
-    focusBounds,
+    openBounds,
 }: ViewportPersistenceParams): void {
     const claimedTabRef = useRef<string | null>(null);
 
@@ -66,13 +68,23 @@ export function useViewportPersistence({
             return;
         }
 
-        // 3. Auto-frame content.
+        // 3. Auto-frame content. The board can report itself loaded a beat
+        // before its cards are positioned: without bounds, wait briefly for
+        // them instead of resetting the view and marking the board as opened.
+        // Only a board still empty after the grace period is really empty.
+        if (!contentBounds) {
+            const timer = window.setTimeout(() => {
+                openBounds(null);
+                claimedTabRef.current = activeTabId;
+            }, EMPTY_BOARD_GRACE_MS);
+            return () => window.clearTimeout(timer);
+        }
         const frame = window.requestAnimationFrame(() => {
-            focusBounds(contentBounds);
+            openBounds(contentBounds);
             claimedTabRef.current = activeTabId;
         });
         return () => window.cancelAnimationFrame(frame);
-    }, [activeTabId, isLoading, tabs, contentBounds, focusBounds, setViewport]);
+    }, [activeTabId, isLoading, tabs, contentBounds, openBounds, setViewport]);
 
     // Persist viewport changes for the active tab.
     useEffect(() => {
