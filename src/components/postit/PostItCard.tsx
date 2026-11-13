@@ -19,6 +19,7 @@ import {
 import React, {
     useCallback,
     useEffect,
+    useLayoutEffect,
     useMemo,
     useRef,
     useState,
@@ -174,6 +175,18 @@ const PostItCard: React.FC<PostItCardProps> = ({
     // dismissed with Escape) and the highlighted suggestion.
     const [openMention, setOpenMention] = useState<OpenMention | null>(null);
     const [mentionIndex, setMentionIndex] = useState(0);
+    const pendingCaret = useRef<{ text: string; caret: number } | null>(null);
+    useLayoutEffect(() => {
+        const pending = pendingCaret.current;
+        const el = contentRef.current;
+        if (!pending || !el) return;
+        pendingCaret.current = null;
+        // Only if the inserted text really landed: if the parent refused the
+        // change, leave the caret where the browser put it.
+        if (el.value !== pending.text) return;
+        el.focus();
+        el.setSelectionRange(pending.caret, pending.caret);
+    }, [postIt.content]);
     const closeStylePanel = useCallback(() => setStylePanel(null), []);
     useDismiss(stylePanel !== null, cardRef, closeStylePanel);
 
@@ -608,14 +621,14 @@ const PostItCard: React.FC<PostItCardProps> = ({
             openMention,
             title
         );
+        // The controlled value is applied on the next render, which also moves
+        // the caret to the end. Remember where it must go: the layout effect
+        // below restores it synchronously after that commit. A deferred
+        // (requestAnimationFrame) restore could run after the user had already
+        // typed on, and drag the caret back in front of the new text.
+        pendingCaret.current = next;
         updateText('content', next.text);
         setOpenMention(null);
-        // The controlled value is applied on the next render; park the caret
-        // after it so typing continues right after the inserted mention.
-        requestAnimationFrame(() => {
-            el.focus();
-            el.setSelectionRange(next.caret, next.caret);
-        });
     };
 
     const handleContentKeyDown = (
