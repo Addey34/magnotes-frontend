@@ -170,10 +170,14 @@ const SecurityDialog: React.FC<SecurityDialogProps> = ({
         const date = new Date(iso);
         return Number.isNaN(date.getTime())
             ? iso
-            : date.toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-US', {
+            : date.toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-US', {
                   day: 'numeric',
                   month: 'short',
                   year: 'numeric',
+                  // Two sessions of the same browser share a label: the time
+                  // of sign-in is what tells them apart.
+                  hour: '2-digit',
+                  minute: '2-digit',
               });
     };
 

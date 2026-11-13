@@ -57,6 +57,13 @@ it('lists devices and flags the current one', async () => {
     ).toHaveLength(1);
 });
 
+it('shows the sign-in time so same-label sessions can be told apart', async () => {
+    setup();
+    await screen.findByText('Safari sur iPhone');
+    // Time zone independent: only the HH:MM shape matters.
+    expect(screen.getAllByText(/Connexion le .*\d{2}:\d{2}/)).toHaveLength(2);
+});
+
 it('disables sign-out-others when there is no other device', async () => {
     jest.mocked(listSessions).mockResolvedValue([current]);
     setup();
