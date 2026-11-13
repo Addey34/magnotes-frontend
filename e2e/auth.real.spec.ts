@@ -186,7 +186,17 @@ test.describe('real local authentication', () => {
         ).toContainText(/could not be saved|n’a pas pu être enregistrée/i);
         expect(interruptedPatch).toBe(true);
         await page.unroute('**/api/postits/**', interruptFirstPatch);
+        // The input already shows the new title locally, so reading it proves
+        // nothing about the server: wait for the retried PATCH to succeed
+        // before reloading, or a slow runner reloads first and loses the edit.
+        const retriedPatch = page.waitForResponse(
+            (response) =>
+                response.url().includes('/api/postits/') &&
+                response.request().method() === 'PATCH' &&
+                response.ok()
+        );
         await page.evaluate(() => window.dispatchEvent(new Event('online')));
+        await retriedPatch;
         await expect
             .poll(async () => {
                 const recoveredCard = await cardByTitle(page, recoveredTitle);
@@ -216,20 +226,35 @@ test.describe('real local authentication', () => {
             dragStart.y + dragStart.height / 2 + 80,
             { steps: 5 }
         );
+        // Wait for the server to confirm the move instead of sleeping: the
+        // reload below is persistence QA and must not race the write.
+        const movePersisted = page.waitForResponse(
+            (response) =>
+                response.url().includes('/api/postits/') &&
+                response.request().method() === 'PATCH' &&
+                response.ok()
+        );
         await page.mouse.up();
         await expect
             .poll(() => cardLeft(page, title))
             .toBeGreaterThan(leftBeforeDrag + 70);
-        // Move writes immediately, but give the API completion a small margin
-        // before the reload below turns the UI assertion into persistence QA.
-        await page.waitForTimeout(500);
+        await movePersisted;
 
         const quickCaptureTitle = `Quick capture ${testInfo.project.name}`;
         await page.locator('.command-palette-trigger').click();
         const palette = page.locator('.command-palette');
         await expect(palette).toBeVisible();
         await palette.locator('input').fill(quickCaptureTitle);
+        // Same rule for the capture: the card exists on the server, not only
+        // in the UI, before the page is reloaded.
+        const capturePersisted = page.waitForResponse(
+            (response) =>
+                response.url().endsWith('/api/postits') &&
+                response.request().method() === 'POST' &&
+                response.ok()
+        );
         await palette.locator('.command-palette-item').first().click();
+        await capturePersisted;
         await expect
             .poll(() =>
                 page
