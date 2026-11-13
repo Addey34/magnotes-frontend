@@ -2272,6 +2272,46 @@
     text-decoration: underline;
 }
 
+/*
+ * On a note, a link takes the note's own ink (--card-ink) instead of the board
+ * accent: the accent was picked for the dark shell and can fall below 4.5:1 on
+ * a pastel or saturated card. Opacity + a thicker underline keep it readable
+ * as a link without introducing a colour that fights the card.
+ */
+.post-it-card .markdown-body a {
+    color: var(--card-ink, #172033);
+    opacity: 0.82;
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 2px;
+    transition: opacity 0.15s ease;
+}
+
+.post-it-card .markdown-body a:hover,
+.post-it-card .markdown-body a:focus-visible {
+    opacity: 1;
+}
+
+/*
+ * Scrollbar of a note's content: tinted from the card's own ink rather than
+ * the board accent, with no track, so it reads as part of the note. The
+ * variables are redeclared on the scroller itself because the pseudo-elements
+ * inherit from it.
+ */
+.post-it-card .post-it-content-view.app-scrollbar {
+    --scrollbar-size: 6px;
+    --scrollbar-track: transparent;
+    --scrollbar-thumb: color-mix(
+        in srgb,
+        var(--card-ink, #172033) 32%,
+        transparent
+    );
+    --scrollbar-thumb-hover: color-mix(
+        in srgb,
+        var(--card-ink, #172033) 55%,
+        transparent
+    );
+}
+
 /* Media (image) cards */
 .post-it-media {
     border-radius: 8px;
@@ -2643,6 +2683,53 @@
     color: rgba(15, 23, 42, 0.45);
     cursor: default;
     font-style: italic;
+}
+
+/* `[[` autocomplete: a compact list under the textarea while editing. Kept
+   in flow (not floated) so no ancestor's overflow can clip it. */
+.post-it-mention-suggest {
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(15, 23, 42, 0.14);
+    border-radius: 7px;
+    display: flex;
+    flex-direction: column;
+    list-style: none;
+    margin: 4px 0 0;
+    max-height: 132px;
+    overflow-y: auto;
+    padding: 3px;
+    scrollbar-color: rgba(15, 23, 42, 0.3) transparent;
+    scrollbar-width: thin;
+}
+
+.post-it-mention-suggest button {
+    background: transparent;
+    border: 0;
+    border-radius: 5px;
+    color: #172033;
+    cursor: pointer;
+    display: block;
+    font-size: 11px;
+    font-weight: 650;
+    overflow: hidden;
+    padding: 4px 7px;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    width: 100%;
+}
+
+@media (pointer: coarse) {
+    .post-it-mention-suggest button {
+        font-size: 12px;
+        padding: 9px 8px;
+    }
+}
+
+.post-it-mention-suggest button:hover,
+.post-it-mention-suggest button.is-active {
+    background: rgba(99, 102, 241, 0.18);
+    color: #312e81;
 }
 
 .post-it-backlinks {
@@ -5223,4 +5310,117 @@
 .empty-board .empty-board-template-button:hover {
     background: var(--accent-soft);
     border-color: var(--accent);
+}
+
+.security-dialog {
+    max-height: calc(100dvh - 40px);
+    max-width: 500px;
+    overflow-y: auto;
+}
+
+.security-dialog h3 {
+    font-size: 14px;
+    margin: 16px 0 8px;
+}
+
+.security-dialog__sessions {
+    display: grid;
+    gap: 8px;
+    list-style: none;
+    margin: 0 0 8px;
+    padding: 0;
+}
+
+.security-dialog__sessions li {
+    align-items: center;
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+    border-radius: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    justify-content: space-between;
+    padding: 10px 12px;
+}
+
+.security-dialog__session-info {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.security-dialog__session-info strong {
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+.security-dialog__session-info small {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.security-dialog__badge {
+    background: var(--accent);
+    border-radius: 999px;
+    color: #fff;
+    font-size: 10px;
+    margin-left: 8px;
+    padding: 2px 8px;
+    white-space: nowrap;
+}
+
+.security-dialog__row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.security-dialog button:not(.is-primary):not(.is-danger) {
+    background: var(--control-bg, rgba(255, 255, 255, 0.06));
+    border: 0;
+    border-radius: 10px;
+    color: var(--text-main);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 9px 14px;
+}
+
+.security-dialog__row-actions button.is-danger {
+    background: #dc2626;
+    border: 0;
+    border-radius: 10px;
+    color: #fff;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 9px 14px;
+}
+
+.security-dialog button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.security-dialog__password {
+    border-top: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+    margin-top: 16px;
+}
+
+.preferences-dialog__fields label.security-dialog__check {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+}
+
+.security-dialog__check input {
+    flex: none;
+    width: auto;
+}
+
+.security-dialog__check span {
+    font-weight: 500;
+}
+
+.security-dialog__help {
+    margin: -6px 0 0 !important;
 }

@@ -43,7 +43,17 @@
             content="https://magnotes.adrianguichard.dev/og-image.png"
         />
         <meta name="robots" content="index, follow" />
-        <meta name="theme-color" content="#14141c" />
+        <meta name="color-scheme" content="dark light" />
+        <meta
+            name="theme-color"
+            content="#14141c"
+            media="(prefers-color-scheme: dark)"
+        />
+        <meta
+            name="theme-color"
+            content="#f7f6fc"
+            media="(prefers-color-scheme: light)"
+        />
         <link rel="canonical" href="https://magnotes.adrianguichard.dev/en/" />
         <link
             rel="alternate"
@@ -73,18 +83,51 @@
         </script>
         <style>
             :root {
+                color-scheme: dark;
                 --bg: #14141c;
                 --bg-soft: #1c1c28;
                 --card: #232334;
                 --text: #ecebf4;
-                --muted: #9b99ae;
+                --strong: #ffffff;
+                --muted: #a4a2b8;
                 --accent: #8b7cf6;
+                --accent-text: #a99cff;
+                --on-accent: #14141c;
                 --accent-soft: rgba(139, 124, 246, 0.14);
+                --header-bg: rgba(20, 20, 28, 0.85);
+                --line: rgba(255, 255, 255, 0.06);
+                --line-strong: rgba(255, 255, 255, 0.18);
+                --dot: rgba(255, 255, 255, 0.09);
+                --shadow: rgba(0, 0, 0, 0.45);
+                --shadow-soft: rgba(0, 0, 0, 0.3);
+                --focus: #c4baff;
                 --note-yellow: #f6e27f;
                 --note-pink: #f4a8c0;
                 --note-blue: #9ec5f8;
                 --note-green: #a8e6c2;
                 --radius: 10px;
+            }
+            @media (prefers-color-scheme: light) {
+                :root {
+                    color-scheme: light;
+                    --bg: #f7f6fc;
+                    --bg-soft: #ecebf6;
+                    --card: #ffffff;
+                    --text: #1d1b2e;
+                    --strong: #14121f;
+                    --muted: #55536a;
+                    --accent: #5b4bd6;
+                    --accent-text: #4f3fc8;
+                    --on-accent: #ffffff;
+                    --accent-soft: rgba(91, 75, 214, 0.12);
+                    --header-bg: rgba(247, 246, 252, 0.88);
+                    --line: rgba(20, 18, 31, 0.1);
+                    --line-strong: rgba(20, 18, 31, 0.28);
+                    --dot: rgba(20, 18, 31, 0.12);
+                    --shadow: rgba(40, 30, 90, 0.18);
+                    --shadow-soft: rgba(40, 30, 90, 0.16);
+                    --focus: #3b2db0;
+                }
             }
             * {
                 margin: 0;
@@ -108,6 +151,19 @@
                 color: inherit;
                 text-decoration: none;
             }
+            a:focus-visible {
+                outline: 3px solid var(--focus);
+                outline-offset: 3px;
+                border-radius: var(--radius);
+            }
+            @media (prefers-reduced-motion: reduce) {
+                html {
+                    scroll-behavior: auto;
+                }
+                * {
+                    transition: none !important;
+                }
+            }
             .wrap {
                 max-width: 1080px;
                 margin: 0 auto;
@@ -119,9 +175,9 @@
                 position: sticky;
                 top: 0;
                 z-index: 10;
-                background: rgba(20, 20, 28, 0.85);
+                background: var(--header-bg);
                 backdrop-filter: blur(8px);
-                border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+                border-bottom: 1px solid var(--line);
             }
             .nav {
                 display: flex;
@@ -158,12 +214,12 @@
             }
             .btn-primary {
                 background: var(--accent);
-                color: #fff;
-                box-shadow: 0 4px 18px rgba(139, 124, 246, 0.35);
+                color: var(--on-accent);
+                box-shadow: 0 4px 18px var(--accent-soft);
             }
             .btn-primary:hover {
                 transform: translateY(-2px);
-                box-shadow: 0 8px 24px rgba(139, 124, 246, 0.45);
+                box-shadow: 0 8px 24px var(--accent-soft);
             }
             .btn-ghost {
                 color: var(--muted);
@@ -188,7 +244,7 @@
             }
             .hero h1 em {
                 font-style: normal;
-                color: var(--accent);
+                color: var(--accent-text);
             }
             .hero p {
                 margin: 20px 0 32px;
@@ -212,16 +268,13 @@
                 position: relative;
                 aspect-ratio: 4 / 3.1;
                 background:
-                    radial-gradient(
-                            rgba(255, 255, 255, 0.09) 1px,
-                            transparent 1px
-                        )
-                        0 0 / 22px 22px,
+                    radial-gradient(var(--dot) 1px, transparent 1px) 0 0 / 22px
+                        22px,
                     var(--bg-soft);
-                border: 1px solid rgba(255, 255, 255, 0.07);
+                border: 1px solid var(--line);
                 border-radius: 16px;
                 overflow: hidden;
-                box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+                box-shadow: 0 24px 60px var(--shadow);
             }
             .note {
                 position: absolute;
@@ -230,7 +283,7 @@
                 border-radius: 8px;
                 color: #22222c;
                 font-size: clamp(0.6rem, 1.15vw, 0.8rem);
-                box-shadow: 0 8px 18px rgba(0, 0, 0, 0.3);
+                box-shadow: 0 8px 18px var(--shadow-soft);
                 transition: transform 0.25s ease;
             }
             .note:hover {
@@ -305,7 +358,7 @@
             }
             .feature {
                 background: var(--card);
-                border: 1px solid rgba(255, 255, 255, 0.06);
+                border: 1px solid var(--line);
                 border-radius: 14px;
                 padding: 24px;
             }
@@ -327,6 +380,14 @@
                 color: var(--muted);
                 font-size: 0.92rem;
             }
+            .feature code {
+                font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+                font-size: 0.88em;
+                padding: 1px 5px;
+                border-radius: 5px;
+                background: var(--accent-soft);
+                color: var(--text);
+            }
 
             /* Final CTA */
             .cta-final {
@@ -346,18 +407,35 @@
             }
 
             .import-band {
-                display: flex;
-                flex-wrap: wrap;
-                align-items: center;
-                gap: 12px 24px;
                 margin: 32px 0 0;
-                padding: 20px 24px;
-                border: 1px dashed rgba(255, 255, 255, 0.18);
+                padding: 24px;
+                border: 1px dashed var(--line-strong);
                 border-radius: 14px;
                 color: var(--muted);
             }
-            .import-band strong {
-                color: #fff;
+            .import-band h3 {
+                color: var(--strong);
+                font-size: 1.1rem;
+                margin-bottom: 6px;
+            }
+            .import-band ul {
+                list-style: none;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                margin: 14px 0;
+            }
+            .import-band li {
+                padding: 4px 12px;
+                border-radius: 999px;
+                background: var(--accent-soft);
+                color: var(--text);
+                font-size: 0.9rem;
+                font-weight: 600;
+            }
+            .import-band .limits {
+                font-size: 0.85rem;
+                margin: 0;
             }
 
             .views {
@@ -374,8 +452,8 @@
                 width: 100%;
                 height: auto;
                 border-radius: 14px;
-                border: 1px solid rgba(255, 255, 255, 0.08);
-                box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+                border: 1px solid var(--line);
+                box-shadow: 0 18px 40px var(--shadow-soft);
             }
             .views figcaption {
                 color: var(--muted);
@@ -390,7 +468,7 @@
             }
 
             footer {
-                border-top: 1px solid rgba(255, 255, 255, 0.06);
+                border-top: 1px solid var(--line);
                 padding: 28px 0;
                 color: var(--muted);
                 font-size: 0.85rem;
@@ -515,7 +593,7 @@
                     </p>
                 </div>
                 <div class="board" aria-hidden="true">
-                    <svg viewBox="0 0 400 310">
+                    <svg viewBox="0 0 400 310" style="color: var(--accent)">
                         <defs>
                             <marker
                                 id="arr"
@@ -528,7 +606,7 @@
                                 <path
                                     d="M0,0 L6,3 L0,6"
                                     fill="none"
-                                    stroke="#8b7cf6"
+                                    stroke="currentColor"
                                     stroke-width="1.5"
                                 />
                             </marker>
@@ -536,7 +614,7 @@
                         <path
                             d="M150 80 C 200 90, 230 90, 265 78"
                             fill="none"
-                            stroke="#8b7cf6"
+                            stroke="currentColor"
                             stroke-width="1.5"
                             stroke-dasharray="4 4"
                             marker-end="url(#arr)"
@@ -544,7 +622,7 @@
                         <path
                             d="M120 200 C 160 230, 200 245, 245 245"
                             fill="none"
-                            stroke="#8b7cf6"
+                            stroke="currentColor"
                             stroke-width="1.5"
                             stroke-dasharray="4 4"
                             marker-end="url(#arr)"
@@ -617,24 +695,53 @@
                 </div>
                 <div class="grid">
                     <div class="feature">
-                        <div class="icon">🗂️</div>
+                        <div class="icon" aria-hidden="true">🗂️</div>
                         <h3>Piles that fan out</h3>
                         <p>
                             Drop a card on another and they form a pile. Click
-                            it to fan it out and pick a card from its side tab.
-                            The canvas stays readable, even with 200 notes.
+                            it to spread it into a fan of side tabs, and drop
+                            one pile onto another to merge them. The canvas
+                            stays readable, even with 200 notes.
                         </p>
                     </div>
                     <div class="feature">
-                        <div class="icon">📋</div>
-                        <h3>Kanban, Agenda &amp; Timeline</h3>
+                        <div class="icon" aria-hidden="true">🔗</div>
+                        <h3>Mentions &amp; backlinks</h3>
                         <p>
-                            The same cards, laid out as status columns, grouped
-                            by due date, or unrolled along a timeline.
+                            Reference a card with <code>[[mention]]</code>: the
+                            link is clickable and the cited card shows who cites
+                            it. You can also link cards with typed arrows.
                         </p>
                     </div>
                     <div class="feature">
-                        <div class="icon">✋</div>
+                        <div class="icon" aria-hidden="true">⌨️</div>
+                        <h3>Ctrl+K palette</h3>
+                        <p>
+                            Fuzzy search across all your boards, quick note
+                            capture, view switching and template insertion, all
+                            from the keyboard.
+                        </p>
+                    </div>
+                    <div class="feature">
+                        <div class="icon" aria-hidden="true">📋</div>
+                        <h3>Canvas, Kanban, Agenda, Timeline</h3>
+                        <p>
+                            The same cards as a free-form board, as status
+                            columns, grouped by due date, or unrolled along a
+                            timeline.
+                        </p>
+                    </div>
+                    <div class="feature">
+                        <div class="icon" aria-hidden="true">✅</div>
+                        <h3>Cards that organize</h3>
+                        <p>
+                            Markdown, checklists, status, priority, due date,
+                            tags and images: a card stays a note, but can also
+                            track a task.
+                        </p>
+                    </div>
+                    <div class="feature">
+                        <div class="icon" aria-hidden="true">✋</div>
                         <h3>Move first, edit second</h3>
                         <p>
                             Grab a card anywhere. An Edit button opens text,
@@ -643,39 +750,48 @@
                         </p>
                     </div>
                     <div class="feature">
-                        <div class="icon">🔗</div>
-                        <h3>Connections &amp; mentions</h3>
+                        <div class="icon" aria-hidden="true">🔒</div>
+                        <h3>Read-only sharing</h3>
                         <p>
-                            Link cards with typed arrows, reference them with
-                            <code>[[mentions]]</code>, and see who cites what
-                            with backlinks.
+                            Generate a link to show a board to a client or
+                            colleague: they view it without an account and
+                            cannot change anything.
                         </p>
                     </div>
                     <div class="feature">
-                        <div class="icon">⌨️</div>
-                        <h3>Command palette</h3>
+                        <div class="icon" aria-hidden="true">🚀</div>
+                        <h3>Try it without an account</h3>
                         <p>
-                            Ctrl+K: fuzzy search across all your boards, quick
-                            note capture, view switching, template insertion.
+                            Demo mode runs in your browser: no sign-up needed,
+                            and it even works offline.
                         </p>
                     </div>
                     <div class="feature">
-                        <div class="icon">📝</div>
+                        <div class="icon" aria-hidden="true">📝</div>
                         <h3>Your notes stay yours</h3>
                         <p>
-                            Import Markdown or a Notion CSV, export to Markdown
-                            or full JSON. The demo works without an account,
-                            even offline.
+                            Export to Markdown or full JSON, delete your account
+                            and data in one click. No lock-in.
                         </p>
                     </div>
                 </div>
-                <p class="import-band">
-                    <span
-                        ><strong>Coming from somewhere else?</strong> Import a
-                        Markdown file or a Notion CSV export: your notes arrive
-                        as cards, ready to sort.</span
-                    >
-                </p>
+                <aside class="import-band" aria-labelledby="import-title">
+                    <h3 id="import-title">
+                        Coming from somewhere else? Import your notes.
+                    </h3>
+                    <p>
+                        Import a file from the app menu: each note becomes a
+                        card, ready to sort.
+                    </p>
+                    <ul>
+                        <li>Markdown (.md, .txt)</li>
+                        <li>Trello (JSON export)</li>
+                        <li>Notion (CSV export)</li>
+                    </ul>
+                    <p class="limits">
+                        Limits: 1 MB per file and 100 cards per import.
+                    </p>
+                </aside>
             </section>
 
             <section>

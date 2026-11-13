@@ -43,7 +43,17 @@
             content="https://magnotes.adrianguichard.dev/og-image.png"
         />
         <meta name="robots" content="index, follow" />
-        <meta name="theme-color" content="#14141c" />
+        <meta name="color-scheme" content="dark light" />
+        <meta
+            name="theme-color"
+            content="#14141c"
+            media="(prefers-color-scheme: dark)"
+        />
+        <meta
+            name="theme-color"
+            content="#f7f6fc"
+            media="(prefers-color-scheme: light)"
+        />
         <link rel="canonical" href="https://magnotes.adrianguichard.dev/" />
         <link
             rel="alternate"
@@ -73,18 +83,51 @@
         </script>
         <style>
             :root {
+                color-scheme: dark;
                 --bg: #14141c;
                 --bg-soft: #1c1c28;
                 --card: #232334;
                 --text: #ecebf4;
-                --muted: #9b99ae;
+                --strong: #ffffff;
+                --muted: #a4a2b8;
                 --accent: #8b7cf6;
+                --accent-text: #a99cff;
+                --on-accent: #14141c;
                 --accent-soft: rgba(139, 124, 246, 0.14);
+                --header-bg: rgba(20, 20, 28, 0.85);
+                --line: rgba(255, 255, 255, 0.06);
+                --line-strong: rgba(255, 255, 255, 0.18);
+                --dot: rgba(255, 255, 255, 0.09);
+                --shadow: rgba(0, 0, 0, 0.45);
+                --shadow-soft: rgba(0, 0, 0, 0.3);
+                --focus: #c4baff;
                 --note-yellow: #f6e27f;
                 --note-pink: #f4a8c0;
                 --note-blue: #9ec5f8;
                 --note-green: #a8e6c2;
                 --radius: 10px;
+            }
+            @media (prefers-color-scheme: light) {
+                :root {
+                    color-scheme: light;
+                    --bg: #f7f6fc;
+                    --bg-soft: #ecebf6;
+                    --card: #ffffff;
+                    --text: #1d1b2e;
+                    --strong: #14121f;
+                    --muted: #55536a;
+                    --accent: #5b4bd6;
+                    --accent-text: #4f3fc8;
+                    --on-accent: #ffffff;
+                    --accent-soft: rgba(91, 75, 214, 0.12);
+                    --header-bg: rgba(247, 246, 252, 0.88);
+                    --line: rgba(20, 18, 31, 0.1);
+                    --line-strong: rgba(20, 18, 31, 0.28);
+                    --dot: rgba(20, 18, 31, 0.12);
+                    --shadow: rgba(40, 30, 90, 0.18);
+                    --shadow-soft: rgba(40, 30, 90, 0.16);
+                    --focus: #3b2db0;
+                }
             }
             * {
                 margin: 0;
@@ -108,6 +151,19 @@
                 color: inherit;
                 text-decoration: none;
             }
+            a:focus-visible {
+                outline: 3px solid var(--focus);
+                outline-offset: 3px;
+                border-radius: var(--radius);
+            }
+            @media (prefers-reduced-motion: reduce) {
+                html {
+                    scroll-behavior: auto;
+                }
+                * {
+                    transition: none !important;
+                }
+            }
             .wrap {
                 max-width: 1080px;
                 margin: 0 auto;
@@ -119,9 +175,9 @@
                 position: sticky;
                 top: 0;
                 z-index: 10;
-                background: rgba(20, 20, 28, 0.85);
+                background: var(--header-bg);
                 backdrop-filter: blur(8px);
-                border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+                border-bottom: 1px solid var(--line);
             }
             .nav {
                 display: flex;
@@ -158,12 +214,12 @@
             }
             .btn-primary {
                 background: var(--accent);
-                color: #fff;
-                box-shadow: 0 4px 18px rgba(139, 124, 246, 0.35);
+                color: var(--on-accent);
+                box-shadow: 0 4px 18px var(--accent-soft);
             }
             .btn-primary:hover {
                 transform: translateY(-2px);
-                box-shadow: 0 8px 24px rgba(139, 124, 246, 0.45);
+                box-shadow: 0 8px 24px var(--accent-soft);
             }
             .btn-ghost {
                 color: var(--muted);
@@ -188,7 +244,7 @@
             }
             .hero h1 em {
                 font-style: normal;
-                color: var(--accent);
+                color: var(--accent-text);
             }
             .hero p {
                 margin: 20px 0 32px;
@@ -212,16 +268,13 @@
                 position: relative;
                 aspect-ratio: 4 / 3.1;
                 background:
-                    radial-gradient(
-                            rgba(255, 255, 255, 0.09) 1px,
-                            transparent 1px
-                        )
-                        0 0 / 22px 22px,
+                    radial-gradient(var(--dot) 1px, transparent 1px) 0 0 / 22px
+                        22px,
                     var(--bg-soft);
-                border: 1px solid rgba(255, 255, 255, 0.07);
+                border: 1px solid var(--line);
                 border-radius: 16px;
                 overflow: hidden;
-                box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+                box-shadow: 0 24px 60px var(--shadow);
             }
             .note {
                 position: absolute;
@@ -230,7 +283,7 @@
                 border-radius: 8px;
                 color: #22222c;
                 font-size: clamp(0.6rem, 1.15vw, 0.8rem);
-                box-shadow: 0 8px 18px rgba(0, 0, 0, 0.3);
+                box-shadow: 0 8px 18px var(--shadow-soft);
                 transition: transform 0.25s ease;
             }
             .note:hover {
@@ -305,7 +358,7 @@
             }
             .feature {
                 background: var(--card);
-                border: 1px solid rgba(255, 255, 255, 0.06);
+                border: 1px solid var(--line);
                 border-radius: 14px;
                 padding: 24px;
             }
@@ -327,6 +380,14 @@
                 color: var(--muted);
                 font-size: 0.92rem;
             }
+            .feature code {
+                font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+                font-size: 0.88em;
+                padding: 1px 5px;
+                border-radius: 5px;
+                background: var(--accent-soft);
+                color: var(--text);
+            }
 
             /* Final CTA */
             .cta-final {
@@ -346,18 +407,35 @@
             }
 
             .import-band {
-                display: flex;
-                flex-wrap: wrap;
-                align-items: center;
-                gap: 12px 24px;
                 margin: 32px 0 0;
-                padding: 20px 24px;
-                border: 1px dashed rgba(255, 255, 255, 0.18);
+                padding: 24px;
+                border: 1px dashed var(--line-strong);
                 border-radius: 14px;
                 color: var(--muted);
             }
-            .import-band strong {
-                color: #fff;
+            .import-band h3 {
+                color: var(--strong);
+                font-size: 1.1rem;
+                margin-bottom: 6px;
+            }
+            .import-band ul {
+                list-style: none;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                margin: 14px 0;
+            }
+            .import-band li {
+                padding: 4px 12px;
+                border-radius: 999px;
+                background: var(--accent-soft);
+                color: var(--text);
+                font-size: 0.9rem;
+                font-weight: 600;
+            }
+            .import-band .limits {
+                font-size: 0.85rem;
+                margin: 0;
             }
 
             .views {
@@ -374,8 +452,8 @@
                 width: 100%;
                 height: auto;
                 border-radius: 14px;
-                border: 1px solid rgba(255, 255, 255, 0.08);
-                box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+                border: 1px solid var(--line);
+                box-shadow: 0 18px 40px var(--shadow-soft);
             }
             .views figcaption {
                 color: var(--muted);
@@ -390,7 +468,7 @@
             }
 
             footer {
-                border-top: 1px solid rgba(255, 255, 255, 0.06);
+                border-top: 1px solid var(--line);
                 padding: 28px 0;
                 color: var(--muted);
                 font-size: 0.85rem;
@@ -515,7 +593,7 @@
                     </p>
                 </div>
                 <div class="board" aria-hidden="true">
-                    <svg viewBox="0 0 400 310">
+                    <svg viewBox="0 0 400 310" style="color: var(--accent)">
                         <defs>
                             <marker
                                 id="arr"
@@ -528,7 +606,7 @@
                                 <path
                                     d="M0,0 L6,3 L0,6"
                                     fill="none"
-                                    stroke="#8b7cf6"
+                                    stroke="currentColor"
                                     stroke-width="1.5"
                                 />
                             </marker>
@@ -536,7 +614,7 @@
                         <path
                             d="M150 80 C 200 90, 230 90, 265 78"
                             fill="none"
-                            stroke="#8b7cf6"
+                            stroke="currentColor"
                             stroke-width="1.5"
                             stroke-dasharray="4 4"
                             marker-end="url(#arr)"
@@ -544,7 +622,7 @@
                         <path
                             d="M120 200 C 160 230, 200 245, 245 245"
                             fill="none"
-                            stroke="#8b7cf6"
+                            stroke="currentColor"
                             stroke-width="1.5"
                             stroke-dasharray="4 4"
                             marker-end="url(#arr)"
@@ -622,26 +700,55 @@
                 </div>
                 <div class="grid">
                     <div class="feature">
-                        <div class="icon">🗂️</div>
+                        <div class="icon" aria-hidden="true">🗂️</div>
                         <h3>Piles qui se déplient</h3>
                         <p>
                             Déposez une carte sur une autre : elles forment une
-                            pile. Cliquez-la pour la déplier en éventail et
-                            choisissez une carte par son onglet. Le canvas reste
-                            lisible, même avec 200 notes.
+                            pile. Cliquez-la pour l'étaler en éventail d'onglets
+                            latéraux, déposez une pile sur une autre pour les
+                            fusionner. Le canvas reste lisible, même avec 200
+                            notes.
                         </p>
                     </div>
                     <div class="feature">
-                        <div class="icon">📋</div>
-                        <h3>Kanban, Agenda &amp; Timeline</h3>
+                        <div class="icon" aria-hidden="true">🔗</div>
+                        <h3>Mentions &amp; backlinks</h3>
                         <p>
-                            Les mêmes cartes, projetées en colonnes par statut,
-                            groupées par échéance ou déroulées en frise
+                            Citez une carte avec <code>[[mention]]</code> : le
+                            lien est cliquable et la carte citée affiche qui la
+                            cite. Reliez aussi les cartes par des flèches
+                            typées.
+                        </p>
+                    </div>
+                    <div class="feature">
+                        <div class="icon" aria-hidden="true">⌨️</div>
+                        <h3>Palette Ctrl+K</h3>
+                        <p>
+                            Recherche floue sur tous vos tableaux, capture
+                            rapide d'une note, changement de vue, insertion de
+                            templates, sans quitter le clavier.
+                        </p>
+                    </div>
+                    <div class="feature">
+                        <div class="icon" aria-hidden="true">📋</div>
+                        <h3>Canvas, Kanban, Agenda, Timeline</h3>
+                        <p>
+                            Les mêmes cartes en tableau libre, en colonnes par
+                            statut, groupées par échéance ou déroulées en frise
                             chronologique.
                         </p>
                     </div>
                     <div class="feature">
-                        <div class="icon">✋</div>
+                        <div class="icon" aria-hidden="true">✅</div>
+                        <h3>Cartes qui s'organisent</h3>
+                        <p>
+                            Markdown, checklists, statut, priorité, échéance,
+                            tags et images : une carte reste une note, mais sait
+                            aussi suivre une tâche.
+                        </p>
+                    </div>
+                    <div class="feature">
+                        <div class="icon" aria-hidden="true">✋</div>
                         <h3>Déplacez d'abord, éditez ensuite</h3>
                         <p>
                             Une carte se saisit n'importe où. Un bouton «
@@ -650,40 +757,50 @@
                         </p>
                     </div>
                     <div class="feature">
-                        <div class="icon">🔗</div>
-                        <h3>Connexions &amp; mentions</h3>
+                        <div class="icon" aria-hidden="true">🔒</div>
+                        <h3>Partage en lecture seule</h3>
                         <p>
-                            Reliez les cartes par des flèches typées, citez-les
-                            avec <code>[[mentions]]</code> et retrouvez qui cite
-                            quoi grâce aux backlinks.
+                            Générez un lien pour montrer un tableau à un client
+                            ou un collègue : il le consulte sans compte et ne
+                            peut rien modifier.
                         </p>
                     </div>
                     <div class="feature">
-                        <div class="icon">⌨️</div>
-                        <h3>Palette de commandes</h3>
+                        <div class="icon" aria-hidden="true">🚀</div>
+                        <h3>Essayez sans compte</h3>
                         <p>
-                            Ctrl+K : recherche floue sur tous vos tableaux,
-                            capture rapide d'une note, changement de vue,
-                            insertion de templates.
+                            Le mode démo tourne dans votre navigateur : aucune
+                            inscription n'est nécessaire, et il fonctionne même
+                            hors ligne.
                         </p>
                     </div>
                     <div class="feature">
-                        <div class="icon">📝</div>
+                        <div class="icon" aria-hidden="true">📝</div>
                         <h3>Vos notes vous appartiennent</h3>
                         <p>
-                            Importez du Markdown ou un CSV Notion, exportez en
-                            Markdown ou en JSON complet. Le mode démo fonctionne
-                            sans compte, même hors ligne.
+                            Exportez en Markdown ou en JSON complet, supprimez
+                            votre compte et vos données en un clic. Pas
+                            d'enfermement.
                         </p>
                     </div>
                 </div>
-                <p class="import-band">
-                    <span
-                        ><strong>Vous venez d'ailleurs ?</strong> Importez un
-                        fichier Markdown ou un export CSV de Notion : vos notes
-                        arrivent en cartes, prêtes à être triées.</span
-                    >
-                </p>
+                <aside class="import-band" aria-labelledby="import-title">
+                    <h3 id="import-title">
+                        Vous venez d'ailleurs ? Importez vos notes.
+                    </h3>
+                    <p>
+                        Importez un fichier depuis le menu de l'app : chaque
+                        note devient une carte, prête à être triée.
+                    </p>
+                    <ul>
+                        <li>Markdown (.md, .txt)</li>
+                        <li>Trello (export JSON)</li>
+                        <li>Notion (export CSV)</li>
+                    </ul>
+                    <p class="limits">
+                        Limites : 1 Mo par fichier et 100 cartes par import.
+                    </p>
+                </aside>
             </section>
 
             <section>

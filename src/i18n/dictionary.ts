@@ -305,6 +305,103 @@ export const DICTIONARY = {
         fr: 'Enregistrement…',
         en: 'Saving…',
     },
+    'app.menu.security': { fr: 'Sécurité', en: 'Security' },
+    'app.menu.security.sub': {
+        fr: 'Appareils et mot de passe',
+        en: 'Devices and password',
+    },
+    'security.title': { fr: 'Sécurité', en: 'Security' },
+    'security.devices.title': {
+        fr: 'Appareils connectés',
+        en: 'Signed-in devices',
+    },
+    'security.devices.loading': {
+        fr: 'Chargement des appareils…',
+        en: 'Loading devices…',
+    },
+    'security.devices.loadError': {
+        fr: 'Impossible de charger les appareils.',
+        en: 'Unable to load devices.',
+    },
+    'security.devices.retry': { fr: 'Réessayer', en: 'Retry' },
+    'security.devices.empty': {
+        fr: 'Aucun appareil connecté.',
+        en: 'No signed-in devices.',
+    },
+    'security.devices.current': { fr: 'Cet appareil', en: 'This device' },
+    'security.devices.signedIn': {
+        fr: 'Connexion le {date}',
+        en: 'Signed in on {date}',
+    },
+    'security.devices.lastActive': {
+        fr: 'Dernière activité : {when}',
+        en: 'Last active: {when}',
+    },
+    'security.devices.signOut': { fr: 'Déconnecter', en: 'Sign out' },
+    'security.devices.signOutAria': {
+        fr: 'Déconnecter {device}',
+        en: 'Sign out {device}',
+    },
+    'security.devices.confirm': { fr: 'Confirmer', en: 'Confirm' },
+    'security.devices.cancel': { fr: 'Annuler', en: 'Cancel' },
+    'security.devices.signOutOthers': {
+        fr: 'Déconnecter tous les autres appareils',
+        en: 'Sign out all other devices',
+    },
+    'security.devices.actionError': {
+        fr: "L'action a échoué. Réessayez.",
+        en: 'The action failed. Try again.',
+    },
+    'security.devices.othersDone': {
+        fr: '{count} appareil(s) déconnecté(s).',
+        en: '{count} device(s) signed out.',
+    },
+    'security.password.title': {
+        fr: 'Changer le mot de passe',
+        en: 'Change password',
+    },
+    'security.password.current': {
+        fr: 'Mot de passe actuel',
+        en: 'Current password',
+    },
+    'security.password.new': {
+        fr: 'Nouveau mot de passe',
+        en: 'New password',
+    },
+    'security.password.signOutOthers': {
+        fr: 'Déconnecter mes autres appareils',
+        en: 'Sign out my other devices',
+    },
+    'security.password.signOutOthersHelp': {
+        fr: 'Recommandé : les autres appareils devront se reconnecter avec le nouveau mot de passe.',
+        en: 'Recommended: other devices will have to sign in again with the new password.',
+    },
+    'security.password.submit': {
+        fr: 'Changer le mot de passe',
+        en: 'Change password',
+    },
+    'security.password.submitting': { fr: 'Modification…', en: 'Changing…' },
+    'security.password.currentRequired': {
+        fr: 'Saisissez votre mot de passe actuel.',
+        en: 'Enter your current password.',
+    },
+    'security.password.wrongCurrent': {
+        fr: 'Mot de passe actuel incorrect.',
+        en: 'Current password is incorrect.',
+    },
+    'security.password.invalid': {
+        fr: 'Nouveau mot de passe invalide ou identique à l’actuel.',
+        en: 'Invalid new password, or same as the current one.',
+    },
+    'security.password.failed': {
+        fr: 'Changement impossible. Réessayez.',
+        en: 'Unable to change the password. Try again.',
+    },
+    'security.password.success': {
+        fr: 'Mot de passe modifié. {count} autre(s) appareil(s) déconnecté(s).',
+        en: 'Password changed. {count} other device(s) signed out.',
+    },
+    'security.close': { fr: 'Fermer', en: 'Close' },
     'app.menu.exportMd': {
         fr: 'Exporter en Markdown',
         en: 'Export as Markdown',
@@ -1009,6 +1106,10 @@ export const DICTIONARY = {
     'card.mention.notFound': {
         fr: 'Aucune carte ne porte ce titre',
         en: 'No card has this title',
+    },
+    'card.mention.suggest': {
+        fr: 'Cartes à mentionner',
+        en: 'Cards to mention',
     },
     'card.backlinks': { fr: 'Cité par', en: 'Cited by' },
     'card.tool.linkActive': {
