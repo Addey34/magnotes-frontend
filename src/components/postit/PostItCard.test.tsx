@@ -86,6 +86,7 @@ const renderCard = (
         stackView?: CardStackView;
         autoEdit?: boolean;
         onAutoEditHandled?: (id: string) => void;
+        mentionTitles?: string[];
     } = {}
 ) => {
     const postIt = makeCard(cardOverrides);
@@ -114,6 +115,7 @@ const renderCard = (
             dropIntent={null}
             zoom={1}
             linkingSourceId={null}
+            mentionTitles={propOverrides.mentionTitles}
             onNavigateToCard={onNavigateToCard}
             onLocalChange={onLocalChange}
             onAutosave={onAutosave}
@@ -295,6 +297,51 @@ describe('PostItCard rendering', () => {
             container.querySelector('textarea.post-it-content')
         ).toBeInTheDocument();
         expect(container.querySelector('.post-it-content-view')).toBeNull();
+    });
+
+    it('offers matching card titles after [[ and inserts the picked one', () => {
+        const { container, onLocalChange } = renderCard(
+            { content: 'voir [[Pr' },
+            { mentionTitles: ['Projet Alpha', 'Notes', 'Idée projet'] }
+        );
+        fireEvent.click(screen.getByLabelText('Edit card'));
+        const textarea = container.querySelector<HTMLTextAreaElement>(
+            'textarea.post-it-content'
+        )!;
+        textarea.setSelectionRange(9, 9);
+        fireEvent.click(textarea);
+
+        const options = screen.getAllByRole('option');
+        expect(options.map((option) => option.textContent)).toEqual([
+            'Projet Alpha',
+            'Idée projet',
+        ]);
+
+        fireEvent.click(options[0]);
+        expect(onLocalChange).toHaveBeenCalledWith(
+            expect.any(String),
+            expect.objectContaining({ content: 'voir [[Projet Alpha]]' })
+        );
+    });
+
+    it('closes the mention list on Escape without leaving edit mode', () => {
+        const { container } = renderCard(
+            { content: '[[' },
+            { mentionTitles: ['Projet Alpha'] }
+        );
+        fireEvent.click(screen.getByLabelText('Edit card'));
+        const textarea = container.querySelector<HTMLTextAreaElement>(
+            'textarea.post-it-content'
+        )!;
+        textarea.setSelectionRange(2, 2);
+        fireEvent.click(textarea);
+        expect(screen.getAllByRole('option')).toHaveLength(1);
+
+        fireEvent.keyDown(textarea, { key: 'Escape' });
+        expect(screen.queryAllByRole('option')).toHaveLength(0);
+        expect(
+            container.querySelector('textarea.post-it-content')
+        ).toBeInTheDocument();
     });
 
     it('toggles a checklist item through onAutosave', () => {

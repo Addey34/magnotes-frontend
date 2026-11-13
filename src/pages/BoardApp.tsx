@@ -19,6 +19,7 @@ import {
     CalendarDaysIcon,
     ChatBubbleLeftRightIcon,
     ClockIcon,
+    LockClosedIcon,
     ShareIcon,
     Squares2X2Icon,
     SunIcon,
@@ -37,6 +38,7 @@ import React, {
 import { createPortal } from 'react-dom';
 import AppearancePanel from '../components/appearance/AppearancePanel';
 import EmailPreferencesDialog from '../components/account/EmailPreferencesDialog';
+import SecurityDialog from '../components/account/SecurityDialog';
 import BoardMinimap from '../components/minimap/BoardMinimap';
 import CommandPalette, {
     PaletteCommand,
@@ -205,6 +207,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
     const [isExporting, setIsExporting] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [emailPreferencesOpen, setEmailPreferencesOpen] = useState(false);
+    const [securityOpen, setSecurityOpen] = useState(false);
     const [deletePassword, setDeletePassword] = useState('');
     const [deleteError, setDeleteError] = useState('');
     const [isDeleting, setIsDeleting] = useState(false);
@@ -634,6 +637,13 @@ const BoardApp: React.FC<BoardAppProps> = ({
                     content: card.content,
                 }))
             ),
+        [postIts]
+    );
+
+    // Titles offered by the `[[` autocomplete: every card of the board, so a
+    // mention can target a card that is off-screen or buried in a stack.
+    const mentionTitles = useMemo(
+        () => postIts.map((card) => card.title),
         [postIts]
     );
 
@@ -1616,6 +1626,24 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                             <button
                                                 type="button"
                                                 role="menuitem"
+                                                onClick={() => {
+                                                    setSecurityOpen(true);
+                                                    closeBrandMenu();
+                                                }}
+                                            >
+                                                <LockClosedIcon />
+                                                <span>
+                                                    {t('app.menu.security')}
+                                                    <small>
+                                                        {t(
+                                                            'app.menu.security.sub'
+                                                        )}
+                                                    </small>
+                                                </span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                role="menuitem"
                                                 className="is-danger"
                                                 onClick={openDeleteDialog}
                                             >
@@ -2294,6 +2322,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                     zoom={zoom}
                                     linkingSourceId={linkingSourceId}
                                     mentionView={mentionGraph[postIt._id]}
+                                    mentionTitles={mentionTitles}
                                     selected={selectedCardIds.has(postIt._id)}
                                     onNavigateToCard={openCardOnCanvas}
                                     onLocalChange={handleCardLocalChange}
@@ -2448,6 +2477,13 @@ const BoardApp: React.FC<BoardAppProps> = ({
             {emailPreferencesOpen && !demo && (
                 <EmailPreferencesDialog
                     onClose={() => setEmailPreferencesOpen(false)}
+                />
+            )}
+
+            {securityOpen && !demo && (
+                <SecurityDialog
+                    onClose={() => setSecurityOpen(false)}
+                    onLogout={onLogout}
                 />
             )}
 

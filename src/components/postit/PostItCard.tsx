@@ -55,6 +55,12 @@ import {
     SaveState,
 } from '../../types/boardTypes';
 import { CardMentionView } from '../../utils/mentionGraph';
+import {
+    OpenMention,
+    applyMention,
+    findOpenMention,
+    suggestMentionTitles,
+} from '../../utils/mentionCompletion';
 import { formatDueDate, isOverdue } from '../../utils/cardMeta';
 import { TranslationKey } from '../../i18n/dictionary';
 import { useT } from '../../i18n/LangContext';
@@ -74,6 +80,8 @@ interface PostItCardProps {
     zoom: number;
     linkingSourceId: string | null;
     mentionView?: CardMentionView;
+    /** Titles of every card on the board, offered by the `[[` autocomplete. */
+    mentionTitles?: string[];
     selected?: boolean;
     isDropTarget?: boolean;
     onNavigateToCard: (cardId: string) => void;
@@ -116,6 +124,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
     zoom,
     linkingSourceId,
     mentionView,
+    mentionTitles,
     selected,
     isDropTarget,
     onNavigateToCard,
@@ -161,6 +170,10 @@ const PostItCard: React.FC<PostItCardProps> = ({
     const [mediaDraft, setMediaDraft] = useState('');
     const [mediaError, setMediaError] = useState<string | null>(null);
     const contentRef = useRef<HTMLTextAreaElement | null>(null);
+    // `[[` autocomplete: the mention open at the caret (null when none or
+    // dismissed with Escape) and the highlighted suggestion.
+    const [openMention, setOpenMention] = useState<OpenMention | null>(null);
+    const [mentionIndex, setMentionIndex] = useState(0);
     const closeStylePanel = useCallback(() => setStylePanel(null), []);
     useDismiss(stylePanel !== null, cardRef, closeStylePanel);
 
@@ -571,6 +584,61 @@ const PostItCard: React.FC<PostItCardProps> = ({
         const updates = { [field]: value };
         onLocalChange(postIt._id, updates);
         scheduleCardSave(updates);
+    };
+
+    const mentionSuggestions = openMention
+        ? suggestMentionTitles(
+              openMention.query,
+              mentionTitles ?? [],
+              postIt.title
+          )
+        : [];
+
+    const syncOpenMention = (el: HTMLTextAreaElement): void => {
+        setOpenMention(findOpenMention(el.value, el.selectionStart ?? 0));
+        setMentionIndex(0);
+    };
+
+    const pickMention = (title: string): void => {
+        const el = contentRef.current;
+        if (!el || !openMention) return;
+        const next = applyMention(
+            el.value,
+            el.selectionStart ?? el.value.length,
+            openMention,
+            title
+        );
+        updateText('content', next.text);
+        setOpenMention(null);
+        // The controlled value is applied on the next render; park the caret
+        // after it so typing continues right after the inserted mention.
+        requestAnimationFrame(() => {
+            el.focus();
+            el.setSelectionRange(next.caret, next.caret);
+        });
+    };
+
+    const handleContentKeyDown = (
+        event: React.KeyboardEvent<HTMLTextAreaElement>
+    ): void => {
+        if (mentionSuggestions.length === 0) return;
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            const step = event.key === 'ArrowDown' ? 1 : -1;
+            setMentionIndex(
+                (mentionIndex + step + mentionSuggestions.length) %
+                    mentionSuggestions.length
+            );
+        } else if (event.key === 'Enter' || event.key === 'Tab') {
+            event.preventDefault();
+            pickMention(mentionSuggestions[mentionIndex]);
+        } else if (event.key === 'Escape') {
+            // Close the list only: the card's own Escape handler must not
+            // also leave edit mode.
+            event.preventDefault();
+            event.stopPropagation();
+            setOpenMention(null);
+        }
     };
 
     const applyStyle = (updates: PostItUpdate): void => {
@@ -1397,19 +1465,78 @@ const PostItCard: React.FC<PostItCardProps> = ({
             )}
 
             {isEditing ? (
-                <textarea
-                    ref={contentRef}
-                    className="post-it-content"
-                    value={postIt.content}
-                    maxLength={2000}
-                    onChange={(event) =>
-                        updateText('content', event.target.value)
-                    }
-                    onFocus={() => onFocus(postIt._id)}
-                    aria-label={t('card.content.aria')}
-                    placeholder={t('card.content.placeholder')}
-                    style={{ color: textColor, fontFamily, fontSize: textSize }}
-                />
+                <>
+                    <textarea
+                        ref={contentRef}
+                        className="post-it-content"
+                        value={postIt.content}
+                        maxLength={2000}
+                        onChange={(event) => {
+                            updateText('content', event.target.value);
+                            syncOpenMention(event.target);
+                        }}
+                        onKeyDown={handleContentKeyDown}
+                        onKeyUp={(event) => {
+                            // Caret moves (arrows, Home/End) do not fire
+                            // onChange; the list keys are handled on keydown.
+                            if (
+                                ![
+                                    'ArrowDown',
+                                    'ArrowUp',
+                                    'Enter',
+                                    'Tab',
+                                ].includes(event.key) &&
+                                event.key !== 'Escape'
+                            ) {
+                                syncOpenMention(event.currentTarget);
+                            }
+                        }}
+                        onClick={(event) =>
+                            syncOpenMention(event.currentTarget)
+                        }
+                        onBlur={() => setOpenMention(null)}
+                        onFocus={() => onFocus(postIt._id)}
+                        aria-label={t('card.content.aria')}
+                        aria-autocomplete="list"
+                        placeholder={t('card.content.placeholder')}
+                        style={{
+                            color: textColor,
+                            fontFamily,
+                            fontSize: textSize,
+                        }}
+                    />
+                    {mentionSuggestions.length > 0 && (
+                        <ul
+                            className="post-it-mention-suggest"
+                            role="listbox"
+                            aria-label={t('card.mention.suggest')}
+                        >
+                            {mentionSuggestions.map((title, index) => (
+                                <li key={title} role="presentation">
+                                    <button
+                                        type="button"
+                                        role="option"
+                                        aria-selected={index === mentionIndex}
+                                        className={
+                                            index === mentionIndex
+                                                ? 'is-active'
+                                                : undefined
+                                        }
+                                        // Keep the textarea focused: a blur
+                                        // would close the list before the
+                                        // click lands.
+                                        onMouseDown={(event) =>
+                                            event.preventDefault()
+                                        }
+                                        onClick={() => pickMention(title)}
+                                    >
+                                        {title}
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </>
             ) : (
                 <div
                     className="post-it-content post-it-content-view markdown-body app-scrollbar"
