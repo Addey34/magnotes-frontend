@@ -238,6 +238,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
         zoomIn,
         zoomOut,
         focusBounds,
+        openBounds,
         setViewport,
     } = useBoardViewport();
     const {
@@ -695,6 +696,26 @@ const BoardApp: React.FC<BoardAppProps> = ({
         [laidOutPostIts, viewBounds, draggingPostItId]
     );
 
+    // Bounds of every positioned card, culled or not: the first framing of a
+    // board must not depend on what the initial (unframed) view happens to show.
+    const openingBounds = useMemo<BoardBounds | null>(() => {
+        if (laidOutPostIts.length === 0) return null;
+        return laidOutPostIts.reduce<BoardBounds>(
+            (current, postIt) => ({
+                minX: Math.min(current.minX, postIt.x),
+                minY: Math.min(current.minY, postIt.y),
+                maxX: Math.max(current.maxX, postIt.x + postIt.width),
+                maxY: Math.max(current.maxY, postIt.y + postIt.height),
+            }),
+            {
+                minX: Infinity,
+                minY: Infinity,
+                maxX: -Infinity,
+                maxY: -Infinity,
+            }
+        );
+    }, [laidOutPostIts]);
+
     const contentBounds = useMemo<BoardBounds | null>(() => {
         // Drawn rectangles only. Stacked cards are stored at their stack's
         // origin, so measuring the board from raw coordinates used to size it
@@ -723,9 +744,9 @@ const BoardApp: React.FC<BoardAppProps> = ({
         zoom,
         offset,
         isLoading,
-        contentBounds,
+        contentBounds: openingBounds,
         setViewport,
-        focusBounds,
+        openBounds,
     });
 
     // Cards matching the active search/colour filters, for the Kanban/Agenda

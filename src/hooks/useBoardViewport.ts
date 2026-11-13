@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     clampZoom as clampZoomValue,
     computeFocusView,
+    computeOpeningView,
     pinchViewport,
     screenToBoard,
     zoomAroundPoint,
@@ -162,6 +163,24 @@ export function useBoardViewport() {
             }
 
             const next = computeFocusView(bounds, rect);
+            viewportRef.current = next;
+            setZoom(next.zoom);
+            setOffset(next.offset);
+        },
+        [resetViewport]
+    );
+
+    // First opening of a board: like focusBounds, but keeps text readable on a
+    // phone (see computeOpeningView).
+    const openBounds = useCallback(
+        (bounds: BoardBounds | null) => {
+            const rect = canvasRef.current?.getBoundingClientRect();
+            if (!rect || !bounds) {
+                resetViewport();
+                return;
+            }
+
+            const next = computeOpeningView(bounds, rect);
             viewportRef.current = next;
             setZoom(next.zoom);
             setOffset(next.offset);
@@ -371,6 +390,7 @@ export function useBoardViewport() {
         zoomOut,
         resetViewport,
         focusBounds,
+        openBounds,
         setViewport,
     };
 }

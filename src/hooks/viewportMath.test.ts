@@ -1,9 +1,11 @@
 import {
     clampZoom,
     computeFocusView,
+    computeOpeningView,
     MAX_ZOOM,
     MIN_ZOOM,
     pinchViewport,
+    READABLE_ZOOM,
     screenToBoard,
     ViewportRect,
     zoomAroundPoint,
@@ -179,5 +181,42 @@ describe('computeFocusView', () => {
         const view = computeFocusView(bounds, rect(0, 0, 1000, 800));
         expect(view.zoom).toBeLessThan(1);
         expect(view.zoom).toBeGreaterThanOrEqual(MIN_ZOOM);
+    });
+});
+
+describe('computeOpeningView', () => {
+    const wide = { minX: 100, minY: 200, maxX: 1000, maxY: 700 };
+
+    it('matches the fit view on a desktop-sized canvas', () => {
+        const r = rect(0, 0, 1280, 700);
+        expect(computeOpeningView(wide, r)).toEqual(computeFocusView(wide, r));
+    });
+
+    it('matches the fit view when the content already fits readably', () => {
+        const small = { minX: 0, minY: 0, maxX: 200, maxY: 200 };
+        const r = rect(0, 0, 400, 800);
+        expect(computeOpeningView(small, r)).toEqual(
+            computeFocusView(small, r)
+        );
+    });
+
+    it('keeps a readable zoom on a phone instead of shrinking to fit', () => {
+        const r = rect(0, 0, 390, 700);
+        expect(computeFocusView(wide, r).zoom).toBeLessThan(READABLE_ZOOM);
+        expect(computeOpeningView(wide, r).zoom).toBe(READABLE_ZOOM);
+    });
+
+    it('pins the content top-left below the status row on a phone', () => {
+        const r = rect(0, 0, 390, 700);
+        const view = computeOpeningView(wide, r);
+        expect(wide.minX * view.zoom + view.offset.x).toBeCloseTo(16);
+        expect(wide.minY * view.zoom + view.offset.y).toBeCloseTo(72);
+    });
+
+    it('resets like the fit view when there is nothing to frame', () => {
+        expect(computeOpeningView(null, rect(0, 0, 390, 700))).toEqual({
+            zoom: 1,
+            offset: { x: 0, y: 0 },
+        });
     });
 });

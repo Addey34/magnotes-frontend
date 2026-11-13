@@ -48,6 +48,7 @@ export default defineConfig({
                 'multiTab.real.spec.ts',
                 'signupEntry.spec.ts',
                 'mentionAutocomplete.spec.ts',
+                'demoOpeningView.spec.ts',
                 'securityDialog.spec.ts',
             ],
             use: { ...devices['Pixel 7'] },
@@ -61,6 +62,7 @@ export default defineConfig({
                 'multiTab.real.spec.ts',
                 'signupEntry.spec.ts',
                 'mentionAutocomplete.spec.ts',
+                'demoOpeningView.spec.ts',
                 'securityDialog.spec.ts',
             ],
             grepInvert:
