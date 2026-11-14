@@ -8,6 +8,9 @@
 // size that actually appears as a constant in the codebase.
 export const GRID_SIZE = 10;
 
+// The canvas is unbounded in every direction (the server accepts positions
+// down to -100000), so a card can be dropped left of / above the origin, for
+// instance under the sidebar. `+ 0` turns -0 into 0.
 export function snapToGrid(value: number): number {
-    return Math.max(0, Math.round(value / GRID_SIZE) * GRID_SIZE);
+    return Math.round(value / GRID_SIZE) * GRID_SIZE + 0;
 }

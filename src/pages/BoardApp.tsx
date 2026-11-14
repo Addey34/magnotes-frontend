@@ -110,6 +110,8 @@ import {
     layoutBoardCards,
     resolveCardRect,
 } from '../hooks/stackLayout';
+import { withMeasuredHeights } from '../hooks/measuredHeights';
+import type { DropRect } from '../hooks/dropIntent';
 import '../styles/BoardApp.css';
 
 const DARK_CANVAS_BACKGROUND = '#0d0f1d';
@@ -179,6 +181,27 @@ const BoardApp: React.FC<BoardAppProps> = ({
     );
     const [searchTerm, setSearchTerm] = useState('');
     const [colorFilter, setColorFilter] = useState<string | null>(null);
+    // Drawn height of each mounted card (cards grow past their stored height).
+    const [cardHeights, setCardHeights] = useState<ReadonlyMap<string, number>>(
+        () => new Map()
+    );
+    const handleCardHeight = useCallback(
+        (id: string, height: number | null) => {
+            setCardHeights((previous) => {
+                if (height === null) {
+                    if (!previous.has(id)) return previous;
+                    const next = new Map(previous);
+                    next.delete(id);
+                    return next;
+                }
+                if (previous.get(id) === height) return previous;
+                const next = new Map(previous);
+                next.set(id, height);
+                return next;
+            });
+        },
+        []
+    );
     const [colorFilterOpen, setColorFilterOpen] = useState(false);
     const [view, setView] = useState<
         'canvas' | 'kanban' | 'agenda' | 'timeline'
@@ -545,8 +568,10 @@ const BoardApp: React.FC<BoardAppProps> = ({
             // A search that leaves its match folded inside a pile is a search
             // that lies: while a filter is active every stack opens up.
             revealCollapsed: hasActiveFilters,
+            // Drop targets follow the drawn card, not its stored minimum.
+            heights: cardHeights,
         }),
-        [draggingPostItId, hasActiveFilters]
+        [cardHeights, draggingPostItId, hasActiveFilters]
     );
 
     // Filter + lay out the cards that match the active search/color filters
@@ -560,6 +585,27 @@ const BoardApp: React.FC<BoardAppProps> = ({
     const laidOutPostIts = useMemo(
         () => drawnPostIts.filter(cardMatchesFilters),
         [cardMatchesFilters, drawnPostIts]
+    );
+
+    // The other cards, as drawn, that a card being resized snaps its edges to.
+    const getResizeSnapTargets = useCallback(
+        (id: string): DropRect[] => {
+            const self = laidOutPostIts.find((card) => card._id === id);
+            return withMeasuredHeights(laidOutPostIts, cardHeights)
+                .filter(
+                    (card) =>
+                        card._id !== id &&
+                        !(self?.stackId && card.stackId === self.stackId)
+                )
+                .map(({ _id, x, y, width, height }) => ({
+                    _id,
+                    x,
+                    y,
+                    width,
+                    height,
+                }));
+        },
+        [cardHeights, laidOutPostIts]
     );
 
     // The stack role of every drawn card, keyed by id: what chrome it wears and
@@ -615,7 +661,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
     // so a link stays drawn even when one endpoint scrolls off-screen).
     const cardBoxes = useMemo(() => {
         const map = new Map<string, Box>();
-        for (const card of laidOutPostIts) {
+        for (const card of withMeasuredHeights(laidOutPostIts, cardHeights)) {
             map.set(card._id, {
                 x: card.x,
                 y: card.y,
@@ -624,7 +670,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
             });
         }
         return map;
-    }, [laidOutPostIts]);
+    }, [cardHeights, laidOutPostIts]);
 
     // Resolve `[[mentions]]` and backlinks across all cards of the active board
     // (not just the visible ones, so a backlink from an off-screen card still
@@ -700,7 +746,10 @@ const BoardApp: React.FC<BoardAppProps> = ({
     // board must not depend on what the initial (unframed) view happens to show.
     const openingBounds = useMemo<BoardBounds | null>(() => {
         if (laidOutPostIts.length === 0) return null;
-        return laidOutPostIts.reduce<BoardBounds>(
+        return withMeasuredHeights(
+            laidOutPostIts,
+            cardHeights
+        ).reduce<BoardBounds>(
             (current, postIt) => ({
                 minX: Math.min(current.minX, postIt.x),
                 minY: Math.min(current.minY, postIt.y),
@@ -714,19 +763,21 @@ const BoardApp: React.FC<BoardAppProps> = ({
                 maxY: -Infinity,
             }
         );
-    }, [laidOutPostIts]);
+    }, [cardHeights, laidOutPostIts]);
 
     const contentBounds = useMemo<BoardBounds | null>(() => {
         // Drawn rectangles only. Stacked cards are stored at their stack's
         // origin, so measuring the board from raw coordinates used to size it
         // from positions nothing occupies.
         if (drawnPostIts.length === 0) return null;
-        const bounds = drawnPostIts.map((postIt) => ({
-            minX: postIt.x,
-            minY: postIt.y,
-            maxX: postIt.x + postIt.width,
-            maxY: postIt.y + postIt.height,
-        }));
+        const bounds = withMeasuredHeights(drawnPostIts, cardHeights).map(
+            (postIt) => ({
+                minX: postIt.x,
+                minY: postIt.y,
+                maxX: postIt.x + postIt.width,
+                maxY: postIt.y + postIt.height,
+            })
+        );
         return bounds.reduce(
             (current, item) => ({
                 minX: Math.min(current.minX, item.minX),
@@ -736,7 +787,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
             }),
             bounds[0]
         );
-    }, [drawnPostIts]);
+    }, [cardHeights, drawnPostIts]);
 
     useViewportPersistence({
         activeTabId,
@@ -2323,6 +2374,8 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                 <PostItCard
                                     key={postIt._id}
                                     postIt={postIt}
+                                    onHeightChange={handleCardHeight}
+                                    getSnapTargets={getResizeSnapTargets}
                                     tabs={tabs}
                                     activeTabId={activeTabId}
                                     saveState={saveState}
@@ -2334,11 +2387,12 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                     isDropTarget={
                                         draggingDropIntent !== null &&
                                         draggingPostItId !== postIt._id &&
-                                        (draggingDropIntent.type === 'stack' ||
-                                            draggingDropIntent.type ===
-                                                'dock') &&
-                                        draggingDropIntent.targetId ===
-                                            postIt._id
+                                        (draggingDropIntent.type === 'stack'
+                                            ? draggingDropIntent.targetId ===
+                                              postIt._id
+                                            : draggingDropIntent.neighborIds.includes(
+                                                  postIt._id
+                                              ))
                                     }
                                     zoom={zoom}
                                     linkingSourceId={linkingSourceId}
@@ -2429,7 +2483,10 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                     canvasRef={canvasRef}
                                     offset={offset}
                                     zoom={zoom}
-                                    postIts={drawnPostIts}
+                                    postIts={withMeasuredHeights(
+                                        drawnPostIts,
+                                        cardHeights
+                                    )}
                                 />
                             </div>
                         </div>

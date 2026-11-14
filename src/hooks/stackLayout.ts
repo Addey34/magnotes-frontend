@@ -93,6 +93,12 @@ export interface LayoutOptions {
      * a sibling that does not match would make the search lie.
      */
     revealCollapsed?: boolean;
+    /**
+     * Drawn height of each card, by id (see measuredHeights.ts). Not applied by
+     * the layout itself — the card keeps its stored minimum — but read by the
+     * geometry built on top of it, such as drop targets.
+     */
+    heights?: ReadonlyMap<string, number>;
 }
 
 /** True when the stack is drawn as a fan rather than as a folded pile. */

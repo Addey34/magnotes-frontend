@@ -38,6 +38,11 @@ import {
 import { useDismiss } from '../../hooks/useDismiss';
 import { CardStackView, STACK_TAB_STEP } from '../../hooks/stackLayout';
 import { DropIntent } from '../../hooks/usePostIts';
+import type { DropRect } from '../../hooks/dropIntent';
+import {
+    RESIZE_SNAP_SCREEN_DISTANCE,
+    snapResizeRect,
+} from '../../hooks/resizeSnap';
 import CardDetailModal from './CardDetailModal';
 import { renderMarkdown } from '../../utils/markdownRender';
 import { firstImageFile, readImageFile } from '../../utils/imageFile';
@@ -83,6 +88,18 @@ interface PostItCardProps {
     mentionView?: CardMentionView;
     /** Titles of every card on the board, offered by the `[[` autocomplete. */
     mentionTitles?: string[];
+    /**
+     * Reports the height the card is really drawn at (it grows with its
+     * content), and null when it unmounts. The board geometry needs it: the
+     * stored height is only a minimum.
+     */
+    onHeightChange?: (id: string, height: number | null) => void;
+    /**
+     * The other cards (as drawn: stack-resolved, measured heights) whose edges
+     * this card's edges snap to while it is resized. Read once, when a resize
+     * starts.
+     */
+    getSnapTargets?: (id: string) => DropRect[];
     selected?: boolean;
     isDropTarget?: boolean;
     onNavigateToCard: (cardId: string) => void;
@@ -126,6 +143,8 @@ const PostItCard: React.FC<PostItCardProps> = ({
     linkingSourceId,
     mentionView,
     mentionTitles,
+    onHeightChange,
+    getSnapTargets,
     selected,
     isDropTarget,
     onNavigateToCard,
@@ -151,6 +170,22 @@ const PostItCard: React.FC<PostItCardProps> = ({
     const { t, lang } = useT();
     const cardRef = useRef<HTMLElement | null>(null);
     const suppressRotateClickRef = useRef(false);
+    const cardId = postIt._id;
+    useEffect(() => {
+        const el = cardRef.current;
+        if (!onHeightChange || !el) return;
+        const report = () => onHeightChange(cardId, el.offsetHeight);
+        report();
+        if (typeof ResizeObserver === 'undefined') {
+            return () => onHeightChange(cardId, null);
+        }
+        const observer = new ResizeObserver(report);
+        observer.observe(el);
+        return () => {
+            observer.disconnect();
+            onHeightChange(cardId, null);
+        };
+    }, [cardId, onHeightChange]);
     const [isDragging, setIsDragging] = useState(false);
     const [isHovered, setIsHovered] = useState(false);
     const [stylePanel, setStylePanel] = useState<StylePanel>(null);
@@ -302,6 +337,15 @@ const PostItCard: React.FC<PostItCardProps> = ({
 
     const intentClass =
         isDragging && dropIntent ? `has-${dropIntent.type}-intent` : '';
+
+    // While a dragged card is within reach of a dock, it is drawn where it will
+    // land (the magnet), not under the pointer. Purely visual: the stored
+    // position still follows the pointer, so the intent is computed from the
+    // raw position and does not feed back into itself.
+    const snapPreview =
+        isDragging && dropIntent?.type === 'dock'
+            ? { x: dropIntent.x, y: dropIntent.y }
+            : null;
 
     // A folded pile prints the cards underneath as offset paper edges rather
     // than mounting them: they own no pixels, so they cannot be clicked, catch
@@ -521,15 +565,33 @@ const PostItCard: React.FC<PostItCardProps> = ({
         const initialX = postIt.x;
         const initialY = postIt.y;
         const initialWidth = postIt.width;
-        const initialHeight = postIt.height;
+        // The stored height is only a minimum: the card is drawn taller when
+        // its text needs the room. Start from what is on screen, and never go
+        // below what the content needs, otherwise pulling a top handle would
+        // move the card instead of resizing it.
+        const cardEl = cardRef.current;
+        const initialHeight = cardEl
+            ? Math.max(postIt.height, cardEl.offsetHeight)
+            : postIt.height;
+        let contentHeight: number = CARD_LIMITS.minSize;
+        if (cardEl) {
+            const keptMinHeight = cardEl.style.minHeight;
+            cardEl.style.minHeight = '0px';
+            contentHeight = Math.max(contentHeight, cardEl.offsetHeight);
+            cardEl.style.minHeight = keptMinHeight;
+        }
+        const minHeight = Math.min(contentHeight, CARD_LIMITS.maxSize);
         const initialRight = initialX + initialWidth;
         const initialBottom = initialY + initialHeight;
 
         event.currentTarget.setPointerCapture(event.pointerId);
 
+        const snapTargets = getSnapTargets?.(postIt._id) ?? [];
+
         const getResizeUpdates = (
             clientX: number,
-            clientY: number
+            clientY: number,
+            snap: boolean
         ): PostItUpdate => {
             const deltaX = (clientX - startX) / zoom;
             const deltaY = (clientY - startY) / zoom;
@@ -541,16 +603,34 @@ const PostItCard: React.FC<PostItCardProps> = ({
             const rawHeight = north
                 ? initialHeight - deltaY
                 : initialHeight + deltaY;
-            const width = clamp(
+            let width = clamp(
                 rawWidth,
                 CARD_LIMITS.minSize,
                 CARD_LIMITS.maxSize
             );
-            const height = clamp(
-                rawHeight,
-                CARD_LIMITS.minSize,
-                CARD_LIMITS.maxSize
-            );
+            let height = clamp(rawHeight, minHeight, CARD_LIMITS.maxSize);
+
+            // The edges being dragged snap to the neighbours' edges, both
+            // axes at once for a corner. The opposite edges stay anchored.
+            if (snap && snapTargets.length > 0) {
+                const snapped = snapResizeRect(
+                    {
+                        x: west ? initialRight - width : initialX,
+                        y: north ? initialBottom - height : initialY,
+                        width,
+                        height,
+                    },
+                    corner,
+                    snapTargets,
+                    RESIZE_SNAP_SCREEN_DISTANCE / zoom
+                );
+                width = clamp(
+                    snapped.width,
+                    CARD_LIMITS.minSize,
+                    CARD_LIMITS.maxSize
+                );
+                height = clamp(snapped.height, minHeight, CARD_LIMITS.maxSize);
+            }
 
             return {
                 width,
@@ -560,10 +640,15 @@ const PostItCard: React.FC<PostItCardProps> = ({
             };
         };
 
+        // Holding Alt resizes freely, without snapping to other cards.
         const handlePointerMove = (moveEvent: PointerEvent) => {
             onLocalChange(
                 postIt._id,
-                getResizeUpdates(moveEvent.clientX, moveEvent.clientY)
+                getResizeUpdates(
+                    moveEvent.clientX,
+                    moveEvent.clientY,
+                    !moveEvent.altKey
+                )
             );
         };
 
@@ -571,7 +656,11 @@ const PostItCard: React.FC<PostItCardProps> = ({
             window.removeEventListener('pointermove', handlePointerMove);
             window.removeEventListener('pointerup', handlePointerUp);
             window.removeEventListener('pointercancel', handlePointerCancel);
-            const updates = getResizeUpdates(upEvent.clientX, upEvent.clientY);
+            const updates = getResizeUpdates(
+                upEvent.clientX,
+                upEvent.clientY,
+                !upEvent.altKey
+            );
             onLocalChange(postIt._id, updates);
             scheduleCardSave(updates);
         };
@@ -761,11 +850,17 @@ const PostItCard: React.FC<PostItCardProps> = ({
     return (
         <article
             ref={cardRef}
-            className={`post-it-card finish-${postIt.finish || 'flat'} ${isDragging ? 'is-dragging' : ''} ${isEditing ? 'is-editing' : ''} ${isHovered ? 'is-hovered' : ''} ${stylePanel ? 'has-open-style-panel' : ''} ${intentClass} ${isLinkSource ? 'is-link-source' : ''} ${isLinkTargetCandidate ? 'is-link-target' : ''} ${selected ? 'is-selected' : ''} ${isDropTarget ? 'is-drop-target' : ''} ${stackClass}`}
+            className={`post-it-card finish-${postIt.finish || 'flat'} ${isDragging ? 'is-dragging' : ''} ${snapPreview ? 'is-snap-preview' : ''} ${isEditing ? 'is-editing' : ''} ${isHovered ? 'is-hovered' : ''} ${stylePanel ? 'has-open-style-panel' : ''} ${intentClass} ${isLinkSource ? 'is-link-source' : ''} ${isLinkTargetCandidate ? 'is-link-target' : ''} ${selected ? 'is-selected' : ''} ${isDropTarget ? 'is-drop-target' : ''} ${stackClass}`}
             style={
                 {
                     backgroundColor: postIt.color,
-                    transform: `translate(${postIt.x}px, ${postIt.y}px) rotate(${rotation}deg)`,
+                    // The position is the `translate` property, not part of
+                    // `transform`: the lift effects (`scale`) are applied
+                    // after `translate` but before `transform`, so a position
+                    // inside `transform` got scaled too and a dragged card
+                    // drifted by a percent of its distance from the origin.
+                    translate: `${snapPreview ? snapPreview.x : postIt.x}px ${snapPreview ? snapPreview.y : postIt.y}px`,
+                    transform: `rotate(${rotation}deg)`,
                     width: postIt.width,
                     minHeight: postIt.height,
                     zIndex: postIt.zIndex,

@@ -24,6 +24,7 @@ import {
 } from './stackLayout';
 import { buildCardChange, CardChange, isNoOpChange } from './historyCommands';
 import { useHistory } from './useHistory';
+import { drawnHeight, withMeasuredHeights } from './measuredHeights';
 import {
     bringCardToFront,
     sendCardToBack,
@@ -442,12 +443,16 @@ export const usePostIts = (
             ...source,
             x: x ?? source.x,
             y: y ?? source.y,
+            height: drawnHeight(source, layout.heights),
         };
 
-        const candidates = layoutBoardCards(currentCards, stacks, {
-            ...layout,
-            draggingCardId: postItId,
-        }).filter(
+        const candidates = withMeasuredHeights(
+            layoutBoardCards(currentCards, stacks, {
+                ...layout,
+                draggingCardId: postItId,
+            }),
+            layout.heights
+        ).filter(
             (card) =>
                 card._id !== postItId &&
                 !(source.stackId && card.stackId === source.stackId)
@@ -507,7 +512,11 @@ export const usePostIts = (
         const movedCard = currentCards.find((card) => card._id === postItId);
         if (!movedCard) return;
 
-        const intent = getDropIntent(postItId, stacks, layout, finalX, finalY);
+        // Read the intent from the exact spot the card was released at, the
+        // same coordinates the live drag preview used: judging the grid-snapped
+        // spot instead (up to 5px away) made the card land somewhere other
+        // than what the magnet had just shown.
+        const intent = getDropIntent(postItId, stacks, layout, x, y);
 
         if (intent?.type === 'stack') {
             const targetCard = currentCards.find(
