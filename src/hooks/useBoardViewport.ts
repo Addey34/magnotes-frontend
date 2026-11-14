@@ -336,6 +336,16 @@ export function useBoardViewport() {
             const startX = event.clientX;
             const startY = event.clientY;
             const initialOffset = offset;
+            // Holding the button on the board is always a pan, never a text
+            // selection. The browser starts selecting at pointer-down, before
+            // React has painted `is-panning`, so a fast drag used to sweep up
+            // the text of every card it crossed. Refuse the selection outright
+            // and drop any that a previous gesture left behind.
+            event.preventDefault();
+            window.getSelection()?.removeAllRanges();
+            const blockSelection = (selectEvent: Event) =>
+                selectEvent.preventDefault();
+            document.addEventListener('selectstart', blockSelection);
             setIsPanning(true);
             event.currentTarget.setPointerCapture(event.pointerId);
 
@@ -353,6 +363,7 @@ export function useBoardViewport() {
 
             const handlePointerUp = () => {
                 setIsPanning(false);
+                document.removeEventListener('selectstart', blockSelection);
                 window.removeEventListener('pointermove', handlePointerMove);
                 window.removeEventListener('pointerup', handlePointerUp);
                 window.removeEventListener('pointercancel', handlePointerUp);
