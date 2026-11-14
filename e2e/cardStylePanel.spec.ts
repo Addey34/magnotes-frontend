@@ -62,3 +62,31 @@ test('rotation snaps to straight and can be reset', async ({ page }) => {
     await slider.fill('3');
     await expect(panel.locator('.rotation-value')).toHaveText('0°');
 });
+
+// A look copied from one card can be pasted on the whole selection.
+test('a copied style is pasted on every selected card', async ({ page }) => {
+    await page.goto('/app/?demo=1&lang=en');
+    const cards = page.locator('.post-it-card');
+    const first = cards.first();
+    await expect(first).toBeVisible();
+    expect(await cards.count()).toBeGreaterThan(1);
+
+    await startEditingCard(first);
+    await first.locator('.card-style-trigger').dispatchEvent('click');
+    await page.locator('.card-finish-chip.finish-glass').dispatchEvent('click');
+    await page.locator('.style-copy-row button').first().dispatchEvent('click');
+    await expect(first).toHaveClass(/finish-glass/);
+    await first.locator('.card-style-trigger').dispatchEvent('click');
+    await first.locator('.card-edit-done').dispatchEvent('click');
+
+    await page.locator('.board-canvas').click({ position: { x: 5, y: 5 } });
+    await page.keyboard.press('Control+a');
+    const paste = page.locator('.board-selection-bar button', {
+        hasText: 'Paste style',
+    });
+    await expect(paste).toBeEnabled();
+    await paste.dispatchEvent('click');
+
+    const total = await cards.count();
+    await expect(page.locator('.post-it-card.finish-glass')).toHaveCount(total);
+});
