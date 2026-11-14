@@ -180,3 +180,89 @@ export function computeOpeningView(
         },
     };
 }
+
+/** A screen rectangle (client coordinates), e.g. from getBoundingClientRect. */
+export interface ScreenRect {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+}
+
+const overlaps = (a: ScreenRect, b: ScreenRect): boolean =>
+    a.left < b.right &&
+    a.right > b.left &&
+    a.top < b.bottom &&
+    a.bottom > b.top;
+
+/**
+ * The smallest pan, in screen pixels, that brings `target` (a control that
+ * must stay reachable, such as a card's rotate handle) out from under the
+ * fixed `obstacles` (selection bar, minimap...) while keeping it inside
+ * `area` (the canvas). `margin` is the air kept around the target.
+ *
+ * Returns null when nothing needs to move (the target is already clear), and
+ * also null when no pan of the four directions can clear it without losing it
+ * off the canvas or running it into another obstacle: moving the board
+ * somewhere worse would not help, so the caller leaves the view alone.
+ */
+export function computeRevealPan(
+    target: ScreenRect,
+    obstacles: ScreenRect[],
+    area: ScreenRect,
+    margin = 8
+): ViewportPoint | null {
+    const blocking = obstacles.filter((o) => overlaps(target, o));
+    if (blocking.length === 0) return null;
+
+    const shift = (dx: number, dy: number): ScreenRect => ({
+        left: target.left + dx,
+        top: target.top + dy,
+        right: target.right + dx,
+        bottom: target.bottom + dy,
+    });
+    const fits = (rect: ScreenRect): boolean =>
+        rect.left >= area.left &&
+        rect.right <= area.right &&
+        rect.top >= area.top &&
+        rect.bottom <= area.bottom &&
+        obstacles.every((o) => !overlaps(rect, o));
+
+    // Slide the target along one direction until nothing overlaps it, hopping
+    // over every obstacle on the way (clearing one may land it on the next).
+    const slide = (dir: 'up' | 'down' | 'left' | 'right'): ViewportPoint => {
+        let dx = 0;
+        let dy = 0;
+        for (let i = 0; i <= obstacles.length; i++) {
+            const now = shift(dx, dy);
+            const hit = obstacles.filter((o) => overlaps(now, o));
+            if (hit.length === 0) break;
+            if (dir === 'up') {
+                dy =
+                    Math.min(...hit.map((o) => o.top)) - margin - target.bottom;
+            } else if (dir === 'down') {
+                dy =
+                    Math.max(...hit.map((o) => o.bottom)) + margin - target.top;
+            } else if (dir === 'left') {
+                dx =
+                    Math.min(...hit.map((o) => o.left)) - margin - target.right;
+            } else {
+                dx =
+                    Math.max(...hit.map((o) => o.right)) + margin - target.left;
+            }
+        }
+        return { x: dx, y: dy };
+    };
+
+    const candidates: ViewportPoint[] = (
+        ['up', 'down', 'left', 'right'] as const
+    )
+        .map(slide)
+        .filter((c) => fits(shift(c.x, c.y)));
+    if (candidates.length === 0) return null;
+    // A sideways pan pushes the card toward the edge of the screen, so it
+    // counts double: up or down is preferred unless sideways is far shorter.
+    const cost = (c: ViewportPoint) => Math.abs(c.y) + 2 * Math.abs(c.x);
+    candidates.sort((a, b) => cost(a) - cost(b));
+    return candidates[0];
+}

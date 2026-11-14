@@ -1046,8 +1046,8 @@ export const DICTIONARY = {
     },
     'card.tool.rotate': { fr: 'Faire pivoter la note', en: 'Rotate note' },
     'card.tool.rotateHint': {
-        fr: 'Faire pivoter : clic = +15°, glisser = angle libre',
-        en: 'Rotate: click = +15°, drag = free angle',
+        fr: 'Faire pivoter : clic = cran de 15° suivant, glisser = angle libre (s’accroche aux angles droits)',
+        en: 'Rotate: click = next 15° notch, drag = free angle (snaps to right angles)',
     },
     'card.tool.task': {
         fr: 'Tâche (statut, échéance, checklist)',

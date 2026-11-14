@@ -279,7 +279,7 @@ test.describe('cards and stacks journey', () => {
         const handle = card.locator('.post-it-rotate-handle');
         await expect(handle).toHaveAccessibleName(/rotate note/i);
         await expect(handle).not.toHaveAttribute('title', /move/i);
-        await expect(handle).toHaveAttribute('title', /\+15°/);
+        await expect(handle).toHaveAttribute('title', /15° notch/);
         const rotationOf = () =>
             page.evaluate((key) => {
                 const store = JSON.parse(localStorage.getItem(key) || '{}');

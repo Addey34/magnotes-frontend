@@ -24,13 +24,25 @@ beforeAll(() => {
 // carries the coordinates the drag/resize math actually reads.
 const firePointer = (
     target: Window | HTMLElement,
-    type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel',
-    init: MouseEventInit = {}
+    type:
+        | 'pointerdown'
+        | 'pointermove'
+        | 'pointerup'
+        | 'pointercancel'
+        | 'lostpointercapture',
+    init: MouseEventInit = {},
+    pointerId?: number
 ) => {
-    fireEvent(
-        target,
-        new MouseEvent(type, { bubbles: true, cancelable: true, ...init })
-    );
+    const event = new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        ...init,
+    });
+    // MouseEvent has no pointerId either; the gesture filters on it.
+    if (pointerId !== undefined) {
+        Object.defineProperty(event, 'pointerId', { value: pointerId });
+    }
+    fireEvent(target, event);
 };
 
 const tab: BoardTab = {
@@ -106,7 +118,7 @@ const renderCard = (
     const onStartLink = jest.fn();
     const onLinkTarget = jest.fn();
 
-    const { container } = render(
+    const { container, unmount } = render(
         <PostItCard
             postIt={postIt}
             tabs={[tab]}
@@ -141,6 +153,7 @@ const renderCard = (
     return {
         postIt,
         container,
+        unmount,
         card: container.querySelector<HTMLElement>('.post-it-card')!,
         onLocalChange,
         onAutosave,
@@ -715,5 +728,279 @@ describe('PostItCard stack chrome', () => {
             expect(applied).not.toHaveProperty('rotation');
             expect(applied).not.toHaveProperty('x');
         });
+    });
+});
+
+describe('PostItCard rotate handle', () => {
+    // The card is not laid out in jsdom: its rect is empty, so its centre is
+    // the origin and a pointer at (r cos a, r sin a) is at angle a around it.
+    const at = (degrees: number, radius = 100) => ({
+        clientX:
+            Math.round(radius * Math.cos((degrees * Math.PI) / 180) * 1e6) /
+            1e6,
+        clientY:
+            Math.round(radius * Math.sin((degrees * Math.PI) / 180) * 1e6) /
+            1e6,
+    });
+
+    const setup = (rotation: number) => {
+        const view = renderCard({ rotation });
+        const handle = view.container.querySelector<HTMLButtonElement>(
+            '.post-it-rotate-handle'
+        )!;
+        const rotations = () =>
+            view.onLocalChange.mock.calls
+                .filter(([, updates]) => 'rotation' in updates)
+                .map(([, updates]) => updates.rotation);
+        const saved = () =>
+            view.onAutosave.mock.calls.map(([, updates]) => updates.rotation);
+        return { ...view, handle, rotations, saved };
+    };
+
+    // Press the handle at angle 0 and turn the pointer by `turn` degrees.
+    const drag = (
+        view: ReturnType<typeof setup>,
+        turn: number,
+        pointerId = 1
+    ) => {
+        firePointer(view.handle, 'pointerdown', at(0), pointerId);
+        firePointer(window, 'pointermove', at(turn), pointerId);
+    };
+
+    it('pulls the card onto 0° and 90° when released near them', () => {
+        const toZero = setup(10);
+        drag(toZero, -8);
+        expect(toZero.rotations().at(-1)).toBe(0);
+        firePointer(window, 'pointerup', at(-8), 1);
+        expect(toZero.saved()).toEqual([0]);
+
+        const toNinety = setup(80);
+        drag(toNinety, 7);
+        firePointer(window, 'pointerup', at(7), 1);
+        expect(toNinety.saved()).toEqual([90]);
+    });
+
+    it('leaves a free angle alone outside the snap zones', () => {
+        const view = setup(0);
+        drag(view, 45);
+        firePointer(window, 'pointerup', at(45), 1);
+        expect(view.rotations()).toEqual([45, 45]);
+        expect(view.saved()).toEqual([45]);
+
+        const near = setup(0);
+        drag(near, 5);
+        expect(near.rotations().at(-1)).toBe(5);
+    });
+
+    it('crosses ±180° as one continuous orientation', () => {
+        const view = setup(170);
+        drag(view, 9);
+        // 179° is within the magnet of 180°, which is the same as -180°.
+        expect(view.rotations().at(-1)).toBe(-180);
+        firePointer(window, 'pointermove', at(20), 1);
+        expect(view.rotations().at(-1)).toBe(-170);
+        firePointer(window, 'pointerup', at(20), 1);
+        expect(view.saved()).toEqual([-170]);
+        expect(view.rotations().every((value) => value < 180)).toBe(true);
+    });
+
+    it('turns the right way back across the seam', () => {
+        const view = setup(-170);
+        drag(view, -20);
+        expect(view.rotations().at(-1)).toBe(170);
+        firePointer(window, 'pointerup', at(-20), 1);
+        expect(view.saved()).toEqual([170]);
+    });
+
+    it('treats a small wobble as a tap: one notch on release, not a rotation', () => {
+        const view = setup(0);
+        drag(view, 2);
+        expect(view.rotations()).toEqual([]);
+        firePointer(window, 'pointerup', at(2), 1);
+        expect(view.saved()).toEqual([15]);
+
+        // The click that follows a pointer press (detail >= 1) is the same
+        // tap and must not step again; WebKit sends none at all.
+        fireEvent.click(view.handle, { detail: 1 });
+        expect(view.saved()).toEqual([15]);
+
+        // A keyboard activation (detail 0) is a new action and works.
+        fireEvent.click(view.handle);
+        expect(view.saved()).toEqual([15, 15]);
+    });
+
+    it('a tap without any click afterwards (WebKit) leaves the keyboard working', () => {
+        const view = setup(0);
+        drag(view, 1);
+        firePointer(window, 'pointerup', at(1), 1);
+        expect(view.saved()).toEqual([15]);
+        fireEvent.click(view.handle);
+        expect(view.saved()).toEqual([15, 15]);
+    });
+
+    it('gives the angle back, and saves nothing, when the pointer is cancelled', () => {
+        const view = setup(30);
+        drag(view, 40);
+        expect(view.rotations().at(-1)).toBe(70);
+        firePointer(window, 'pointercancel', {}, 1);
+        expect(view.rotations().at(-1)).toBe(30);
+        expect(view.saved()).toEqual([]);
+
+        // The gesture is over: nothing else moves the card.
+        const calls = view.onLocalChange.mock.calls.length;
+        firePointer(window, 'pointermove', at(80), 1);
+        firePointer(window, 'pointerup', at(80), 1);
+        expect(view.onLocalChange.mock.calls.length).toBe(calls);
+        expect(view.saved()).toEqual([]);
+    });
+
+    it('gives the angle back when the capture is lost before the end', () => {
+        const view = setup(30);
+        drag(view, 40);
+        firePointer(view.handle, 'lostpointercapture', {}, 1);
+        expect(view.rotations().at(-1)).toBe(30);
+        expect(view.saved()).toEqual([]);
+
+        firePointer(window, 'pointerup', at(40), 1);
+        expect(view.saved()).toEqual([]);
+    });
+
+    it('ignores the capture release that follows a normal release', () => {
+        const view = setup(30);
+        drag(view, 40);
+        firePointer(window, 'pointerup', at(40), 1);
+        const calls = view.onLocalChange.mock.calls.length;
+        expect(view.saved()).toEqual([70]);
+
+        firePointer(view.handle, 'lostpointercapture', {}, 1);
+        expect(view.onLocalChange.mock.calls.length).toBe(calls);
+        expect(view.saved()).toEqual([70]);
+    });
+
+    it('follows one pointer only', () => {
+        const view = setup(0);
+        drag(view, 20, 1);
+        const calls = view.onLocalChange.mock.calls.length;
+
+        // A second finger neither steers, ends nor restarts the gesture.
+        firePointer(view.handle, 'pointerdown', at(0), 2);
+        firePointer(window, 'pointermove', at(60), 2);
+        firePointer(window, 'pointerup', at(60), 2);
+        expect(view.onLocalChange.mock.calls.length).toBe(calls);
+        expect(view.saved()).toEqual([]);
+
+        firePointer(window, 'pointerup', at(20), 1);
+        expect(view.saved()).toEqual([20]);
+    });
+
+    it('still works when the browser refuses pointer capture', () => {
+        const capture = HTMLElement.prototype.setPointerCapture as jest.Mock;
+        capture.mockImplementationOnce(() => {
+            throw new DOMException('no such pointer', 'NotFoundError');
+        });
+        const view = setup(0);
+        drag(view, 45);
+        firePointer(window, 'pointerup', at(45), 1);
+        expect(view.saved()).toEqual([45]);
+    });
+
+    it('cancels the gesture, and gives the angle back, if the card goes away mid-gesture', () => {
+        const view = setup(10);
+        drag(view, 20);
+        expect(view.rotations().at(-1)).toBe(30);
+        view.unmount();
+
+        // The turn in progress only existed in the board state: it is undone,
+        // nothing is saved, and the gesture can no longer be fed.
+        expect(view.rotations().at(-1)).toBe(10);
+        const calls = view.onLocalChange.mock.calls.length;
+        firePointer(window, 'pointermove', at(60), 1);
+        firePointer(window, 'pointerup', at(60), 1);
+        expect(view.onLocalChange.mock.calls.length).toBe(calls);
+        expect(view.saved()).toEqual([]);
+    });
+
+    it('leaves a card that goes away without a gesture alone', () => {
+        const view = setup(10);
+        view.unmount();
+        expect(view.onLocalChange).not.toHaveBeenCalled();
+        expect(view.saved()).toEqual([]);
+    });
+
+    it('gives the angle back only once when a cancel is followed by the capture loss', () => {
+        const view = setup(30);
+        drag(view, 40);
+        firePointer(window, 'pointercancel', {}, 1);
+        const calls = view.onLocalChange.mock.calls.length;
+        // Browsers send both; the second must find nothing left to undo.
+        firePointer(view.handle, 'lostpointercapture', {}, 1);
+        expect(view.onLocalChange.mock.calls.length).toBe(calls);
+        expect(view.rotations().at(-1)).toBe(30);
+        expect(view.saved()).toEqual([]);
+    });
+
+    it('saves exactly once per gesture, whatever follows the release', () => {
+        const view = setup(0);
+        drag(view, 45);
+        firePointer(window, 'pointermove', at(50), 1);
+        firePointer(window, 'pointerup', at(50), 1);
+        firePointer(view.handle, 'lostpointercapture', {}, 1);
+        firePointer(window, 'pointerup', at(50), 1);
+        firePointer(window, 'pointercancel', {}, 1);
+        expect(view.saved()).toEqual([50]);
+    });
+
+    it('only rotates: no move, no drag state, no resize', () => {
+        const view = setup(0);
+        drag(view, 30);
+        firePointer(window, 'pointerup', at(30), 1);
+
+        for (const [, updates] of view.onLocalChange.mock.calls) {
+            expect(Object.keys(updates)).toEqual(['rotation']);
+        }
+        expect(view.onMove).not.toHaveBeenCalled();
+        expect(view.onDragStateChange).not.toHaveBeenCalled();
+    });
+
+    it('does not turn the card again with the click that ends a drag', () => {
+        const view = setup(0);
+        drag(view, 45);
+        firePointer(window, 'pointerup', at(45), 1);
+        fireEvent.click(view.handle, { detail: 1 });
+        expect(view.saved()).toEqual([45]);
+
+        // The next real click works again (props are static here, so it steps
+        // from the card's own 0°).
+        fireEvent.click(view.handle);
+        expect(view.saved()).toEqual([45, 15]);
+    });
+
+    it('steps to the next 15° notch on a click, from any angle', () => {
+        const free = setup(37);
+        fireEvent.click(free.handle);
+        expect(free.saved()).toEqual([45]);
+
+        const straight = setup(0);
+        fireEvent.click(straight.handle);
+        expect(straight.saved()).toEqual([15]);
+    });
+
+    it('steps with the arrow keys, from any angle and across the seam', () => {
+        const key = (view: ReturnType<typeof setup>, name: string) =>
+            fireEvent.keyDown(view.handle, { key: name });
+
+        const free = setup(37);
+        key(free, 'ArrowRight');
+        expect(free.saved()).toEqual([45]);
+        const back = setup(37);
+        key(back, 'ArrowLeft');
+        expect(back.saved()).toEqual([30]);
+
+        const seam = setup(165);
+        key(seam, 'ArrowUp');
+        expect(seam.saved()).toEqual([-180]);
+        const down = setup(0);
+        key(down, 'ArrowDown');
+        expect(down.saved()).toEqual([-15]);
     });
 });

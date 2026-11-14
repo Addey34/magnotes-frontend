@@ -74,6 +74,7 @@ import { cardsToMarkdown } from '../utils/boardMarkdown';
 import { downloadTextFile, toFileStem } from '../utils/download';
 import { useAutosave } from '../hooks/useAutosave';
 import { BoardBounds, useBoardViewport } from '../hooks/useBoardViewport';
+import { useRevealSelectedHandle } from '../hooks/useRevealSelectedHandle';
 import { computeVisibleBounds, isRectVisible } from '../hooks/viewportCulling';
 import { useDismiss } from '../hooks/useDismiss';
 import { useFocusTrap } from '../hooks/useFocusTrap';
@@ -264,7 +265,14 @@ const BoardApp: React.FC<BoardAppProps> = ({
         focusBounds,
         openBounds,
         setViewport,
+        getViewport,
     } = useBoardViewport();
+    useRevealSelectedHandle({
+        selectedCardIds,
+        canvasRef,
+        getViewport,
+        setViewport,
+    });
     const {
         tabs,
         activeTabId,
