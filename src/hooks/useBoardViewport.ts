@@ -58,11 +58,12 @@ export function useBoardViewport() {
     const [isPanning, setIsPanning] = useState(false);
     const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
     const touchGesture = useRef<TouchGesture | null>(null);
+    // The view as it is right now. Every function below writes it together
+    // with the state, in the same call. It is never copied back from the
+    // rendered state: a render commits the view of an earlier update, and
+    // copying it afterwards would overwrite a newer zoom or pan (a wheel zoom
+    // made during the reveal glide, say) until that update's own render.
     const viewportRef = useRef({ zoom: 1, offset: { x: 0, y: 0 } });
-
-    useEffect(() => {
-        viewportRef.current = { zoom, offset };
-    }, [offset, zoom]);
 
     // Track the canvas pixel size so viewport culling stays correct on resize.
     useEffect(() => {

@@ -1040,45 +1040,91 @@ test.describe('rotate handle: reveal from under the bottom controls', () => {
         expect(await storedOf(page)).toEqual(before);
     });
 
+    // How many frames the browser happens to render in the 180 ms of the glide
+    // depends on the machine, so these tests do not wait for real time: they
+    // drive the page's clock (timers, animation frames, performance.now) one
+    // 16 ms frame at a time and read the view after each. Only the page's
+    // clock is faked; React renders on its own scheduler, so after each frame
+    // the test waits for a round trip through the same message queue, which
+    // queues behind that render.
+    const FRAME_MS = 16;
+    const FRAMES = 30; // 480 ms: the 120 ms settle, the 180 ms glide, slack
+    const offsetY = (transform: string): number =>
+        Number(/translate\([^,]+,\s*(-?[\d.]+)px\)/.exec(transform)![1]);
+    const afterRender = (page: Page) =>
+        page.evaluate(
+            () =>
+                new Promise<void>((resolve) => {
+                    const { port1, port2 } = new MessageChannel();
+                    port1.onmessage = () => {
+                        port1.close();
+                        resolve();
+                    };
+                    port2.postMessage(0);
+                })
+        );
+    const readView = (page: Page) =>
+        page.evaluate(
+            () =>
+                document.querySelector<HTMLElement>(
+                    '.board-canvas [style*="scale("]'
+                )?.style.transform ?? ''
+        );
+
+    // The view after each frame of a tap that reveals the handle.
+    const framesAfterTap = async (page: Page, card: Locator) => {
+        await page.clock.install({ time: 0 });
+        await page.clock.pauseAt(1000);
+        const views = [await readView(page)];
+        await tapCard(page, card);
+        for (let frame = 0; frame < FRAMES; frame++) {
+            await page.clock.runFor(FRAME_MS);
+            await afterRender(page);
+            views.push(await readView(page));
+        }
+        return views;
+    };
+
+    test('without a reduced-motion preference the view glides, advancing every frame toward its end', async ({
+        page,
+    }) => {
+        await page.emulateMedia({ reducedMotion: 'no-preference' });
+        const { card, handle } = await openWithNewCard(page, true);
+        await dropHandleAt(page, card, handle, 738);
+
+        const views = await framesAfterTap(page, card);
+        const path = views.map(offsetY);
+        const start = path[0];
+        const end = path[path.length - 1];
+        expect(end).not.toBe(start); // the view really moved
+        // At least one position strictly between where it started and ended.
+        const between = new Set(path.filter((y) => y !== start && y !== end));
+        expect(between.size).toBeGreaterThanOrEqual(1);
+        // And it only ever advances toward where it ends.
+        const direction = Math.sign(end - start);
+        for (let i = 1; i < path.length; i++)
+            expect(
+                (path[i] - path[i - 1]) * direction,
+                `frame ${i}`
+            ).toBeGreaterThanOrEqual(0);
+        await expect.poll(() => hitAtHandle(handle)).toBe('handle');
+    });
+
     test('respects reduced motion: the view jumps instead of gliding', async ({
         page,
     }) => {
-        const sample = (p: Page) =>
-            p.evaluate(
-                () =>
-                    new Promise<number>((resolve) => {
-                        const seen = new Set<string>();
-                        const end = performance.now() + 900;
-                        const tick = () => {
-                            seen.add(
-                                document.querySelector<HTMLElement>(
-                                    '.board-canvas [style*="scale("]'
-                                )?.style.transform ?? ''
-                            );
-                            if (performance.now() < end)
-                                requestAnimationFrame(tick);
-                            else resolve(seen.size);
-                        };
-                        tick();
-                    })
-            );
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        const { card, handle } = await openWithNewCard(page, true);
+        await dropHandleAt(page, card, handle, 738);
 
-        for (const [mode, glide] of [
-            ['no-preference', true],
-            ['reduce', false],
-        ] as const) {
-            await page.emulateMedia({ reducedMotion: mode });
-            const { card, handle } = await openWithNewCard(page, true);
-            await dropHandleAt(page, card, handle, 738);
-            const watching = sample(page);
-            await tapCard(page, card);
-            const states = await watching;
-            await expect.poll(() => hitAtHandle(handle)).toBe('handle');
-            // A jump shows the old and the new view (2 states); a glide shows at
-            // least one in between, however few frames a loaded machine renders.
-            if (glide) expect(states, mode).toBeGreaterThanOrEqual(3);
-            else expect(states, mode).toBeLessThanOrEqual(2);
-        }
+        const views = await framesAfterTap(page, card);
+        const path = views.map(offsetY);
+        const start = path[0];
+        const end = path[path.length - 1];
+        expect(end).not.toBe(start); // the view really moved
+        // A jump: the old view, then the new one, nothing in between.
+        expect(path.filter((y) => y !== start && y !== end)).toEqual([]);
+        await expect.poll(() => hitAtHandle(handle)).toBe('handle');
     });
 });
 
