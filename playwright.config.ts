@@ -50,6 +50,8 @@ export default defineConfig({
                 'mentionAutocomplete.spec.ts',
                 'demoOpeningView.spec.ts',
                 'securityDialog.spec.ts',
+                'cardInkContrast.spec.ts',
+                'cardControls.spec.ts',
             ],
             use: { ...devices['Pixel 7'] },
         },
@@ -64,6 +66,8 @@ export default defineConfig({
                 'mentionAutocomplete.spec.ts',
                 'demoOpeningView.spec.ts',
                 'securityDialog.spec.ts',
+                'cardInkContrast.spec.ts',
+                'cardControls.spec.ts',
             ],
             grepInvert:
                 /sidebar expands on hover without covering the workspace/,

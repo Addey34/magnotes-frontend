@@ -2811,19 +2811,8 @@
 }
 
 .task-choice {
-    background: var(--control-bg, rgba(120, 120, 140, 0.12));
-    border: 1px solid transparent;
-    border-radius: 6px;
-    color: var(--text-main);
-    cursor: pointer;
     flex: 1;
-    font-size: 10px;
-    font-weight: 700;
     padding: 5px 4px;
-}
-
-.task-choice.is-active {
-    color: #fff;
 }
 
 .task-date-input,
@@ -2866,6 +2855,9 @@
     color: var(--text-muted);
     cursor: pointer;
     display: inline-flex;
+    justify-content: center;
+    min-height: 24px;
+    min-width: 24px;
     padding: 0;
 }
 
@@ -3039,22 +3031,22 @@
 }
 
 .card-color-trigger {
-    border-radius: 50%;
     box-shadow:
-        0 0 0 2px rgba(255, 255, 255, 0.55),
+        inset 0 0 0 2px rgba(255, 255, 255, 0.7),
         0 7px 16px rgba(15, 23, 42, 0.16);
 }
 
 .card-text-trigger {
-    font-size: 9px;
+    font-size: 12px;
     font-weight: 850;
 }
 
 .post-it-style-popover {
-    background: #fff;
-    border: 1px solid #dbe1ea;
-    border-radius: 7px;
-    box-shadow: 0 16px 34px rgba(15, 23, 42, 0.22);
+    background: var(--surface, #fff);
+    border: 1px solid var(--control-border, #dbe1ea);
+    border-radius: 8px;
+    box-shadow: 0 16px 34px rgba(15, 23, 42, 0.28);
+    color: var(--text-main, #172033);
     display: grid;
     gap: 9px;
     padding: 9px;
@@ -3071,10 +3063,11 @@
 .color-swatch-row {
     display: grid;
     gap: 6px;
-    grid-template-columns: repeat(7, 23px);
+    grid-template-columns: repeat(7, 24px);
 }
 
-.color-swatch.is-active {
+.color-swatch.is-active,
+.text-color-swatch.is-active {
     box-shadow:
         0 0 0 2px #fff,
         0 0 0 4px #6c53ee;
@@ -3121,21 +3114,8 @@
 }
 
 .card-finish-chip {
-    border: 1px solid #d5dce6;
-    border-radius: 5px;
-    color: #334155;
-    cursor: pointer;
     flex: 1 0 30%;
-    font: inherit;
-    font-size: 9px;
-    font-weight: 700;
     padding: 5px 4px;
-    text-shadow: 0 1px 1px rgba(255, 255, 255, 0.6);
-}
-
-.card-finish-chip.is-active {
-    border-color: #6c53ee;
-    box-shadow: 0 0 0 1px #6c53ee;
 }
 
 /* Card finishes — layered over the card's base background color */
@@ -3193,16 +3173,6 @@
         );
 }
 
-.card-finish-chip.finish-flat,
-.card-finish-chip.finish-matte {
-    background-color: #eef1f6;
-}
-.card-finish-chip.finish-metallic,
-.card-finish-chip.finish-glass,
-.card-finish-chip.finish-paper {
-    background-color: #dfe4ec;
-}
-
 .text-popover {
     min-width: 210px;
 }
@@ -3213,8 +3183,8 @@
 }
 
 .post-it-preset-section > span {
-    color: #64748b;
-    font-size: 9px;
+    color: var(--text-muted, #64748b);
+    font-size: 10px;
     font-weight: 800;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -3228,23 +3198,11 @@
 
 .post-it-preset {
     align-items: center;
-    background: #f8fafc;
-    border: 1px solid #d5dce6;
-    border-radius: 5px;
-    color: #334155;
-    cursor: pointer;
     display: grid;
-    font: inherit;
-    font-size: 9px;
     gap: 4px;
     justify-items: center;
-    min-height: 45px;
+    min-height: 48px;
     padding: 5px;
-}
-
-.post-it-preset:hover {
-    background: #eef2ff;
-    border-color: #a5b4fc;
 }
 
 .post-it-preset > span {
@@ -3259,19 +3217,26 @@
     gap: 7px;
 }
 
+/* Six stock inks + the free picker: spread them over the popover width instead
+   of letting the row widen it past the visible canvas. */
+.post-it-ink-row {
+    gap: 0;
+    justify-content: space-between;
+}
+
 .color-swatch,
 .text-color-swatch {
-    border: 1px solid rgba(15, 23, 42, 0.18);
+    border: 1px solid rgba(128, 128, 140, 0.45);
     border-radius: 50%;
     cursor: pointer;
-    height: 23px;
+    height: 24px;
     padding: 0;
-    width: 23px;
+    width: 24px;
 }
 
 .text-tool-row {
     align-items: center;
-    color: #475569;
+    color: var(--text-soft, #475569);
     display: grid;
     font-size: 11px;
     font-weight: 700;
@@ -3280,25 +3245,60 @@
     text-align: center;
 }
 
-.text-size-button,
-.post-it-tab-select,
-.post-it-menu-command {
-    background: #f8fafc;
-    border: 1px solid #d5dce6;
-    border-radius: 5px;
-    color: #172033;
+/* Card control kit: every single-choice chip, action button and field of the
+   style panels shares these tokens, so they follow the board theme and look the
+   same whatever the panel. An active choice is a ring in its own colour
+   (--choice-color, accent by default), never a different shape. */
+.ctl-choice,
+.ctl-btn,
+.ctl-field {
+    background: var(--control-bg, #f1f3f7);
+    border: 1px solid var(--control-border, rgba(15, 23, 42, 0.12));
+    border-radius: 6px;
+    color: var(--text-main, #172033);
     font: inherit;
     font-size: 11px;
-    height: 30px;
+    font-weight: 700;
+    min-height: 28px;
 }
 
-.text-size-button,
-.post-it-menu-command {
+.ctl-choice,
+.ctl-btn {
     cursor: pointer;
 }
 
+.ctl-choice:hover,
+.ctl-btn:hover {
+    background-color: var(--control-hover, #e8ebf2);
+}
+
+.ctl-choice.is-active {
+    border-color: var(--choice-color, var(--accent, #6c53ee));
+    box-shadow: 0 0 0 1px var(--choice-color, var(--accent, #6c53ee));
+}
+
+.ctl-choice.is-active:not(.card-finish-chip) {
+    background-color: color-mix(
+        in srgb,
+        var(--choice-color, var(--accent, #6c53ee)) 24%,
+        var(--control-bg, #f1f3f7)
+    );
+}
+
+.ctl-choice:focus-visible,
+.ctl-btn:focus-visible,
+.ctl-field:focus-visible,
+.color-swatch:focus-visible,
+.text-color-swatch:focus-visible {
+    outline: 2px solid var(--accent, #6c53ee);
+    outline-offset: 2px;
+}
+
+.text-size-button {
+    min-height: 30px;
+}
+
 .post-it-tab-select {
-    outline: none;
     padding: 0 7px;
     width: 100%;
 }
@@ -3985,6 +3985,19 @@
     .text-color-swatch {
         height: 30px;
         width: 30px;
+    }
+
+    .ctl-choice,
+    .ctl-btn,
+    .ctl-field {
+        min-height: 36px;
+    }
+
+    .task-tag-chip button,
+    .task-checklist-row button,
+    .task-checklist-add button {
+        min-height: 36px;
+        min-width: 36px;
     }
 
     .color-swatch-row {

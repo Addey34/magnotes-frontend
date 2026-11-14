@@ -68,6 +68,7 @@ import {
     suggestMentionTitles,
 } from '../../utils/mentionCompletion';
 import { formatDueDate, isOverdue } from '../../utils/cardMeta';
+import { readableInk } from '../../utils/contrast';
 import { TranslationKey } from '../../i18n/dictionary';
 import { useT } from '../../i18n/LangContext';
 import { priorityKey, statusKey } from '../../i18n/labels';
@@ -168,8 +169,14 @@ const PostItCard: React.FC<PostItCardProps> = ({
     onEditStart,
 }) => {
     const { t, lang } = useT();
+    // Stock swatches carry a human name (screen readers and tooltips) rather
+    // than a hex code.
+    const swatchName = (hex: string): string =>
+        t(`swatch.${hex.slice(1)}` as TranslationKey);
     const cardRef = useRef<HTMLElement | null>(null);
     const suppressRotateClickRef = useRef(false);
+    // Only one style panel is mounted at a time, so one ref serves them all.
+    const popoverRef = useRef<HTMLDivElement | null>(null);
     const cardId = postIt._id;
     useEffect(() => {
         const el = cardRef.current;
@@ -280,6 +287,32 @@ const PostItCard: React.FC<PostItCardProps> = ({
         }
         startEditing();
     };
+
+    // Like the toolbar, panels keep a usable size when the board is zoomed out.
+    const popoverStyle: React.CSSProperties | undefined =
+        zoom < 1
+            ? {
+                  scale: String(Math.min(1.6, 1 / zoom)),
+                  transformOrigin: 'right top',
+              }
+            : undefined;
+    // The panel is anchored to the card's right edge and grows past it once
+    // counter-scaled, so a card near the board edge would push it under the
+    // sidebar. Slide it back into the visible canvas.
+    useLayoutEffect(() => {
+        const panel = popoverRef.current;
+        if (!panel) return;
+        panel.style.translate = '';
+        const canvas = panel.closest('.board-canvas');
+        if (!canvas) return;
+        const box = panel.getBoundingClientRect();
+        const bounds = canvas.getBoundingClientRect();
+        const margin = 8;
+        const shiftRight = Math.max(0, bounds.left + margin - box.left);
+        const shiftLeft = Math.max(0, box.right - (bounds.right - margin));
+        const shift = shiftRight - shiftLeft;
+        if (shift !== 0) panel.style.translate = `${shift / zoom}px 0`;
+    }, [stylePanel, zoom]);
 
     const textSize = postIt.textSize || 13;
     const textColor = postIt.textColor || '#172033';
@@ -748,6 +781,13 @@ const PostItCard: React.FC<PostItCardProps> = ({
         scheduleCardSave(updates);
     };
 
+    // A new card colour must never leave the text unreadable: the ink follows
+    // only when the current one would fall below the contrast floor.
+    const applyCardColor = (color: string): void => {
+        const ink = readableInk(color, textColor);
+        applyStyle(ink === textColor ? { color } : { color, textColor: ink });
+    };
+
     const applyImageFile = async (file: File): Promise<void> => {
         const result = await readImageFile(file);
         if (result.dataUrl) {
@@ -1114,6 +1154,8 @@ const PostItCard: React.FC<PostItCardProps> = ({
             {stylePanel === 'media' && (
                 <div
                     className="post-it-style-popover media-popover"
+                    ref={popoverRef}
+                    style={popoverStyle}
                     onPointerDown={(event) => event.stopPropagation()}
                 >
                     <input
@@ -1149,6 +1191,8 @@ const PostItCard: React.FC<PostItCardProps> = ({
             {stylePanel === 'color' && (
                 <div
                     className="post-it-style-popover color-popover"
+                    ref={popoverRef}
+                    style={popoverStyle}
                     onPointerDown={(event) => event.stopPropagation()}
                 >
                     <div className="color-swatch-row">
@@ -1158,8 +1202,12 @@ const PostItCard: React.FC<PostItCardProps> = ({
                                 type="button"
                                 className={`color-swatch ${postIt.color === color ? 'is-active' : ''}`}
                                 style={{ backgroundColor: color }}
-                                onClick={() => applyStyle({ color })}
-                                aria-label={t('card.color.swatch', { color })}
+                                onClick={() => applyCardColor(color)}
+                                title={swatchName(color)}
+                                aria-label={t('card.color.swatchNamed', {
+                                    name: swatchName(color),
+                                })}
+                                aria-pressed={postIt.color === color}
                             />
                         ))}
                         <label
@@ -1171,7 +1219,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                                 type="color"
                                 value={postIt.color}
                                 onChange={(event) =>
-                                    applyStyle({ color: event.target.value })
+                                    applyCardColor(event.target.value)
                                 }
                                 aria-label={t('card.color.custom')}
                             />
@@ -1183,7 +1231,16 @@ const PostItCard: React.FC<PostItCardProps> = ({
                             <button
                                 key={option.id}
                                 type="button"
-                                className={`card-finish-chip finish-${option.id} ${(postIt.finish || 'flat') === option.id ? 'is-active' : ''}`}
+                                className={`ctl-choice card-finish-chip finish-${option.id} ${(postIt.finish || 'flat') === option.id ? 'is-active' : ''}`}
+                                aria-pressed={
+                                    (postIt.finish || 'flat') === option.id
+                                }
+                                // The chip previews the finish on the card's
+                                // own colour, not on a neutral grey.
+                                style={{
+                                    backgroundColor: postIt.color,
+                                    color: readableInk(postIt.color, '#172033'),
+                                }}
                                 onClick={() =>
                                     applyStyle({ finish: option.id })
                                 }
@@ -1198,6 +1255,8 @@ const PostItCard: React.FC<PostItCardProps> = ({
             {stylePanel === 'text' && (
                 <div
                     className="post-it-style-popover text-popover"
+                    ref={popoverRef}
+                    style={popoverStyle}
                     onPointerDown={(event) => event.stopPropagation()}
                 >
                     <div className="post-it-preset-section">
@@ -1207,7 +1266,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                                 <button
                                     key={preset.id}
                                     type="button"
-                                    className="post-it-preset"
+                                    className="ctl-choice post-it-preset"
                                     onClick={() =>
                                         applyStyle({
                                             color: preset.color,
@@ -1231,7 +1290,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                     <div className="text-tool-row">
                         <button
                             type="button"
-                            className="text-size-button"
+                            className="ctl-btn text-size-button"
                             onClick={() =>
                                 applyStyle({
                                     textSize: clamp(
@@ -1247,7 +1306,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                         <span>{textSize}px</span>
                         <button
                             type="button"
-                            className="text-size-button"
+                            className="ctl-btn text-size-button"
                             onClick={() =>
                                 applyStyle({
                                     textSize: clamp(
@@ -1262,21 +1321,41 @@ const PostItCard: React.FC<PostItCardProps> = ({
                         </button>
                     </div>
 
-                    <div className="post-it-menu-row">
+                    <div className="post-it-menu-row post-it-ink-row">
                         {TEXT_COLORS.map((color) => (
                             <button
                                 key={color}
                                 type="button"
-                                className="text-color-swatch"
+                                className={`text-color-swatch ${textColor === color ? 'is-active' : ''}`}
                                 style={{ backgroundColor: color }}
                                 onClick={() => applyStyle({ textColor: color })}
-                                aria-label={t('card.text.swatch', { color })}
+                                title={swatchName(color)}
+                                aria-label={t('card.text.swatchNamed', {
+                                    name: swatchName(color),
+                                })}
+                                aria-pressed={textColor === color}
                             />
                         ))}
+                        <label
+                            className="text-color-swatch color-swatch-custom"
+                            title={t('card.text.custom')}
+                            style={{ backgroundColor: textColor }}
+                        >
+                            <input
+                                type="color"
+                                value={textColor}
+                                onChange={(event) =>
+                                    applyStyle({
+                                        textColor: event.target.value,
+                                    })
+                                }
+                                aria-label={t('card.text.custom')}
+                            />
+                        </label>
                     </div>
 
                     <select
-                        className="post-it-tab-select"
+                        className="ctl-field post-it-tab-select"
                         value={fontFamily}
                         onChange={(event) =>
                             applyStyle({ fontFamily: event.target.value })
@@ -1293,7 +1372,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                     {postIt.stackId && (
                         <button
                             type="button"
-                            className="post-it-menu-command"
+                            className="ctl-btn post-it-menu-command"
                             onClick={() => {
                                 setStylePanel(null);
                                 onUnstack(postIt._id);
@@ -1306,7 +1385,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
 
                     {tabs.length > 1 && (
                         <select
-                            className="post-it-tab-select"
+                            className="ctl-field post-it-tab-select"
                             value=""
                             onChange={(event) =>
                                 handleTabMove(event.target.value)
@@ -1331,6 +1410,8 @@ const PostItCard: React.FC<PostItCardProps> = ({
             {stylePanel === 'task' && (
                 <div
                     className="post-it-style-popover task-popover app-scrollbar"
+                    ref={popoverRef}
+                    style={popoverStyle}
                     onPointerDown={(event) => event.stopPropagation()}
                 >
                     <div className="task-field">
@@ -1340,14 +1421,12 @@ const PostItCard: React.FC<PostItCardProps> = ({
                                 <button
                                     key={option.id}
                                     type="button"
-                                    className={`task-choice ${status === option.id ? 'is-active' : ''}`}
+                                    className={`ctl-choice task-choice ${status === option.id ? 'is-active' : ''}`}
+                                    aria-pressed={status === option.id}
                                     style={
-                                        status === option.id
-                                            ? {
-                                                  backgroundColor: option.color,
-                                                  borderColor: option.color,
-                                              }
-                                            : undefined
+                                        {
+                                            '--choice-color': option.color,
+                                        } as React.CSSProperties
                                     }
                                     onClick={() => toggleStatus(option.id)}
                                 >
@@ -1364,14 +1443,12 @@ const PostItCard: React.FC<PostItCardProps> = ({
                                 <button
                                     key={option.id}
                                     type="button"
-                                    className={`task-choice ${priority === option.id ? 'is-active' : ''}`}
+                                    className={`ctl-choice task-choice ${priority === option.id ? 'is-active' : ''}`}
+                                    aria-pressed={priority === option.id}
                                     style={
-                                        priority === option.id
-                                            ? {
-                                                  backgroundColor: option.color,
-                                                  borderColor: option.color,
-                                              }
-                                            : undefined
+                                        {
+                                            '--choice-color': option.color,
+                                        } as React.CSSProperties
                                     }
                                     onClick={() => togglePriority(option.id)}
                                 >

@@ -582,4 +582,62 @@ describe('PostItCard stack chrome', () => {
 
         expect(container.querySelector('.post-it-stack-badge')).toBeNull();
     });
+
+    it('keeps the text readable when the card colour turns dark', () => {
+        const { container, onLocalChange } = renderCard({
+            color: '#fef08a',
+            textColor: '#172033',
+        });
+        fireEvent.click(screen.getByLabelText('Edit card'));
+        fireEvent.click(container.querySelector('.card-color-trigger')!);
+
+        fireEvent.change(
+            container.querySelector<HTMLInputElement>(
+                '.color-popover input[type="color"]'
+            )!,
+            { target: { value: '#1e3a8a' } }
+        );
+
+        expect(onLocalChange).toHaveBeenLastCalledWith('card-1', {
+            color: '#1e3a8a',
+            textColor: '#f8fafc',
+        });
+    });
+
+    it('leaves a readable text colour alone when the card colour changes', () => {
+        const { container, onLocalChange } = renderCard({
+            color: '#fef08a',
+            textColor: '#7f1d1d',
+        });
+        fireEvent.click(screen.getByLabelText('Edit card'));
+        fireEvent.click(container.querySelector('.card-color-trigger')!);
+
+        fireEvent.change(
+            container.querySelector<HTMLInputElement>(
+                '.color-popover input[type="color"]'
+            )!,
+            { target: { value: '#bbf7d0' } }
+        );
+
+        expect(onLocalChange).toHaveBeenLastCalledWith('card-1', {
+            color: '#bbf7d0',
+        });
+    });
+
+    it('offers a free text colour picker', () => {
+        const { container, onLocalChange } = renderCard();
+        fireEvent.click(screen.getByLabelText('Edit card'));
+        fireEvent.click(container.querySelector('.card-text-trigger')!);
+
+        fireEvent.change(
+            container.querySelector<HTMLInputElement>(
+                '.text-popover input[type="color"]'
+            )!,
+            { target: { value: '#ff00aa' } }
+        );
+
+        expect(onLocalChange).toHaveBeenLastCalledWith('card-1', {
+            textColor: '#ff00aa',
+        });
+    });
 });
