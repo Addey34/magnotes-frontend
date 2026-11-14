@@ -13,6 +13,23 @@ import '../styles/PublicBoardView.css';
 
 const CANVAS_PADDING = 120;
 
+// Axis-aligned box of a card once turned around its centre.
+function rotatedBounds(card: PostIt) {
+    const angle = ((card.rotation || 0) * Math.PI) / 180;
+    const cos = Math.abs(Math.cos(angle));
+    const sin = Math.abs(Math.sin(angle));
+    const w = card.width * cos + card.height * sin;
+    const h = card.width * sin + card.height * cos;
+    const cx = card.x + card.width / 2;
+    const cy = card.y + card.height / 2;
+    return {
+        left: cx - w / 2,
+        top: cy - h / 2,
+        right: cx + w / 2,
+        bottom: cy + h / 2,
+    };
+}
+
 const STATUS_KEYS = new Set(['todo', 'doing', 'done']);
 
 /**
@@ -67,10 +84,13 @@ const PublicBoardView: React.FC<{ token: string }> = ({ token }) => {
         if (cards.length === 0) {
             return { offsetX: 0, offsetY: 0, width: 800, height: 600 };
         }
-        const minX = Math.min(...cards.map((c) => c.x));
-        const minY = Math.min(...cards.map((c) => c.y));
-        const maxX = Math.max(...cards.map((c) => c.x + c.width));
-        const maxY = Math.max(...cards.map((c) => c.y + c.height));
+        // A turned card reaches further than its box: use the box of the
+        // rotated rectangle so nothing is clipped at the canvas edge.
+        const boxes = cards.map(rotatedBounds);
+        const minX = Math.min(...boxes.map((b) => b.left));
+        const minY = Math.min(...boxes.map((b) => b.top));
+        const maxX = Math.max(...boxes.map((b) => b.right));
+        const maxY = Math.max(...boxes.map((b) => b.bottom));
         return {
             offsetX: -minX + CANVAS_PADDING,
             offsetY: -minY + CANVAS_PADDING,
@@ -207,7 +227,7 @@ const PublicBoardView: React.FC<{ token: string }> = ({ token }) => {
                     {cards.map((card) => (
                         <article
                             key={card._id}
-                            className="public-card"
+                            className={`public-card finish-${card.finish || 'flat'}`}
                             style={{
                                 left: card.x + layout.offsetX,
                                 top: card.y + layout.offsetY,
@@ -216,6 +236,10 @@ const PublicBoardView: React.FC<{ token: string }> = ({ token }) => {
                                 background: card.color,
                                 color: card.textColor || undefined,
                                 fontSize: card.textSize || undefined,
+                                fontFamily: card.fontFamily || undefined,
+                                transform: card.rotation
+                                    ? `rotate(${card.rotation}deg)`
+                                    : undefined,
                             }}
                         >
                             {card.mediaUrl && (

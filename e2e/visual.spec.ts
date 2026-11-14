@@ -113,7 +113,7 @@ test.describe('visual layout contracts', () => {
         const title = card.locator('.post-it-title');
         await title.fill('Mobile editing contract');
         await expect(title).toHaveValue('Mobile editing contract');
-        const colorTool = card.locator('.card-color-trigger');
+        const colorTool = card.locator('.card-style-trigger');
         await colorTool.tap();
         await expect(colorTool).toHaveAttribute('aria-expanded', 'true');
         await colorTool.tap();

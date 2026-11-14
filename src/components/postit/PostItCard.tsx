@@ -13,6 +13,7 @@ import {
     LinkIcon,
     PhotoIcon,
     PlusIcon,
+    SwatchIcon,
     TrashIcon,
     XMarkIcon,
 } from '@heroicons/react/24/outline';
@@ -23,6 +24,7 @@ import React, {
     useMemo,
     useRef,
     useState,
+    useSyncExternalStore,
 } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -69,12 +71,91 @@ import {
 } from '../../utils/mentionCompletion';
 import { formatDueDate, isOverdue } from '../../utils/cardMeta';
 import { readableInk } from '../../utils/contrast';
+import { snapRotation } from '../../utils/rotation';
+import {
+    CardStyle,
+    copyCardStyle,
+    readCopiedStyle,
+    readRecentColors,
+    rememberColor,
+} from '../../utils/cardStyleMemory';
 import { TranslationKey } from '../../i18n/dictionary';
 import { useT } from '../../i18n/LangContext';
 import { priorityKey, statusKey } from '../../i18n/labels';
 
 type ResizeCorner = 'nw' | 'ne' | 'sw' | 'se';
-type StylePanel = 'color' | 'text' | 'task' | 'media' | null;
+type StylePanel = 'style' | 'task' | 'media' | null;
+
+// On a phone a panel cannot sit beside a card, so it becomes a bottom sheet
+// rendered outside the (zoomed) board.
+const NARROW_QUERY = '(max-width: 620px)';
+
+function useNarrowScreen(): boolean {
+    return useSyncExternalStore(
+        (notify) => {
+            if (typeof window.matchMedia !== 'function') return () => {};
+            const query = window.matchMedia(NARROW_QUERY);
+            query.addEventListener('change', notify);
+            return () => query.removeEventListener('change', notify);
+        },
+        () =>
+            typeof window.matchMedia === 'function' &&
+            window.matchMedia(NARROW_QUERY).matches,
+        () => false
+    );
+}
+
+interface PanelHostProps {
+    sheetHost: Element | null;
+    sheetRef: React.MutableRefObject<HTMLDivElement | null>;
+    anchorStyle: React.CSSProperties;
+    title: string;
+    closeLabel: string;
+    onClose: () => void;
+    children: React.ReactNode;
+}
+
+// Beside the card (rotated back upright) on a wide screen, bottom sheet on a
+// narrow one.
+const PanelHost: React.FC<PanelHostProps> = ({
+    sheetHost,
+    sheetRef,
+    anchorStyle,
+    title,
+    closeLabel,
+    onClose,
+    children,
+}) =>
+    sheetHost ? (
+        createPortal(
+            <div
+                ref={sheetRef}
+                className="post-it-sheet"
+                role="dialog"
+                aria-label={title}
+                onPointerDown={(event) => event.stopPropagation()}
+            >
+                <div className="post-it-sheet-head">
+                    <span>{title}</span>
+                    <button
+                        type="button"
+                        className="ctl-btn post-it-sheet-close"
+                        onClick={onClose}
+                        aria-label={closeLabel}
+                        title={closeLabel}
+                    >
+                        <XMarkIcon />
+                    </button>
+                </div>
+                {children}
+            </div>,
+            sheetHost
+        )
+    ) : (
+        <div className="post-it-panel-anchor" style={anchorStyle}>
+            {children}
+        </div>
+    );
 const DRAG_THRESHOLD = 5;
 const ROTATE_THRESHOLD = 3;
 
@@ -196,6 +277,15 @@ const PostItCard: React.FC<PostItCardProps> = ({
     const [isDragging, setIsDragging] = useState(false);
     const [isHovered, setIsHovered] = useState(false);
     const [stylePanel, setStylePanel] = useState<StylePanel>(null);
+    // Per-browser memory: colours picked freely, and one copied card look.
+    const [recentColors, setRecentColors] =
+        useState<string[]>(readRecentColors);
+    const [copiedStyle, setCopiedStyle] = useState<CardStyle | null>(
+        readCopiedStyle
+    );
+    useEffect(() => {
+        if (stylePanel === 'style') setCopiedStyle(readCopiedStyle());
+    }, [stylePanel]);
 
     const scheduleCardSave = (updates: PostItUpdate): void => {
         onAutosave(postIt._id, {
@@ -230,7 +320,13 @@ const PostItCard: React.FC<PostItCardProps> = ({
         el.setSelectionRange(pending.caret, pending.caret);
     }, [postIt.content]);
     const closeStylePanel = useCallback(() => setStylePanel(null), []);
-    useDismiss(stylePanel !== null, cardRef, closeStylePanel);
+    const sheetRef = useRef<HTMLDivElement | null>(null);
+    useDismiss(stylePanel !== null, cardRef, closeStylePanel, sheetRef);
+    const narrowScreen = useNarrowScreen();
+    const sheetHost =
+        stylePanel && narrowScreen
+            ? (cardRef.current?.closest('.board-app') ?? null)
+            : null;
 
     // Entering edit mode focuses the title of an untitled card, else the body,
     // with the caret at the end.
@@ -290,29 +386,67 @@ const PostItCard: React.FC<PostItCardProps> = ({
 
     // Like the toolbar, panels keep a usable size when the board is zoomed out.
     const popoverStyle: React.CSSProperties | undefined =
-        zoom < 1
-            ? {
-                  scale: String(Math.min(1.6, 1 / zoom)),
-                  transformOrigin: 'right top',
-              }
+        zoom < 1 && !sheetHost
+            ? { scale: String(Math.min(1.6, 1 / zoom)) }
             : undefined;
-    // The panel is anchored to the card's right edge and grows past it once
-    // counter-scaled, so a card near the board edge would push it under the
-    // sidebar. Slide it back into the visible canvas.
+
+    // A panel opens beside the card, never over it, so the effect of each
+    // setting stays visible. Try right, left, below, above, keep the one that
+    // overflows the visible canvas the least, then slide it fully inside.
     useLayoutEffect(() => {
         const panel = popoverRef.current;
         if (!panel) return;
-        panel.style.translate = '';
         const canvas = panel.closest('.board-canvas');
         if (!canvas) return;
-        const box = panel.getBoundingClientRect();
         const bounds = canvas.getBoundingClientRect();
         const margin = 8;
-        const shiftRight = Math.max(0, bounds.left + margin - box.left);
-        const shiftLeft = Math.max(0, box.right - (bounds.right - margin));
-        const shift = shiftRight - shiftLeft;
-        if (shift !== 0) panel.style.translate = `${shift / zoom}px 0`;
-    }, [stylePanel, zoom]);
+        const order = ['right', 'left', 'below', 'above'];
+        let best = order[0];
+        let bestOverflow = Infinity;
+        for (const side of order) {
+            panel.dataset.side = side;
+            panel.style.translate = '';
+            const box = panel.getBoundingClientRect();
+            const overflow =
+                Math.max(0, bounds.left + margin - box.left) +
+                Math.max(0, box.right - (bounds.right - margin)) +
+                Math.max(0, bounds.top + margin - box.top) +
+                Math.max(0, box.bottom - (bounds.bottom - margin));
+            if (overflow < bestOverflow) {
+                best = side;
+                bestOverflow = overflow;
+            }
+            if (overflow === 0) break;
+        }
+        panel.dataset.side = best;
+        panel.style.translate = '';
+        const box = panel.getBoundingClientRect();
+        const slide = (
+            start: number,
+            end: number,
+            min: number,
+            max: number
+        ): number => {
+            if (start < min) return min - start;
+            if (end > max) return -Math.min(end - max, start - min);
+            return 0;
+        };
+        const dx = slide(
+            box.left,
+            box.right,
+            bounds.left + margin,
+            bounds.right - margin
+        );
+        const dy = slide(
+            box.top,
+            box.bottom,
+            bounds.top + margin,
+            bounds.bottom - margin
+        );
+        if (dx !== 0 || dy !== 0) {
+            panel.style.translate = `${dx / zoom}px ${dy / zoom}px`;
+        }
+    }, [stylePanel, zoom, postIt.width, sheetHost]);
 
     const textSize = postIt.textSize || 13;
     const textColor = postIt.textColor || '#172033';
@@ -887,6 +1021,10 @@ const PostItCard: React.FC<PostItCardProps> = ({
         onMoveToTab(postIt._id, targetTabId);
     };
 
+    // The panel anchor is the card's box turned back by the card's own
+    // rotation, so panels stay upright and sit beside the unrotated card.
+    const anchorStyle: React.CSSProperties = { rotate: `${-rotation}deg` };
+
     return (
         <article
             ref={cardRef}
@@ -1031,31 +1169,18 @@ const PostItCard: React.FC<PostItCardProps> = ({
                 {isEditing && (
                     <>
                         <button
-                            className="card-color-trigger"
+                            className={`icon-button card-style-trigger ${stylePanel === 'style' ? 'is-active' : ''}`}
                             type="button"
                             onClick={() =>
                                 setStylePanel((panel) =>
-                                    panel === 'color' ? null : 'color'
+                                    panel === 'style' ? null : 'style'
                                 )
                             }
-                            title={t('card.tool.color')}
-                            aria-label={t('card.tool.color')}
-                            aria-expanded={stylePanel === 'color'}
-                            style={{ backgroundColor: postIt.color }}
-                        />
-                        <button
-                            className="card-text-trigger"
-                            type="button"
-                            onClick={() =>
-                                setStylePanel((panel) =>
-                                    panel === 'text' ? null : 'text'
-                                )
-                            }
-                            title={t('card.tool.text')}
-                            aria-label={t('card.tool.text')}
-                            aria-expanded={stylePanel === 'text'}
+                            title={t('card.tool.style')}
+                            aria-label={t('card.tool.style')}
+                            aria-expanded={stylePanel === 'style'}
                         >
-                            Aa
+                            <SwatchIcon />
                         </button>
                         <button
                             type="button"
@@ -1152,429 +1277,584 @@ const PostItCard: React.FC<PostItCardProps> = ({
             </div>
 
             {stylePanel === 'media' && (
-                <div
-                    className="post-it-style-popover media-popover"
-                    ref={popoverRef}
-                    style={popoverStyle}
-                    onPointerDown={(event) => event.stopPropagation()}
+                <PanelHost
+                    sheetHost={sheetHost}
+                    sheetRef={sheetRef}
+                    anchorStyle={anchorStyle}
+                    title={t('card.tool.image')}
+                    closeLabel={t('card.panel.close')}
+                    onClose={closeStylePanel}
                 >
-                    <input
-                        className="media-url-input"
-                        type="url"
-                        value={mediaDraft}
-                        placeholder="https://…/image.png"
-                        onChange={(event) => setMediaDraft(event.target.value)}
-                        onBlur={applyMediaUrl}
-                        onKeyDown={(event) => {
-                            if (event.key === 'Enter') {
-                                event.preventDefault();
-                                applyMediaUrl();
+                    <div
+                        className="post-it-style-popover media-popover"
+                        ref={popoverRef}
+                        style={popoverStyle}
+                        onPointerDown={(event) => event.stopPropagation()}
+                    >
+                        <input
+                            className="media-url-input"
+                            type="url"
+                            value={mediaDraft}
+                            placeholder="https://…/image.png"
+                            onChange={(event) =>
+                                setMediaDraft(event.target.value)
                             }
-                        }}
-                        aria-label={t('card.image.urlAria')}
-                    />
-                    <p className="media-hint">{t('card.media.hint')}</p>
-                    {mediaError && <p className="media-error">{mediaError}</p>}
-                    {postIt.mediaUrl && (
-                        <button
-                            type="button"
-                            className="media-remove"
-                            onClick={removeMedia}
-                        >
-                            <XMarkIcon />
-                            {t('card.image.remove')}
-                        </button>
-                    )}
-                </div>
-            )}
-
-            {stylePanel === 'color' && (
-                <div
-                    className="post-it-style-popover color-popover"
-                    ref={popoverRef}
-                    style={popoverStyle}
-                    onPointerDown={(event) => event.stopPropagation()}
-                >
-                    <div className="color-swatch-row">
-                        {CARD_COLORS.map((color) => (
+                            onBlur={applyMediaUrl}
+                            onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                    event.preventDefault();
+                                    applyMediaUrl();
+                                }
+                            }}
+                            aria-label={t('card.image.urlAria')}
+                        />
+                        <p className="media-hint">{t('card.media.hint')}</p>
+                        {mediaError && (
+                            <p className="media-error">{mediaError}</p>
+                        )}
+                        {postIt.mediaUrl && (
                             <button
-                                key={color}
                                 type="button"
-                                className={`color-swatch ${postIt.color === color ? 'is-active' : ''}`}
-                                style={{ backgroundColor: color }}
-                                onClick={() => applyCardColor(color)}
-                                title={swatchName(color)}
-                                aria-label={t('card.color.swatchNamed', {
-                                    name: swatchName(color),
-                                })}
-                                aria-pressed={postIt.color === color}
-                            />
-                        ))}
-                        <label
-                            className="color-swatch color-swatch-custom"
-                            title={t('card.color.custom')}
-                            style={{ backgroundColor: postIt.color }}
-                        >
-                            <input
-                                type="color"
-                                value={postIt.color}
-                                onChange={(event) =>
-                                    applyCardColor(event.target.value)
-                                }
-                                aria-label={t('card.color.custom')}
-                            />
-                        </label>
-                    </div>
-
-                    <div className="card-finish-row">
-                        {CARD_FINISHES.map((option) => (
-                            <button
-                                key={option.id}
-                                type="button"
-                                className={`ctl-choice card-finish-chip finish-${option.id} ${(postIt.finish || 'flat') === option.id ? 'is-active' : ''}`}
-                                aria-pressed={
-                                    (postIt.finish || 'flat') === option.id
-                                }
-                                // The chip previews the finish on the card's
-                                // own colour, not on a neutral grey.
-                                style={{
-                                    backgroundColor: postIt.color,
-                                    color: readableInk(postIt.color, '#172033'),
-                                }}
-                                onClick={() =>
-                                    applyStyle({ finish: option.id })
-                                }
+                                className="media-remove"
+                                onClick={removeMedia}
                             >
-                                {t(`finish.${option.id}` as TranslationKey)}
+                                <XMarkIcon />
+                                {t('card.image.remove')}
                             </button>
-                        ))}
+                        )}
                     </div>
-                </div>
+                </PanelHost>
             )}
 
-            {stylePanel === 'text' && (
-                <div
-                    className="post-it-style-popover text-popover"
-                    ref={popoverRef}
-                    style={popoverStyle}
-                    onPointerDown={(event) => event.stopPropagation()}
+            {stylePanel === 'style' && (
+                <PanelHost
+                    sheetHost={sheetHost}
+                    sheetRef={sheetRef}
+                    anchorStyle={anchorStyle}
+                    title={t('card.tool.style')}
+                    closeLabel={t('card.panel.close')}
+                    onClose={closeStylePanel}
                 >
-                    <div className="post-it-preset-section">
-                        <span>{t('card.styles')}</span>
-                        <div className="post-it-preset-grid">
-                            {CARD_STYLE_PRESETS.map((preset) => (
+                    <div
+                        ref={popoverRef}
+                        className="post-it-style-popover style-panel app-scrollbar"
+                        style={popoverStyle}
+                        onPointerDown={(event) => event.stopPropagation()}
+                    >
+                        <div className="style-field">
+                            <span>{t('card.styles')}</span>
+                            <div className="post-it-preset-grid">
+                                {CARD_STYLE_PRESETS.map((preset) => (
+                                    <button
+                                        key={preset.id}
+                                        type="button"
+                                        className="ctl-choice post-it-preset"
+                                        onClick={() =>
+                                            applyStyle({
+                                                color: preset.color,
+                                                textColor: preset.textColor,
+                                                textSize: preset.textSize,
+                                                fontFamily: preset.fontFamily,
+                                            })
+                                        }
+                                    >
+                                        <span
+                                            style={{
+                                                backgroundColor: preset.color,
+                                            }}
+                                        />
+                                        {t(
+                                            `preset.${preset.id}` as TranslationKey
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="style-field">
+                            <span>{t('card.section.color')}</span>
+                            <div className="color-swatch-row">
+                                {CARD_COLORS.map((color) => (
+                                    <button
+                                        key={color}
+                                        type="button"
+                                        className={`color-swatch ${postIt.color === color ? 'is-active' : ''}`}
+                                        style={{ backgroundColor: color }}
+                                        onClick={() => applyCardColor(color)}
+                                        title={swatchName(color)}
+                                        aria-label={t(
+                                            'card.color.swatchNamed',
+                                            {
+                                                name: swatchName(color),
+                                            }
+                                        )}
+                                        aria-pressed={postIt.color === color}
+                                    />
+                                ))}
+                                <label
+                                    className="color-swatch color-swatch-custom"
+                                    title={t('card.color.custom')}
+                                    style={{ backgroundColor: postIt.color }}
+                                >
+                                    <input
+                                        type="color"
+                                        value={postIt.color}
+                                        onChange={(event) =>
+                                            applyCardColor(event.target.value)
+                                        }
+                                        onBlur={(event) =>
+                                            setRecentColors(
+                                                rememberColor(
+                                                    event.target.value
+                                                )
+                                            )
+                                        }
+                                        aria-label={t('card.color.custom')}
+                                    />
+                                </label>
+                            </div>
+                            {recentColors.length > 0 && (
+                                <div
+                                    className="color-swatch-row recent-colors"
+                                    role="group"
+                                    aria-label={t('card.color.recent')}
+                                >
+                                    {recentColors.map((color) => (
+                                        <button
+                                            key={color}
+                                            type="button"
+                                            className={`color-swatch ${postIt.color.toLowerCase() === color ? 'is-active' : ''}`}
+                                            style={{ backgroundColor: color }}
+                                            onClick={() =>
+                                                applyCardColor(color)
+                                            }
+                                            title={`${t('card.color.recent')} ${color}`}
+                                            aria-label={`${t('card.color.recent')} ${color}`}
+                                            aria-pressed={
+                                                postIt.color.toLowerCase() ===
+                                                color
+                                            }
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="style-field">
+                            <span>{t('card.section.finish')}</span>
+                            <div className="card-finish-row">
+                                {CARD_FINISHES.map((option) => (
+                                    <button
+                                        key={option.id}
+                                        type="button"
+                                        className={`ctl-choice card-finish-chip finish-${option.id} ${(postIt.finish || 'flat') === option.id ? 'is-active' : ''}`}
+                                        aria-pressed={
+                                            (postIt.finish || 'flat') ===
+                                            option.id
+                                        }
+                                        // The chip previews the finish on the
+                                        // card's own colour.
+                                        style={{
+                                            backgroundColor: postIt.color,
+                                            color: readableInk(
+                                                postIt.color,
+                                                '#172033'
+                                            ),
+                                        }}
+                                        onClick={() =>
+                                            applyStyle({ finish: option.id })
+                                        }
+                                    >
+                                        {t(
+                                            `finish.${option.id}` as TranslationKey
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="style-field">
+                            <span>{t('card.section.text')}</span>
+                            <div className="post-it-menu-row post-it-ink-row">
+                                {TEXT_COLORS.map((color) => (
+                                    <button
+                                        key={color}
+                                        type="button"
+                                        className={`text-color-swatch ${textColor === color ? 'is-active' : ''}`}
+                                        style={{ backgroundColor: color }}
+                                        onClick={() =>
+                                            applyStyle({ textColor: color })
+                                        }
+                                        title={swatchName(color)}
+                                        aria-label={t('card.text.swatchNamed', {
+                                            name: swatchName(color),
+                                        })}
+                                        aria-pressed={textColor === color}
+                                    />
+                                ))}
+                                <label
+                                    className="text-color-swatch color-swatch-custom"
+                                    title={t('card.text.custom')}
+                                    style={{ backgroundColor: textColor }}
+                                >
+                                    <input
+                                        type="color"
+                                        value={textColor}
+                                        onChange={(event) =>
+                                            applyStyle({
+                                                textColor: event.target.value,
+                                            })
+                                        }
+                                        aria-label={t('card.text.custom')}
+                                    />
+                                </label>
+                            </div>
+
+                            <div className="text-tool-row">
                                 <button
-                                    key={preset.id}
                                     type="button"
-                                    className="ctl-choice post-it-preset"
+                                    className="ctl-btn text-size-button"
                                     onClick={() =>
                                         applyStyle({
-                                            color: preset.color,
-                                            textColor: preset.textColor,
-                                            textSize: preset.textSize,
-                                            fontFamily: preset.fontFamily,
+                                            textSize: clamp(
+                                                textSize - 1,
+                                                CARD_LIMITS.minTextSize,
+                                                CARD_LIMITS.maxTextSize
+                                            ),
                                         })
                                     }
                                 >
-                                    <span
-                                        style={{
-                                            backgroundColor: preset.color,
-                                        }}
-                                    />
-                                    {t(`preset.${preset.id}` as TranslationKey)}
+                                    A-
                                 </button>
-                            ))}
-                        </div>
-                    </div>
+                                <span>{textSize}px</span>
+                                <button
+                                    type="button"
+                                    className="ctl-btn text-size-button"
+                                    onClick={() =>
+                                        applyStyle({
+                                            textSize: clamp(
+                                                textSize + 1,
+                                                CARD_LIMITS.minTextSize,
+                                                CARD_LIMITS.maxTextSize
+                                            ),
+                                        })
+                                    }
+                                >
+                                    A+
+                                </button>
+                            </div>
 
-                    <div className="text-tool-row">
-                        <button
-                            type="button"
-                            className="ctl-btn text-size-button"
-                            onClick={() =>
-                                applyStyle({
-                                    textSize: clamp(
-                                        textSize - 1,
-                                        CARD_LIMITS.minTextSize,
-                                        CARD_LIMITS.maxTextSize
-                                    ),
-                                })
-                            }
-                        >
-                            A-
-                        </button>
-                        <span>{textSize}px</span>
-                        <button
-                            type="button"
-                            className="ctl-btn text-size-button"
-                            onClick={() =>
-                                applyStyle({
-                                    textSize: clamp(
-                                        textSize + 1,
-                                        CARD_LIMITS.minTextSize,
-                                        CARD_LIMITS.maxTextSize
-                                    ),
-                                })
-                            }
-                        >
-                            A+
-                        </button>
-                    </div>
-
-                    <div className="post-it-menu-row post-it-ink-row">
-                        {TEXT_COLORS.map((color) => (
-                            <button
-                                key={color}
-                                type="button"
-                                className={`text-color-swatch ${textColor === color ? 'is-active' : ''}`}
-                                style={{ backgroundColor: color }}
-                                onClick={() => applyStyle({ textColor: color })}
-                                title={swatchName(color)}
-                                aria-label={t('card.text.swatchNamed', {
-                                    name: swatchName(color),
-                                })}
-                                aria-pressed={textColor === color}
-                            />
-                        ))}
-                        <label
-                            className="text-color-swatch color-swatch-custom"
-                            title={t('card.text.custom')}
-                            style={{ backgroundColor: textColor }}
-                        >
-                            <input
-                                type="color"
-                                value={textColor}
+                            <select
+                                className="ctl-field post-it-tab-select"
+                                value={fontFamily}
                                 onChange={(event) =>
                                     applyStyle({
-                                        textColor: event.target.value,
+                                        fontFamily: event.target.value,
                                     })
                                 }
-                                aria-label={t('card.text.custom')}
-                            />
-                        </label>
-                    </div>
-
-                    <select
-                        className="ctl-field post-it-tab-select"
-                        value={fontFamily}
-                        onChange={(event) =>
-                            applyStyle({ fontFamily: event.target.value })
-                        }
-                        aria-label={t('card.font.aria')}
-                    >
-                        {FONT_FAMILIES.map((font) => (
-                            <option key={font} value={font}>
-                                {font}
-                            </option>
-                        ))}
-                    </select>
-
-                    {postIt.stackId && (
-                        <button
-                            type="button"
-                            className="ctl-btn post-it-menu-command"
-                            onClick={() => {
-                                setStylePanel(null);
-                                onUnstack(postIt._id);
-                            }}
-                        >
-                            <ArrowTopRightOnSquareIcon />
-                            <span>{t('card.unstack')}</span>
-                        </button>
-                    )}
-
-                    {tabs.length > 1 && (
-                        <select
-                            className="ctl-field post-it-tab-select"
-                            value=""
-                            onChange={(event) =>
-                                handleTabMove(event.target.value)
-                            }
-                            aria-label={t('card.moveToPage')}
-                        >
-                            <option value="" disabled>
-                                {t('card.moveToDots')}
-                            </option>
-                            {tabs
-                                .filter((tab) => tab._id !== activeTabId)
-                                .map((tab) => (
-                                    <option key={tab._id} value={tab._id}>
-                                        {tab.name}
+                                aria-label={t('card.font.aria')}
+                            >
+                                {FONT_FAMILIES.map((font) => (
+                                    <option key={font} value={font}>
+                                        {font}
                                     </option>
                                 ))}
-                        </select>
-                    )}
-                </div>
+                            </select>
+                        </div>
+
+                        <div className="style-field">
+                            <span>{t('card.section.rotation')}</span>
+                            <div className="rotation-row">
+                                <input
+                                    type="range"
+                                    className="rotation-slider"
+                                    min={-180}
+                                    max={180}
+                                    step={1}
+                                    value={Math.round(rotation)}
+                                    onChange={(event) =>
+                                        commitRotation(
+                                            snapRotation(
+                                                Number(event.target.value)
+                                            )
+                                        )
+                                    }
+                                    aria-label={t('card.rotation.aria')}
+                                    aria-valuetext={`${Math.round(rotation)}°`}
+                                />
+                                <output className="rotation-value">
+                                    {Math.round(rotation)}°
+                                </output>
+                                <button
+                                    type="button"
+                                    className="ctl-btn rotation-reset"
+                                    onClick={() => commitRotation(0)}
+                                    disabled={Math.round(rotation) === 0}
+                                    title={t('card.rotation.reset')}
+                                    aria-label={t('card.rotation.reset')}
+                                >
+                                    0°
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="style-field">
+                            <span>{t('card.section.copyStyle')}</span>
+                            <div className="style-copy-row">
+                                <button
+                                    type="button"
+                                    className="ctl-btn"
+                                    onClick={() =>
+                                        setCopiedStyle(copyCardStyle(postIt))
+                                    }
+                                >
+                                    {t('card.style.copy')}
+                                </button>
+                                <button
+                                    type="button"
+                                    className="ctl-btn"
+                                    disabled={!copiedStyle}
+                                    onClick={() =>
+                                        copiedStyle && applyStyle(copiedStyle)
+                                    }
+                                >
+                                    {t('card.style.paste')}
+                                </button>
+                            </div>
+                        </div>
+
+                        {(postIt.stackId || tabs.length > 1) && (
+                            <div className="style-field">
+                                <span>{t('card.section.organize')}</span>
+                                {postIt.stackId && (
+                                    <button
+                                        type="button"
+                                        className="ctl-btn post-it-menu-command"
+                                        onClick={() => {
+                                            setStylePanel(null);
+                                            onUnstack(postIt._id);
+                                        }}
+                                    >
+                                        <ArrowTopRightOnSquareIcon />
+                                        <span>{t('card.unstack')}</span>
+                                    </button>
+                                )}
+
+                                {tabs.length > 1 && (
+                                    <select
+                                        className="ctl-field post-it-tab-select"
+                                        value=""
+                                        onChange={(event) =>
+                                            handleTabMove(event.target.value)
+                                        }
+                                        aria-label={t('card.moveToPage')}
+                                    >
+                                        <option value="" disabled>
+                                            {t('card.moveToDots')}
+                                        </option>
+                                        {tabs
+                                            .filter(
+                                                (tab) => tab._id !== activeTabId
+                                            )
+                                            .map((tab) => (
+                                                <option
+                                                    key={tab._id}
+                                                    value={tab._id}
+                                                >
+                                                    {tab.name}
+                                                </option>
+                                            ))}
+                                    </select>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </PanelHost>
             )}
 
             {stylePanel === 'task' && (
-                <div
-                    className="post-it-style-popover task-popover app-scrollbar"
-                    ref={popoverRef}
-                    style={popoverStyle}
-                    onPointerDown={(event) => event.stopPropagation()}
+                <PanelHost
+                    sheetHost={sheetHost}
+                    sheetRef={sheetRef}
+                    anchorStyle={anchorStyle}
+                    title={t('card.tool.task')}
+                    closeLabel={t('card.panel.close')}
+                    onClose={closeStylePanel}
                 >
-                    <div className="task-field">
-                        <span>{t('card.section.status')}</span>
-                        <div className="task-choice-row">
-                            {CARD_STATUSES.map((option) => (
-                                <button
-                                    key={option.id}
-                                    type="button"
-                                    className={`ctl-choice task-choice ${status === option.id ? 'is-active' : ''}`}
-                                    aria-pressed={status === option.id}
-                                    style={
-                                        {
-                                            '--choice-color': option.color,
-                                        } as React.CSSProperties
-                                    }
-                                    onClick={() => toggleStatus(option.id)}
-                                >
-                                    {t(statusKey(option.id))}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="task-field">
-                        <span>{t('card.section.priority')}</span>
-                        <div className="task-choice-row">
-                            {CARD_PRIORITIES.map((option) => (
-                                <button
-                                    key={option.id}
-                                    type="button"
-                                    className={`ctl-choice task-choice ${priority === option.id ? 'is-active' : ''}`}
-                                    aria-pressed={priority === option.id}
-                                    style={
-                                        {
-                                            '--choice-color': option.color,
-                                        } as React.CSSProperties
-                                    }
-                                    onClick={() => togglePriority(option.id)}
-                                >
-                                    {t(priorityKey(option.id))}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="task-field">
-                        <span>{t('card.section.due')}</span>
-                        <input
-                            type="date"
-                            className="task-date-input"
-                            value={postIt.dueDate || ''}
-                            onChange={(event) =>
-                                handleDueDate(event.target.value)
-                            }
-                        />
-                    </div>
-
-                    <div className="task-field">
-                        <span>{t('card.section.tags')}</span>
-                        <div className="task-tag-editor">
-                            {tags.map((tag) => (
-                                <span key={tag} className="task-tag-chip">
-                                    {tag}
+                    <div
+                        className="post-it-style-popover task-popover app-scrollbar"
+                        ref={popoverRef}
+                        style={popoverStyle}
+                        onPointerDown={(event) => event.stopPropagation()}
+                    >
+                        <div className="task-field">
+                            <span>{t('card.section.status')}</span>
+                            <div className="task-choice-row">
+                                {CARD_STATUSES.map((option) => (
                                     <button
+                                        key={option.id}
                                         type="button"
-                                        onClick={() => handleRemoveTag(tag)}
-                                        aria-label={t('card.tags.remove', {
-                                            tag,
-                                        })}
+                                        className={`ctl-choice task-choice ${status === option.id ? 'is-active' : ''}`}
+                                        aria-pressed={status === option.id}
+                                        style={
+                                            {
+                                                '--choice-color': option.color,
+                                            } as React.CSSProperties
+                                        }
+                                        onClick={() => toggleStatus(option.id)}
                                     >
-                                        <XMarkIcon />
+                                        {t(statusKey(option.id))}
                                     </button>
-                                </span>
-                            ))}
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="task-field">
+                            <span>{t('card.section.priority')}</span>
+                            <div className="task-choice-row">
+                                {CARD_PRIORITIES.map((option) => (
+                                    <button
+                                        key={option.id}
+                                        type="button"
+                                        className={`ctl-choice task-choice ${priority === option.id ? 'is-active' : ''}`}
+                                        aria-pressed={priority === option.id}
+                                        style={
+                                            {
+                                                '--choice-color': option.color,
+                                            } as React.CSSProperties
+                                        }
+                                        onClick={() =>
+                                            togglePriority(option.id)
+                                        }
+                                    >
+                                        {t(priorityKey(option.id))}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="task-field">
+                            <span>{t('card.section.due')}</span>
                             <input
-                                className="task-tag-input"
-                                value={newTag}
-                                placeholder={t('card.tags.add')}
-                                maxLength={24}
+                                type="date"
+                                className="task-date-input"
+                                value={postIt.dueDate || ''}
                                 onChange={(event) =>
-                                    setNewTag(event.target.value)
+                                    handleDueDate(event.target.value)
                                 }
-                                onKeyDown={(event) => {
-                                    if (event.key === 'Enter') {
-                                        event.preventDefault();
-                                        handleAddTag();
-                                    }
-                                }}
-                                onBlur={handleAddTag}
                             />
                         </div>
-                    </div>
 
-                    <div className="task-field">
-                        <span>
-                            {t('card.section.checklist')}
-                            {progress.total > 0 &&
-                                ` · ${progress.done}/${progress.total}`}
-                        </span>
-                        <div className="task-checklist-editor">
-                            {checklist.map((item) => (
-                                <div
-                                    key={item.id}
-                                    className="task-checklist-row"
-                                >
-                                    <input
-                                        type="checkbox"
-                                        checked={item.done}
-                                        onChange={() =>
-                                            handleChecklistToggle(item.id)
-                                        }
-                                    />
-                                    <input
-                                        className="task-checklist-text"
-                                        value={item.text}
-                                        maxLength={200}
-                                        onChange={(event) =>
-                                            handleChecklistText(
-                                                item.id,
-                                                event.target.value
-                                            )
-                                        }
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            handleChecklistRemove(item.id)
-                                        }
-                                        aria-label={t(
-                                            'card.checklist.removeLine'
-                                        )}
-                                    >
-                                        <XMarkIcon />
-                                    </button>
-                                </div>
-                            ))}
-                            <div className="task-checklist-add">
+                        <div className="task-field">
+                            <span>{t('card.section.tags')}</span>
+                            <div className="task-tag-editor">
+                                {tags.map((tag) => (
+                                    <span key={tag} className="task-tag-chip">
+                                        {tag}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRemoveTag(tag)}
+                                            aria-label={t('card.tags.remove', {
+                                                tag,
+                                            })}
+                                        >
+                                            <XMarkIcon />
+                                        </button>
+                                    </span>
+                                ))}
                                 <input
-                                    value={newChecklistText}
-                                    placeholder={t('card.checklist.newItem')}
-                                    maxLength={200}
+                                    className="task-tag-input"
+                                    value={newTag}
+                                    placeholder={t('card.tags.add')}
+                                    maxLength={24}
                                     onChange={(event) =>
-                                        setNewChecklistText(event.target.value)
+                                        setNewTag(event.target.value)
                                     }
                                     onKeyDown={(event) => {
                                         if (event.key === 'Enter') {
                                             event.preventDefault();
-                                            handleChecklistAdd();
+                                            handleAddTag();
                                         }
                                     }}
+                                    onBlur={handleAddTag}
                                 />
-                                <button
-                                    type="button"
-                                    onClick={handleChecklistAdd}
-                                    aria-label={t('card.checklist.addItem')}
-                                >
-                                    <PlusIcon />
-                                </button>
+                            </div>
+                        </div>
+
+                        <div className="task-field">
+                            <span>
+                                {t('card.section.checklist')}
+                                {progress.total > 0 &&
+                                    ` · ${progress.done}/${progress.total}`}
+                            </span>
+                            <div className="task-checklist-editor">
+                                {checklist.map((item) => (
+                                    <div
+                                        key={item.id}
+                                        className="task-checklist-row"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={item.done}
+                                            onChange={() =>
+                                                handleChecklistToggle(item.id)
+                                            }
+                                        />
+                                        <input
+                                            className="task-checklist-text"
+                                            value={item.text}
+                                            maxLength={200}
+                                            onChange={(event) =>
+                                                handleChecklistText(
+                                                    item.id,
+                                                    event.target.value
+                                                )
+                                            }
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                handleChecklistRemove(item.id)
+                                            }
+                                            aria-label={t(
+                                                'card.checklist.removeLine'
+                                            )}
+                                        >
+                                            <XMarkIcon />
+                                        </button>
+                                    </div>
+                                ))}
+                                <div className="task-checklist-add">
+                                    <input
+                                        value={newChecklistText}
+                                        placeholder={t(
+                                            'card.checklist.newItem'
+                                        )}
+                                        maxLength={200}
+                                        onChange={(event) =>
+                                            setNewChecklistText(
+                                                event.target.value
+                                            )
+                                        }
+                                        onKeyDown={(event) => {
+                                            if (event.key === 'Enter') {
+                                                event.preventDefault();
+                                                handleChecklistAdd();
+                                            }
+                                        }}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={handleChecklistAdd}
+                                        aria-label={t('card.checklist.addItem')}
+                                    >
+                                        <PlusIcon />
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
+                </PanelHost>
             )}
 
             <div className="post-it-header-row">

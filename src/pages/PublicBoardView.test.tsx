@@ -67,3 +67,51 @@ describe('PublicBoardView loading failures', () => {
         ).toBeTruthy();
     });
 });
+
+describe('PublicBoardView card fidelity', () => {
+    it('keeps the finish, rotation and font the owner chose', async () => {
+        mockedFetchPublicBoard.mockReset();
+        mockedFetchPublicBoard.mockResolvedValue({
+            tab: { _id: 't', name: 'Shared' },
+            postIts: [
+                {
+                    _id: 'c1',
+                    x: 0,
+                    y: 0,
+                    width: 200,
+                    height: 100,
+                    title: 'Styled',
+                    content: '',
+                    color: '#fde68a',
+                    finish: 'glass',
+                    rotation: 12,
+                    fontFamily: 'Georgia',
+                },
+                {
+                    _id: 'c2',
+                    x: 300,
+                    y: 0,
+                    width: 200,
+                    height: 100,
+                    title: 'Plain',
+                    content: '',
+                    color: '#fde68a',
+                },
+            ],
+            stacks: [],
+            connections: [],
+        } as never);
+
+        const { container } = renderView();
+        await screen.findByText('Styled');
+
+        const [styled, plain] = Array.from(
+            container.querySelectorAll<HTMLElement>('.public-card')
+        );
+        expect(styled.classList.contains('finish-glass')).toBe(true);
+        expect(styled.style.transform).toBe('rotate(12deg)');
+        expect(styled.style.fontFamily).toContain('Georgia');
+        expect(plain.classList.contains('finish-flat')).toBe(true);
+        expect(plain.style.transform).toBe('');
+    });
+});

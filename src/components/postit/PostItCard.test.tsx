@@ -180,7 +180,7 @@ describe('PostItCard rendering', () => {
         // Only the edit button is offered; the style tools stay hidden.
         expect(screen.getByLabelText('Edit card')).toBeInTheDocument();
         expect(screen.queryByLabelText('Duplicate')).toBeNull();
-        expect(container.querySelector('.card-color-trigger')).toBeNull();
+        expect(container.querySelector('.card-style-trigger')).toBeNull();
     });
 
     it('enters edit mode from the edit button, then finishes with the done button', () => {
@@ -197,7 +197,7 @@ describe('PostItCard rendering', () => {
             container.querySelector('textarea.post-it-content')
         ).toBeInTheDocument();
         expect(container.querySelector('.post-it-content-view')).toBeNull();
-        expect(container.querySelector('.card-color-trigger')).toBeTruthy();
+        expect(container.querySelector('.card-style-trigger')).toBeTruthy();
         expect(screen.queryByLabelText('Edit card')).toBeNull();
 
         fireEvent.click(screen.getByLabelText('Finish editing'));
@@ -589,11 +589,11 @@ describe('PostItCard stack chrome', () => {
             textColor: '#172033',
         });
         fireEvent.click(screen.getByLabelText('Edit card'));
-        fireEvent.click(container.querySelector('.card-color-trigger')!);
+        fireEvent.click(container.querySelector('.card-style-trigger')!);
 
         fireEvent.change(
             container.querySelector<HTMLInputElement>(
-                '.color-popover input[type="color"]'
+                '.style-panel .color-swatch-row input[type="color"]'
             )!,
             { target: { value: '#1e3a8a' } }
         );
@@ -610,11 +610,11 @@ describe('PostItCard stack chrome', () => {
             textColor: '#7f1d1d',
         });
         fireEvent.click(screen.getByLabelText('Edit card'));
-        fireEvent.click(container.querySelector('.card-color-trigger')!);
+        fireEvent.click(container.querySelector('.card-style-trigger')!);
 
         fireEvent.change(
             container.querySelector<HTMLInputElement>(
-                '.color-popover input[type="color"]'
+                '.style-panel .color-swatch-row input[type="color"]'
             )!,
             { target: { value: '#bbf7d0' } }
         );
@@ -627,17 +627,93 @@ describe('PostItCard stack chrome', () => {
     it('offers a free text colour picker', () => {
         const { container, onLocalChange } = renderCard();
         fireEvent.click(screen.getByLabelText('Edit card'));
-        fireEvent.click(container.querySelector('.card-text-trigger')!);
+        fireEvent.click(container.querySelector('.card-style-trigger')!);
 
         fireEvent.change(
             container.querySelector<HTMLInputElement>(
-                '.text-popover input[type="color"]'
+                '.style-panel .post-it-ink-row input[type="color"]'
             )!,
             { target: { value: '#ff00aa' } }
         );
 
         expect(onLocalChange).toHaveBeenLastCalledWith('card-1', {
             textColor: '#ff00aa',
+        });
+    });
+
+    describe('style memory', () => {
+        beforeEach(() => window.localStorage.clear());
+
+        function openStylePanel() {
+            const view = renderCard();
+            fireEvent.click(screen.getByLabelText('Edit card'));
+            fireEvent.click(
+                view.container.querySelector('.card-style-trigger')!
+            );
+            return view;
+        }
+
+        it('records the colour left in the picker and offers it again', () => {
+            const { container } = openStylePanel();
+            expect(container.querySelector('.recent-colors')).toBeNull();
+
+            // In the board the picked colour is the card's colour by blur time.
+            fireEvent.blur(
+                container.querySelector<HTMLInputElement>(
+                    '.style-panel .color-swatch-row input[type="color"]'
+                )!
+            );
+
+            expect(
+                container.querySelectorAll('.recent-colors .color-swatch')
+            ).toHaveLength(1);
+            expect(
+                window.localStorage.getItem('magnotes.recentCardColors')
+            ).toBe(JSON.stringify(['#fef08a']));
+        });
+
+        it('re-applies a remembered colour with a readable ink', () => {
+            window.localStorage.setItem(
+                'magnotes.recentCardColors',
+                JSON.stringify(['#101820'])
+            );
+            const { container, onLocalChange } = openStylePanel();
+
+            fireEvent.click(
+                container.querySelector('.recent-colors .color-swatch')!
+            );
+
+            expect(onLocalChange).toHaveBeenLastCalledWith(
+                'card-1',
+                expect.objectContaining({
+                    color: '#101820',
+                    textColor: '#f8fafc',
+                })
+            );
+        });
+
+        it('copies the look of a card and pastes it without the content', () => {
+            const { container, onLocalChange } = openStylePanel();
+            const buttons = () =>
+                Array.from(
+                    container.querySelectorAll<HTMLButtonElement>(
+                        '.style-copy-row button'
+                    )
+                );
+            expect(buttons()[1].disabled).toBe(true);
+
+            fireEvent.click(buttons()[0]);
+            expect(buttons()[1].disabled).toBe(false);
+
+            onLocalChange.mockClear();
+            fireEvent.click(buttons()[1]);
+            const applied = onLocalChange.mock.calls[0][1];
+            expect(Object.keys(applied)).toEqual(
+                expect.arrayContaining(['color', 'finish'])
+            );
+            expect(applied).not.toHaveProperty('title');
+            expect(applied).not.toHaveProperty('rotation');
+            expect(applied).not.toHaveProperty('x');
         });
     });
 });
