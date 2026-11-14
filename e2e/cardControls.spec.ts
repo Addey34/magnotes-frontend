@@ -16,8 +16,7 @@ test('style panels expose their state, names and usable targets', async ({
     await startEditingCard(card);
 
     const panels: [string, string][] = [
-        ['.card-color-trigger', '.color-popover'],
-        ['.card-text-trigger', '.text-popover'],
+        ['.card-style-trigger', '.style-panel'],
         ['button[aria-label^="Task"]', '.task-popover'],
         ['button[aria-label^="Image"]', '.media-popover'],
     ];
@@ -27,9 +26,12 @@ test('style panels expose their state, names and usable targets', async ({
         await expect(pop).toBeVisible();
 
         const report = await pop.evaluate((node) => {
-            const canvas = node
-                .closest('.board-canvas')!
-                .getBoundingClientRect();
+            // Beside the card on a wide screen (inside the canvas), bottom
+            // sheet on a phone (inside the window).
+            const host = node.closest('.board-canvas');
+            const canvas = host
+                ? host.getBoundingClientRect()
+                : new DOMRect(0, 0, innerWidth, innerHeight);
             const box = node.getBoundingClientRect();
             const small = [
                 ...node.querySelectorAll(
@@ -55,7 +57,7 @@ test('style panels expose their state, names and usable targets', async ({
         await card.locator(trigger).dispatchEvent('click');
     }
 
-    await card.locator('.card-color-trigger').dispatchEvent('click');
+    await card.locator('.card-style-trigger').dispatchEvent('click');
     const yellow = page.getByRole('button', { name: 'Color Yellow' });
     await expect(yellow).toHaveAttribute('aria-pressed', 'true');
     const matte = page.locator('.card-finish-chip.finish-matte');
