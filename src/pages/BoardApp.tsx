@@ -104,6 +104,7 @@ import { useT } from '../i18n/LangContext';
 import { LanguageSwitch } from '../i18n/LanguageSwitch';
 import { useNotifications } from '../hooks/useNotifications';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { readCopiedStyle } from '../utils/cardStyleMemory';
 import {
     LayoutOptions,
     buildStackViews,
@@ -1063,6 +1064,27 @@ const BoardApp: React.FC<BoardAppProps> = ({
     // same stack geometry the board is rendered with.
     const handleDuplicateCard = (postItId: string) =>
         clonePostIt(postItId, stacks, layoutOptions);
+
+    // The selection bar enables "paste style" as soon as a look is copied from
+    // any card panel.
+    const [, setStyleMemoryTick] = useState(0);
+    useEffect(() => {
+        const bump = () => setStyleMemoryTick((n) => n + 1);
+        window.addEventListener('magnotes:card-style-changed', bump);
+        return () =>
+            window.removeEventListener('magnotes:card-style-changed', bump);
+    }, []);
+
+    // Paste the copied look onto every selected card (content, size, position
+    // and rotation stay as they are).
+    const pasteStyleOnSelection = () => {
+        const style = readCopiedStyle();
+        if (!style) return;
+        selectedCardIds.forEach((id) => {
+            handleCardLocalChange(id, style);
+            scheduleSave(id, style);
+        });
+    };
 
     const duplicateSelectedCards = () => {
         selectedCardIds.forEach((id) => handleDuplicateCard(id));
@@ -2451,6 +2473,19 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                             <DocumentDuplicateIcon />
                                             <span>
                                                 {t('app.selection.duplicate')}
+                                            </span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={pasteStyleOnSelection}
+                                            disabled={!readCopiedStyle()}
+                                            title={t(
+                                                'app.selection.pasteStyle'
+                                            )}
+                                        >
+                                            <SwatchIcon />
+                                            <span>
+                                                {t('app.selection.pasteStyle')}
                                             </span>
                                         </button>
                                         <button

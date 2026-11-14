@@ -72,6 +72,13 @@ import {
 import { formatDueDate, isOverdue } from '../../utils/cardMeta';
 import { readableInk } from '../../utils/contrast';
 import { snapRotation } from '../../utils/rotation';
+import {
+    CardStyle,
+    copyCardStyle,
+    readCopiedStyle,
+    readRecentColors,
+    rememberColor,
+} from '../../utils/cardStyleMemory';
 import { TranslationKey } from '../../i18n/dictionary';
 import { useT } from '../../i18n/LangContext';
 import { priorityKey, statusKey } from '../../i18n/labels';
@@ -270,6 +277,15 @@ const PostItCard: React.FC<PostItCardProps> = ({
     const [isDragging, setIsDragging] = useState(false);
     const [isHovered, setIsHovered] = useState(false);
     const [stylePanel, setStylePanel] = useState<StylePanel>(null);
+    // Per-browser memory: colours picked freely, and one copied card look.
+    const [recentColors, setRecentColors] =
+        useState<string[]>(readRecentColors);
+    const [copiedStyle, setCopiedStyle] = useState<CardStyle | null>(
+        readCopiedStyle
+    );
+    useEffect(() => {
+        if (stylePanel === 'style') setCopiedStyle(readCopiedStyle());
+    }, [stylePanel]);
 
     const scheduleCardSave = (updates: PostItUpdate): void => {
         onAutosave(postIt._id, {
@@ -1386,10 +1402,42 @@ const PostItCard: React.FC<PostItCardProps> = ({
                                         onChange={(event) =>
                                             applyCardColor(event.target.value)
                                         }
+                                        onBlur={(event) =>
+                                            setRecentColors(
+                                                rememberColor(
+                                                    event.target.value
+                                                )
+                                            )
+                                        }
                                         aria-label={t('card.color.custom')}
                                     />
                                 </label>
                             </div>
+                            {recentColors.length > 0 && (
+                                <div
+                                    className="color-swatch-row recent-colors"
+                                    role="group"
+                                    aria-label={t('card.color.recent')}
+                                >
+                                    {recentColors.map((color) => (
+                                        <button
+                                            key={color}
+                                            type="button"
+                                            className={`color-swatch ${postIt.color.toLowerCase() === color ? 'is-active' : ''}`}
+                                            style={{ backgroundColor: color }}
+                                            onClick={() =>
+                                                applyCardColor(color)
+                                            }
+                                            title={`${t('card.color.recent')} ${color}`}
+                                            aria-label={`${t('card.color.recent')} ${color}`}
+                                            aria-pressed={
+                                                postIt.color.toLowerCase() ===
+                                                color
+                                            }
+                                        />
+                                    ))}
+                                </div>
+                            )}
                         </div>
 
                         <div className="style-field">
@@ -1546,6 +1594,31 @@ const PostItCard: React.FC<PostItCardProps> = ({
                                     aria-label={t('card.rotation.reset')}
                                 >
                                     0°
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="style-field">
+                            <span>{t('card.section.copyStyle')}</span>
+                            <div className="style-copy-row">
+                                <button
+                                    type="button"
+                                    className="ctl-btn"
+                                    onClick={() =>
+                                        setCopiedStyle(copyCardStyle(postIt))
+                                    }
+                                >
+                                    {t('card.style.copy')}
+                                </button>
+                                <button
+                                    type="button"
+                                    className="ctl-btn"
+                                    disabled={!copiedStyle}
+                                    onClick={() =>
+                                        copiedStyle && applyStyle(copiedStyle)
+                                    }
+                                >
+                                    {t('card.style.paste')}
                                 </button>
                             </div>
                         </div>
