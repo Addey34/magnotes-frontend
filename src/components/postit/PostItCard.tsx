@@ -1312,6 +1312,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                             type="button"
                             className="icon-button"
                             onClick={() => setDetailOpen(true)}
+                            data-testid="card-expand"
                             title={t('card.tool.expand')}
                             aria-label={t('card.tool.expand')}
                         >
