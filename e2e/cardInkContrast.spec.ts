@@ -9,10 +9,11 @@ test('a dark card colour flips the ink to a readable one', async ({ page }) => {
     const card = page.locator('.post-it-card').first();
     await expect(card).toBeVisible();
     await startEditingCard(card);
-    await card.locator('.card-color-trigger').dispatchEvent('click');
-    await page.locator('.color-popover').evaluate((node) => {
-        const input =
-            node.querySelector<HTMLInputElement>('input[type=color]')!;
+    await card.locator('.card-style-trigger').dispatchEvent('click');
+    await page.locator('.style-panel').evaluate((node) => {
+        const input = node.querySelector<HTMLInputElement>(
+            '.color-swatch-row input[type=color]'
+        )!;
         const set = Object.getOwnPropertyDescriptor(
             HTMLInputElement.prototype,
             'value'
@@ -34,8 +35,8 @@ test('the text popover fits its colour row', async ({ page }) => {
     await page.goto('/app/?demo=1&lang=en');
     const card = page.locator('.post-it-card').first();
     await startEditingCard(card);
-    await card.locator('.card-text-trigger').dispatchEvent('click');
-    const fits = await page.locator('.text-popover').evaluate((pop) => {
+    await card.locator('.card-style-trigger').dispatchEvent('click');
+    const fits = await page.locator('.style-panel').evaluate((pop) => {
         const box = pop.getBoundingClientRect();
         return [...pop.querySelectorAll('.text-color-swatch')].every((s) => {
             const r = s.getBoundingClientRect();
@@ -44,7 +45,7 @@ test('the text popover fits its colour row', async ({ page }) => {
     });
     expect(fits).toBe(true);
     // The popover itself must stay fully visible, not clipped by the canvas.
-    const clipped = await page.locator('.text-popover').evaluate((pop) => {
+    const clipped = await page.locator('.style-panel').evaluate((pop) => {
         const box = pop.getBoundingClientRect();
         const hit = document.elementFromPoint(box.left + 6, box.top + 40);
         return !hit || !pop.contains(hit);

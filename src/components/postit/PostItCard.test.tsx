@@ -180,7 +180,7 @@ describe('PostItCard rendering', () => {
         // Only the edit button is offered; the style tools stay hidden.
         expect(screen.getByLabelText('Edit card')).toBeInTheDocument();
         expect(screen.queryByLabelText('Duplicate')).toBeNull();
-        expect(container.querySelector('.card-color-trigger')).toBeNull();
+        expect(container.querySelector('.card-style-trigger')).toBeNull();
     });
 
     it('enters edit mode from the edit button, then finishes with the done button', () => {
@@ -197,7 +197,7 @@ describe('PostItCard rendering', () => {
             container.querySelector('textarea.post-it-content')
         ).toBeInTheDocument();
         expect(container.querySelector('.post-it-content-view')).toBeNull();
-        expect(container.querySelector('.card-color-trigger')).toBeTruthy();
+        expect(container.querySelector('.card-style-trigger')).toBeTruthy();
         expect(screen.queryByLabelText('Edit card')).toBeNull();
 
         fireEvent.click(screen.getByLabelText('Finish editing'));
@@ -589,11 +589,11 @@ describe('PostItCard stack chrome', () => {
             textColor: '#172033',
         });
         fireEvent.click(screen.getByLabelText('Edit card'));
-        fireEvent.click(container.querySelector('.card-color-trigger')!);
+        fireEvent.click(container.querySelector('.card-style-trigger')!);
 
         fireEvent.change(
             container.querySelector<HTMLInputElement>(
-                '.color-popover input[type="color"]'
+                '.style-panel .color-swatch-row input[type="color"]'
             )!,
             { target: { value: '#1e3a8a' } }
         );
@@ -610,11 +610,11 @@ describe('PostItCard stack chrome', () => {
             textColor: '#7f1d1d',
         });
         fireEvent.click(screen.getByLabelText('Edit card'));
-        fireEvent.click(container.querySelector('.card-color-trigger')!);
+        fireEvent.click(container.querySelector('.card-style-trigger')!);
 
         fireEvent.change(
             container.querySelector<HTMLInputElement>(
-                '.color-popover input[type="color"]'
+                '.style-panel .color-swatch-row input[type="color"]'
             )!,
             { target: { value: '#bbf7d0' } }
         );
@@ -627,11 +627,11 @@ describe('PostItCard stack chrome', () => {
     it('offers a free text colour picker', () => {
         const { container, onLocalChange } = renderCard();
         fireEvent.click(screen.getByLabelText('Edit card'));
-        fireEvent.click(container.querySelector('.card-text-trigger')!);
+        fireEvent.click(container.querySelector('.card-style-trigger')!);
 
         fireEvent.change(
             container.querySelector<HTMLInputElement>(
-                '.text-popover input[type="color"]'
+                '.style-panel .post-it-ink-row input[type="color"]'
             )!,
             { target: { value: '#ff00aa' } }
         );
