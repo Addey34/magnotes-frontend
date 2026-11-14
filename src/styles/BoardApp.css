@@ -3979,6 +3979,15 @@
         opacity: 1;
         pointer-events: auto;
     }
+
+    /* The rotate handle follows the same rule: a tap that selects a card must
+       be enough to reach it (WebKit keeps no sticky :hover after a tap). Fan
+       tabs still hide it with display: none (.is-fan-tab above). */
+    .post-it-card.is-selected > .post-it-action-handle,
+    .post-it-card.is-editing > .post-it-action-handle {
+        opacity: 1;
+        pointer-events: auto;
+    }
 }
 
 /* On narrow screens a toolbar placed above the card can slip underneath the

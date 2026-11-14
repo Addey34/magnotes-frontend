@@ -54,6 +54,7 @@ export default defineConfig({
                 'cardControls.spec.ts',
                 'cardStylePanel.spec.ts',
                 'cardFinishContrast.spec.ts',
+                'cardRotateHandle.spec.ts',
             ],
             use: { ...devices['Pixel 7'] },
         },
@@ -72,6 +73,7 @@ export default defineConfig({
                 'cardControls.spec.ts',
                 'cardStylePanel.spec.ts',
                 'cardFinishContrast.spec.ts',
+                'cardRotateHandle.spec.ts',
             ],
             grepInvert:
                 /sidebar expands on hover without covering the workspace/,

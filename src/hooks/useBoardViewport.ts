@@ -145,6 +145,12 @@ export function useBoardViewport() {
         setOffset({ x: 0, y: 0 });
     }, []);
 
+    // The view as it is right now. Unlike the `offset` and `zoom` state, which
+    // only catch up after a render, this is updated by every viewport change
+    // the moment it happens, so a caller can tell whether the view is still
+    // the one it last wrote.
+    const getViewport = useCallback(() => viewportRef.current, []);
+
     const setViewport = useCallback(
         (next: { zoom: number; offset: BoardPoint }) => {
             viewportRef.current = { ...next, zoom: clampZoomValue(next.zoom) };
@@ -403,5 +409,6 @@ export function useBoardViewport() {
         focusBounds,
         openBounds,
         setViewport,
+        getViewport,
     };
 }

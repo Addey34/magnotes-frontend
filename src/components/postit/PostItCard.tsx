@@ -71,7 +71,11 @@ import {
 } from '../../utils/mentionCompletion';
 import { formatDueDate, isOverdue } from '../../utils/cardMeta';
 import { readableInk } from '../../utils/contrast';
-import { snapRotation } from '../../utils/rotation';
+import {
+    normalizeRotation,
+    snapRotation,
+    stepRotation,
+} from '../../utils/rotation';
 import {
     CardStyle,
     copyCardStyle,
@@ -256,6 +260,12 @@ const PostItCard: React.FC<PostItCardProps> = ({
         t(`swatch.${hex.slice(1)}` as TranslationKey);
     const cardRef = useRef<HTMLElement | null>(null);
     const suppressRotateClickRef = useRef(false);
+    // The rotate gesture in progress, if any. A ref so that a card that goes
+    // away mid-gesture (view change, deletion) can cancel it: the angle shown
+    // while turning lives in the board state, and nothing else would give it
+    // back.
+    const rotateGestureRef = useRef<{ cancel: () => void } | null>(null);
+    useEffect(() => () => rotateGestureRef.current?.cancel(), []);
     // Only one style panel is mounted at a time, so one ref serves them all.
     const popoverRef = useRef<HTMLDivElement | null>(null);
     const cardId = postIt._id;
@@ -645,78 +655,136 @@ const PostItCard: React.FC<PostItCardProps> = ({
     ): void => {
         event.preventDefault();
         event.stopPropagation();
+        // One gesture at a time: a second finger or button is ignored, and
+        // must not disturb the click suppression of the one in progress.
+        if (rotateGestureRef.current) return;
         onFocus(postIt._id);
         suppressRotateClickRef.current = false;
 
         const card = cardRef.current;
         if (!card) return;
 
+        const handle = event.currentTarget;
+        const pointerId = event.pointerId;
         const rect = card.getBoundingClientRect();
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
-        const startAngle =
-            (Math.atan2(event.clientY - centerY, event.clientX - centerX) *
-                180) /
-            Math.PI;
+        const angleOf = (clientX: number, clientY: number): number =>
+            (Math.atan2(clientY - centerY, clientX - centerX) * 180) / Math.PI;
+        const startAngle = angleOf(event.clientX, event.clientY);
         const initialRotation = rotation;
         let didRotate = false;
 
-        const getRotateUpdates = (
-            clientX: number,
-            clientY: number
-        ): PostItUpdate => {
-            const pointerAngle =
-                (Math.atan2(clientY - centerY, clientX - centerX) * 180) /
-                Math.PI;
-            const delta = normalizeRotation(pointerAngle - startAngle);
-            return {
-                rotation: normalizeRotation(initialRotation + delta),
-            };
-        };
+        // How far the pointer has turned around the card, before any snapping
+        // (the click/drag threshold must not depend on the magnet).
+        const turnedBy = (clientX: number, clientY: number): number =>
+            normalizeRotation(angleOf(clientX, clientY) - startAngle);
+        // The card angle for a pointer position: relative to where the gesture
+        // began, then pulled onto a right angle when close to one. Wrapping
+        // goes through normalizeRotation, so 178° -> 180° -> -180° is the same
+        // orientation and the card never visibly jumps at the seam.
+        const rotationAt = (clientX: number, clientY: number): number =>
+            normalizeRotation(
+                snapRotation(
+                    normalizeRotation(
+                        initialRotation + turnedBy(clientX, clientY)
+                    )
+                )
+            );
+
+        // Holding the pointer keeps the move/up events coming even when it
+        // leaves the card or the window. Synthetic pointers and old engines
+        // refuse; the window listeners below still carry the gesture.
+        try {
+            if (typeof handle.setPointerCapture === 'function') {
+                handle.setPointerCapture(pointerId);
+            }
+        } catch {
+            /* fall back to the window listeners */
+        }
 
         const handlePointerMove = (moveEvent: PointerEvent): void => {
-            const updates = getRotateUpdates(
-                moveEvent.clientX,
-                moveEvent.clientY
-            );
-            const nextRotation = updates.rotation ?? initialRotation;
-            const delta = Math.abs(
-                normalizeRotation(nextRotation - initialRotation)
-            );
-            if (!didRotate && delta < ROTATE_THRESHOLD) return;
-
+            if (moveEvent.pointerId !== pointerId) return;
+            if (
+                !didRotate &&
+                Math.abs(turnedBy(moveEvent.clientX, moveEvent.clientY)) <
+                    ROTATE_THRESHOLD
+            ) {
+                return;
+            }
             didRotate = true;
             suppressRotateClickRef.current = true;
             moveEvent.preventDefault();
-            onLocalChange(postIt._id, updates);
+            onLocalChange(postIt._id, {
+                rotation: rotationAt(moveEvent.clientX, moveEvent.clientY),
+            });
+        };
+        const handlePointerUp = (upEvent: PointerEvent): void => {
+            if (upEvent.pointerId !== pointerId) return;
+            finish('commit', upEvent.clientX, upEvent.clientY);
+        };
+        const handlePointerCancel = (cancelEvent: PointerEvent): void => {
+            if (cancelEvent.pointerId !== pointerId) return;
+            finish('cancel');
+        };
+        // Capture lost before the gesture ended (element removed, another
+        // capture taken): nothing more will arrive, so give the angle back.
+        const handleLostCapture = (lostEvent: PointerEvent): void => {
+            if (lostEvent.pointerId !== pointerId) return;
+            finish('cancel');
         };
 
         const cleanup = (): void => {
             window.removeEventListener('pointermove', handlePointerMove);
             window.removeEventListener('pointerup', handlePointerUp);
             window.removeEventListener('pointercancel', handlePointerCancel);
+            handle.removeEventListener('lostpointercapture', handleLostCapture);
         };
 
-        const handlePointerUp = (upEvent: PointerEvent): void => {
+        const finish = (
+            mode: 'commit' | 'cancel',
+            clientX = 0,
+            clientY = 0
+        ): void => {
+            // Every listener goes first, so nothing can finish the gesture twice
+            // (not even the capture release that follows this one).
             cleanup();
-            if (!didRotate) return;
+            rotateGestureRef.current = null;
+            try {
+                if (handle.hasPointerCapture?.(pointerId)) {
+                    handle.releasePointerCapture(pointerId);
+                }
+            } catch {
+                /* already released */
+            }
 
-            const updates = getRotateUpdates(upEvent.clientX, upEvent.clientY);
+            if (mode === 'cancel') {
+                if (didRotate) {
+                    onLocalChange(postIt._id, { rotation: initialRotation });
+                }
+                suppressRotateClickRef.current = false;
+                return;
+            }
+            if (!didRotate) {
+                // A press without a turn is a tap: step to the next notch
+                // here, because WebKit sends no click after a pointerdown
+                // that was cancelled, and drop the click other browsers send.
+                suppressRotateClickRef.current = true;
+                commitRotation(stepRotation(initialRotation, 1));
+                return;
+            }
+            const updates: PostItUpdate = {
+                rotation: rotationAt(clientX, clientY),
+            };
             onLocalChange(postIt._id, updates);
             scheduleCardSave(updates);
         };
 
-        const handlePointerCancel = (): void => {
-            cleanup();
-            if (didRotate) {
-                onLocalChange(postIt._id, { rotation: initialRotation });
-            }
-            suppressRotateClickRef.current = false;
-        };
-
+        rotateGestureRef.current = { cancel: () => finish('cancel') };
         window.addEventListener('pointermove', handlePointerMove);
         window.addEventListener('pointerup', handlePointerUp);
         window.addEventListener('pointercancel', handlePointerCancel);
+        handle.addEventListener('lostpointercapture', handleLostCapture);
     };
 
     const handleResizeStart = (
@@ -1028,6 +1096,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
     return (
         <article
             ref={cardRef}
+            data-post-it-id={postIt._id}
             className={`post-it-card finish-${postIt.finish || 'flat'} ${isDragging ? 'is-dragging' : ''} ${snapPreview ? 'is-snap-preview' : ''} ${isEditing ? 'is-editing' : ''} ${isHovered ? 'is-hovered' : ''} ${stylePanel ? 'has-open-style-panel' : ''} ${intentClass} ${isLinkSource ? 'is-link-source' : ''} ${isLinkTargetCandidate ? 'is-link-target' : ''} ${selected ? 'is-selected' : ''} ${isDropTarget ? 'is-drop-target' : ''} ${stackClass}`}
             style={
                 {
@@ -1101,7 +1170,8 @@ const PostItCard: React.FC<PostItCardProps> = ({
 
             {/* Rotate handle only. Moving a card is done by dragging its
                 surface (handlePointerDown); this button rotates it: click
-                steps +15°, drag sets a free angle, arrow keys step ±15°. */}
+                steps to the next 15° notch, drag sets a free angle that snaps
+                to right angles, arrow keys step to the previous/next notch. */}
             <button
                 type="button"
                 className="post-it-action-handle post-it-rotate-handle"
@@ -1113,12 +1183,15 @@ const PostItCard: React.FC<PostItCardProps> = ({
                     color: postIt.textColor,
                 }}
                 onPointerDown={handleRotateStart}
-                onClick={() => {
-                    if (suppressRotateClickRef.current) {
+                onClick={(event) => {
+                    // detail 0 is a keyboard activation: never a duplicate of
+                    // a pointer gesture, whatever the flag still says.
+                    if (suppressRotateClickRef.current && event.detail !== 0) {
                         suppressRotateClickRef.current = false;
                         return;
                     }
-                    commitRotation(rotation + 15);
+                    suppressRotateClickRef.current = false;
+                    commitRotation(stepRotation(rotation, 1));
                 }}
                 onKeyDown={(event) => {
                     if (
@@ -1126,13 +1199,13 @@ const PostItCard: React.FC<PostItCardProps> = ({
                         event.key === 'ArrowDown'
                     ) {
                         event.preventDefault();
-                        commitRotation(rotation - 15);
+                        commitRotation(stepRotation(rotation, -1));
                     } else if (
                         event.key === 'ArrowRight' ||
                         event.key === 'ArrowUp'
                     ) {
                         event.preventDefault();
-                        commitRotation(rotation + 15);
+                        commitRotation(stepRotation(rotation, 1));
                     }
                 }}
             >
@@ -2208,11 +2281,6 @@ const PostItCard: React.FC<PostItCardProps> = ({
         </article>
     );
 };
-
-function normalizeRotation(value: number): number {
-    const normalized = ((((value + 180) % 360) + 360) % 360) - 180;
-    return Math.round(normalized * 10) / 10;
-}
 
 function clamp(value: number, min: number, max: number): number {
     return Math.min(max, Math.max(min, Math.round(value)));

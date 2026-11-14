@@ -9,6 +9,7 @@ import {
     screenToBoard,
     ViewportRect,
     zoomAroundPoint,
+    computeRevealPan,
 } from './viewportMath';
 
 const rect = (
@@ -218,5 +219,62 @@ describe('computeOpeningView', () => {
             zoom: 1,
             offset: { x: 0, y: 0 },
         });
+    });
+});
+
+describe('computeRevealPan', () => {
+    const rect = (left: number, top: number, w: number, h: number) => ({
+        left,
+        top,
+        right: left + w,
+        bottom: top + h,
+    });
+    const canvas = rect(0, 0, 390, 844);
+    const bar = rect(40, 720, 310, 56);
+
+    it('does nothing when the target is already clear', () => {
+        expect(
+            computeRevealPan(rect(100, 500, 32, 32), [bar], canvas)
+        ).toBeNull();
+        // Touching is not overlapping.
+        expect(
+            computeRevealPan(rect(100, 688, 32, 32), [bar], canvas)
+        ).toBeNull();
+    });
+
+    it('pans up by just what clears the obstacle, plus the margin', () => {
+        const pan = computeRevealPan(rect(100, 700, 32, 32), [bar], canvas);
+        // bottom 732 -> must end at 720 - 8
+        expect(pan).toEqual({ x: 0, y: 720 - 8 - 732 });
+    });
+
+    it('goes sideways when up and down would leave the canvas', () => {
+        const column = rect(150, 0, 100, 830);
+        const pan = computeRevealPan(rect(130, 100, 32, 32), [column], canvas);
+        expect(pan).toEqual({ x: 150 - 8 - 162, y: 0 });
+    });
+
+    it('prefers a vertical pan unless sideways is far shorter', () => {
+        const high = rect(150, 110, 100, 56);
+        // up is -30, left is -20 but counts double
+        expect(
+            computeRevealPan(rect(130, 100, 32, 32), [high], canvas)
+        ).toEqual({ x: 0, y: 110 - 8 - 132 });
+    });
+
+    it('gives up rather than push the target off the canvas', () => {
+        const wide = rect(0, 10, 390, 834);
+        expect(
+            computeRevealPan(rect(100, 300, 32, 32), [wide], canvas)
+        ).toBeNull();
+    });
+
+    it('hops over every obstacle on the way, never landing on one', () => {
+        const tall = rect(0, 720, 390, 120);
+        const minimap = rect(0, 660, 390, 30);
+        // Clearing the bar alone would end on the minimap: go past both.
+        expect(
+            computeRevealPan(rect(100, 700, 32, 32), [tall, minimap], canvas)
+        ).toEqual({ x: 0, y: 660 - 8 - 732 });
     });
 });
