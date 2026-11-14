@@ -68,7 +68,7 @@ async function setCardContent(
 ): Promise<void> {
     await card.hover();
     await startEditingCard(card);
-    await card.locator('.post-it-hover-tools .icon-button').nth(3).click();
+    await card.getByTestId('card-expand').click();
     const editor = page.locator('.card-detail-editor');
     await expect(editor).toBeVisible();
     await editor.fill(content);
