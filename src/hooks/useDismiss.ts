@@ -8,7 +8,9 @@ import { RefObject, useEffect } from 'react';
 export function useDismiss<T extends HTMLElement>(
     active: boolean,
     ref: RefObject<T | null>,
-    onDismiss: () => void
+    onDismiss: () => void,
+    // A second region that counts as "inside" (a panel rendered in a portal).
+    extraRef?: RefObject<HTMLElement | null>
 ): void {
     useEffect(() => {
         if (!active) return;
@@ -18,7 +20,8 @@ export function useDismiss<T extends HTMLElement>(
             if (
                 element &&
                 event.target instanceof Node &&
-                !element.contains(event.target)
+                !element.contains(event.target) &&
+                !extraRef?.current?.contains(event.target)
             ) {
                 onDismiss();
             }
@@ -37,5 +40,5 @@ export function useDismiss<T extends HTMLElement>(
             window.removeEventListener('pointerdown', handlePointerDown, true);
             window.removeEventListener('keydown', handleKeyDown);
         };
-    }, [active, ref, onDismiss]);
+    }, [active, ref, extraRef, onDismiss]);
 }
