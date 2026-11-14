@@ -3102,6 +3102,21 @@
     text-transform: uppercase;
 }
 
+.recent-colors {
+    margin-top: 2px;
+}
+
+.style-copy-row {
+    display: grid;
+    gap: 6px;
+    grid-template-columns: 1fr 1fr;
+}
+
+.style-copy-row .ctl-btn:disabled {
+    cursor: default;
+    opacity: 0.45;
+}
+
 .rotation-row {
     align-items: center;
     display: grid;

@@ -640,4 +640,80 @@ describe('PostItCard stack chrome', () => {
             textColor: '#ff00aa',
         });
     });
+
+    describe('style memory', () => {
+        beforeEach(() => window.localStorage.clear());
+
+        function openStylePanel() {
+            const view = renderCard();
+            fireEvent.click(screen.getByLabelText('Edit card'));
+            fireEvent.click(
+                view.container.querySelector('.card-style-trigger')!
+            );
+            return view;
+        }
+
+        it('records the colour left in the picker and offers it again', () => {
+            const { container } = openStylePanel();
+            expect(container.querySelector('.recent-colors')).toBeNull();
+
+            // In the board the picked colour is the card's colour by blur time.
+            fireEvent.blur(
+                container.querySelector<HTMLInputElement>(
+                    '.style-panel .color-swatch-row input[type="color"]'
+                )!
+            );
+
+            expect(
+                container.querySelectorAll('.recent-colors .color-swatch')
+            ).toHaveLength(1);
+            expect(
+                window.localStorage.getItem('magnotes.recentCardColors')
+            ).toBe(JSON.stringify(['#fef08a']));
+        });
+
+        it('re-applies a remembered colour with a readable ink', () => {
+            window.localStorage.setItem(
+                'magnotes.recentCardColors',
+                JSON.stringify(['#101820'])
+            );
+            const { container, onLocalChange } = openStylePanel();
+
+            fireEvent.click(
+                container.querySelector('.recent-colors .color-swatch')!
+            );
+
+            expect(onLocalChange).toHaveBeenLastCalledWith(
+                'card-1',
+                expect.objectContaining({
+                    color: '#101820',
+                    textColor: '#f8fafc',
+                })
+            );
+        });
+
+        it('copies the look of a card and pastes it without the content', () => {
+            const { container, onLocalChange } = openStylePanel();
+            const buttons = () =>
+                Array.from(
+                    container.querySelectorAll<HTMLButtonElement>(
+                        '.style-copy-row button'
+                    )
+                );
+            expect(buttons()[1].disabled).toBe(true);
+
+            fireEvent.click(buttons()[0]);
+            expect(buttons()[1].disabled).toBe(false);
+
+            onLocalChange.mockClear();
+            fireEvent.click(buttons()[1]);
+            const applied = onLocalChange.mock.calls[0][1];
+            expect(Object.keys(applied)).toEqual(
+                expect.arrayContaining(['color', 'finish'])
+            );
+            expect(applied).not.toHaveProperty('title');
+            expect(applied).not.toHaveProperty('rotation');
+            expect(applied).not.toHaveProperty('x');
+        });
+    });
 });
