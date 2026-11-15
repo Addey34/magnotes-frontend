@@ -5006,6 +5006,73 @@
     display: none;
 }
 
+/* Narrow screens: the single row needs 390–455px (labels included) and used to
+   run past the screen edge, where the canvas clipped it — "Delete" and "Clear
+   selection" ended up at x ≈ 430 on a 390px phone, unreachable. Below the
+   width where the row fits (it stops fitting between ~640 and ~735px once the
+   minimap flank is counted), the bar becomes a grid that can only be as wide as
+   its slot: the count on a thin line, then the three actions as equal columns
+   with the clear button last, in DOM order. Every label stays (it wraps instead
+   of being dropped) and the targets are 44px. Kept to two short lines so the
+   bar covers little of the board. */
+@media (max-width: 760px) {
+    .board-selection-bar {
+        border-radius: 22px;
+        display: grid;
+        gap: 4px 6px;
+        grid-template-columns: repeat(3, minmax(0, 1fr)) 44px;
+        max-width: 420px;
+        padding: 8px;
+        width: 100%;
+    }
+
+    .board-selection-count {
+        grid-column: 1 / -1;
+        line-height: 1.2;
+        margin: 0 0 0 4px;
+        white-space: normal;
+    }
+
+    .board-selection-bar button {
+        flex-direction: column;
+        font-size: 11px;
+        gap: 3px;
+        justify-content: center;
+        line-height: 1.15;
+        min-height: 44px;
+        min-width: 0;
+        overflow-wrap: anywhere;
+        padding: 4px 2px;
+        text-align: center;
+    }
+
+    .board-selection-bar .board-selection-clear {
+        height: 44px;
+        padding: 0 !important;
+        width: 44px;
+    }
+}
+
+/* Narrow phones: with a fourth column for the clear button, the three action
+   columns get too narrow for "Supprimer" (French), which broke mid-word from
+   341 to 346px. The clear button joins the count on the first line instead;
+   360px keeps a margin for the fonts of other platforms. */
+@media (max-width: 360px) {
+    .board-selection-bar {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .board-selection-count {
+        grid-column: 1 / 3;
+    }
+
+    .board-selection-bar .board-selection-clear {
+        grid-column: 3;
+        grid-row: 1;
+        justify-self: end;
+    }
+}
+
 /* Multi-selection ring (bulk delete/duplicate via keyboard). */
 .post-it-card.is-selected {
     outline: 2px solid var(--accent);
