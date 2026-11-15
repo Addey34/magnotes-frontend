@@ -5053,9 +5053,11 @@
     }
 }
 
-/* Very narrow phones (320px): four columns would squeeze the labels, so the
-   clear button joins the count on the first line instead. */
-@media (max-width: 340px) {
+/* Narrow phones: with a fourth column for the clear button, the three action
+   columns get too narrow for "Supprimer" (French), which broke mid-word from
+   341 to 346px. The clear button joins the count on the first line instead;
+   360px keeps a margin for the fonts of other platforms. */
+@media (max-width: 360px) {
     .board-selection-bar {
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
