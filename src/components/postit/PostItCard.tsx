@@ -344,6 +344,15 @@ const PostItCard: React.FC<PostItCardProps> = ({
         if (!isEditing) return;
         const el = !postIt.title.trim() ? titleRef.current : contentRef.current;
         if (!el) return;
+        // The user may already be typing in the other field of this card
+        // (focus lands there before this effect runs): never take it away.
+        const active = document.activeElement;
+        if (
+            active !== el &&
+            (active === titleRef.current || active === contentRef.current)
+        ) {
+            return;
+        }
         el.focus();
         el.setSelectionRange(el.value.length, el.value.length);
         // Only on entering edit mode, not on every keystroke.

@@ -236,7 +236,6 @@ export function useJournalRecovery({
                     })
                 ),
         ]);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [journal]);
 
     // Automatic take-over, only from pages PROVEN dead, and only through the
@@ -327,7 +326,6 @@ export function useJournalRecovery({
                 running.current = false;
             }
         })();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [cards.length, journal, tick, recheck]);
 
     useEffect(() => {
@@ -352,7 +350,6 @@ export function useJournalRecovery({
         const view = await readServerCard(tabId, item.resource);
         if (!alive.current || stampNow() !== at) return;
         setServers((all) => ({ ...all, [item.key]: view }));
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     /**
@@ -402,7 +399,6 @@ export function useJournalRecovery({
             note(item.key, 'done');
             await refresh();
         },
-        // eslint-disable-next-line react-hooks/exhaustive-deps
         [refresh]
     );
 
