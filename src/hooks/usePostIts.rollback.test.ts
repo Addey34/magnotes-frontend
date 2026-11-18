@@ -35,11 +35,13 @@ const card: PostIt = {
     zIndex: 1,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
+    etag: 'E1',
 };
 
 const secondCard: PostIt = {
     ...card,
     _id: 'card-2',
+    etag: 'E2',
     title: 'Second card',
     x: 260,
 };
@@ -127,14 +129,14 @@ describe('usePostIts rollbacks', () => {
 
         expect(createStackAt).toHaveBeenCalledWith(card.x, card.y);
         expect(mockedUpdate).toHaveBeenCalledWith('card-1', {
-            expectedUpdatedAt: card.updatedAt,
+            etag: card.etag,
             stackId: 'stack-1',
             stackOrder: 1,
             x: card.x,
             y: card.y,
         });
         expect(mockedUpdate).toHaveBeenCalledWith('card-2', {
-            expectedUpdatedAt: secondCard.updatedAt,
+            etag: secondCard.etag,
             stackId: 'stack-1',
             stackOrder: 2,
             x: card.x,
@@ -325,7 +327,7 @@ describe('usePostIts rollbacks', () => {
         expect(result.current.canUndo).toBe(true);
 
         await act(async () => result.current.undo());
-        expect(mockedDelete).toHaveBeenCalledWith(created._id);
+        expect(mockedDelete).toHaveBeenCalledWith(created._id, created.etag);
         expect(result.current.postIts).toEqual([card]);
         expect(result.current.canRedo).toBe(true);
 
@@ -547,7 +549,7 @@ describe('usePostIts rollbacks', () => {
             result.current.postIts.find((item) => item._id === 'card-2')
         ).toMatchObject({ x: 424, y: 224 });
         expect(mockedUpdate).toHaveBeenCalledWith('card-2', {
-            expectedUpdatedAt: secondCard.updatedAt,
+            etag: secondCard.etag,
             x: 424,
             y: 224,
         });

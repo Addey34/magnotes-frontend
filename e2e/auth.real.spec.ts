@@ -14,22 +14,42 @@ const mailpitUrl = process.env.E2E_MAILPIT_URL || 'http://127.0.0.1:8025';
 type MailpitSearch = { messages?: Array<{ ID: string }> };
 type MailpitMessage = { Text?: string };
 
-async function verificationCode(email: string): Promise<string> {
+/**
+ * The codes mailed to `email`, in the order the mail server lists them. Mailpit
+ * lists the NEWEST first, the local test sink lists the OLDEST first: a test
+ * that needs the code of a given mail must not rely on that order, it asks for
+ * a code it has not used yet.
+ */
+async function mailedCodes(email: string): Promise<string[]> {
     const search = await fetch(
         `${mailpitUrl}/api/v1/search?query=${encodeURIComponent(`to:${email}`)}`
     );
     if (!search.ok) throw new Error(`Mailpit search failed: ${search.status}`);
     const { messages = [] } = (await search.json()) as MailpitSearch;
-    const message = messages[0];
-    if (!message) throw new Error('Verification email has not arrived yet.');
+    const codes: string[] = [];
+    for (const message of messages) {
+        const response = await fetch(
+            `${mailpitUrl}/api/v1/message/${message.ID}`
+        );
+        if (!response.ok)
+            throw new Error(`Mailpit message failed: ${response.status}`);
+        const { Text = '' } = (await response.json()) as MailpitMessage;
+        const code = Text.match(/\b(\d{6})\b/)?.[1];
+        if (code) codes.push(code);
+    }
+    return codes;
+}
 
-    const response = await fetch(`${mailpitUrl}/api/v1/message/${message.ID}`);
-    if (!response.ok)
-        throw new Error(`Mailpit message failed: ${response.status}`);
-    const { Text = '' } = (await response.json()) as MailpitMessage;
-    const code = Text.match(/\b(\d{6})\b/)?.[1];
-    if (!code) throw new Error('Verification code was not found in the email.');
-    return code;
+async function verificationCode(
+    email: string,
+    used: string[] = []
+): Promise<string> {
+    const codes = await mailedCodes(email);
+    if (codes.length === 0)
+        throw new Error('Verification email has not arrived yet.');
+    const fresh = codes.find((code) => !used.includes(code));
+    if (!fresh) throw new Error('No new verification code has arrived yet.');
+    return fresh;
 }
 
 async function cardLeft(page: Page, title: string): Promise<number | null> {
@@ -45,20 +65,28 @@ async function cardLeft(page: Page, title: string): Promise<number | null> {
 
 async function cardByTitle(page: Page, title: string): Promise<Locator> {
     const cards = page.locator('.post-it-card');
-    const index = await cards.evaluateAll(
-        (elements, cardTitle) =>
-            elements.findIndex(
-                (element) =>
-                    (
-                        element.querySelector(
-                            '.post-it-title'
-                        ) as HTMLInputElement
-                    )?.value === cardTitle
-            ),
-        title
-    );
-    if (index < 0) throw new Error(`Card "${title}" was not found.`);
-    return cards.nth(index);
+    const indexOf = () =>
+        cards.evaluateAll(
+            (elements, cardTitle) =>
+                elements.findIndex(
+                    (element) =>
+                        (
+                            element.querySelector(
+                                '.post-it-title'
+                            ) as HTMLInputElement
+                        )?.value === cardTitle
+                ),
+            title
+        );
+    // Right after a reload the board shows its cards a moment after the shell:
+    // wait for the card (a card that never shows up still fails, after 10 s).
+    await expect
+        .poll(indexOf, {
+            timeout: 10_000,
+            message: `Card "${title}" was not found.`,
+        })
+        .toBeGreaterThanOrEqual(0);
+    return cards.nth(await indexOf());
 }
 
 async function setCardContent(
@@ -120,7 +148,17 @@ test.describe('real local authentication', () => {
         const cards = page.locator('.post-it-card');
         const initialCardCount = await cards.count();
         let title = `E2E card ${testInfo.project.name}`;
+        // The card is edited once the server has acknowledged its creation
+        // (like the other real-API specs): typing into a card whose creation
+        // is still in flight is a different scenario.
+        const createdOnServer = page.waitForResponse(
+            (response) =>
+                response.url().endsWith('/api/postits') &&
+                response.request().method() === 'POST' &&
+                response.ok()
+        );
         await page.locator('.create-card-button').click();
+        await createdOnServer;
         await expect(cards).toHaveCount(initialCardCount + 1);
 
         const card = cards.last();
@@ -167,6 +205,36 @@ test.describe('real local authentication', () => {
 
         // A transient network failure keeps the local change queued. The
         // browser's online event must retry it with the current card version.
+        const d1 = process.env.E2E_D1 === '1';
+        const effective: string[] = [];
+        const patchLog: Array<{
+            mutationId?: string;
+            body?: string;
+            status?: number;
+        }> = [];
+        if (d1) {
+            page.on('request', (request) => {
+                if (
+                    request.method() === 'PATCH' &&
+                    request.url().includes('/api/postits/')
+                ) {
+                    patchLog.push({
+                        mutationId: request.headers()['x-mutation-id'],
+                        body: request.postData() ?? undefined,
+                    });
+                }
+            });
+            page.on('response', (response) => {
+                const request = response.request();
+                if (
+                    request.method() === 'PATCH' &&
+                    request.url().includes('/api/postits/') &&
+                    response.ok()
+                ) {
+                    effective.push(request.postData() ?? '');
+                }
+            });
+        }
         let interruptedPatch = false;
         const interruptFirstPatch = async (route: Route) => {
             if (!interruptedPatch && route.request().method() === 'PATCH') {
@@ -181,22 +249,65 @@ test.describe('real local authentication', () => {
         const cardToRename = await cardByTitle(page, title);
         await startEditingCard(cardToRename);
         await cardToRename.locator('.post-it-title').fill(recoveredTitle);
-        await expect(
-            page.locator('.app-notification[role="alert"]').last()
-        ).toContainText(/could not be saved|n’a pas pu être enregistrée/i);
-        expect(interruptedPatch).toBe(true);
-        await page.unroute('**/api/postits/**', interruptFirstPatch);
-        // The input already shows the new title locally, so reading it proves
-        // nothing about the server: wait for the retried PATCH to succeed
-        // before reloading, or a slow runner reloads first and loses the edit.
-        const retriedPatch = page.waitForResponse(
-            (response) =>
-                response.url().includes('/api/postits/') &&
-                response.request().method() === 'PATCH' &&
-                response.ok()
-        );
-        await page.evaluate(() => window.dispatchEvent(new Event('online')));
-        await retriedPatch;
+        if (d1) {
+            // Under the D1 protocol the lost request is replayed by the
+            // protocol itself, as the SAME request: there is no alert to wait
+            // for. Exactly one request is effective and every attempt of that
+            // title carries the same mutation id.
+            await expect
+                .poll(() => interruptedPatch, { timeout: 10_000 })
+                .toBe(true);
+            await expect
+                .poll(
+                    () =>
+                        patchLog.filter(
+                            (entry) =>
+                                entry.body?.includes(recoveredTitle) &&
+                                entry.mutationId
+                        ).length,
+                    { timeout: 20_000 }
+                )
+                .toBeGreaterThanOrEqual(2);
+            await page.unroute('**/api/postits/**', interruptFirstPatch);
+            await page.evaluate(() =>
+                window.dispatchEvent(new Event('online'))
+            );
+            const attempts = patchLog.filter((entry) =>
+                entry.body?.includes(recoveredTitle)
+            );
+            // the title reached the server exactly once (answers lost do not count)
+            await expect
+                .poll(
+                    () =>
+                        effective.filter((body) =>
+                            body.includes(recoveredTitle)
+                        ).length,
+                    { timeout: 20_000 }
+                )
+                .toBeGreaterThanOrEqual(1);
+            expect(new Set(attempts.map((a) => a.mutationId)).size).toBe(1);
+            expect(attempts[0].mutationId).toBeTruthy();
+        } else {
+            await expect(
+                page.locator('.app-notification[role="alert"]').last()
+            ).toContainText(/could not be saved|n’a pas pu être enregistrée/i);
+            expect(interruptedPatch).toBe(true);
+            await page.unroute('**/api/postits/**', interruptFirstPatch);
+            // The input already shows the new title locally, so reading it
+            // proves nothing about the server: wait for the retried PATCH to
+            // succeed before reloading, or a slow runner reloads first and
+            // loses the edit.
+            const retriedPatch = page.waitForResponse(
+                (response) =>
+                    response.url().includes('/api/postits/') &&
+                    response.request().method() === 'PATCH' &&
+                    response.ok()
+            );
+            await page.evaluate(() =>
+                window.dispatchEvent(new Event('online'))
+            );
+            await retriedPatch;
+        }
         await expect
             .poll(async () => {
                 const recoveredCard = await cardByTitle(page, recoveredTitle);
@@ -317,19 +428,38 @@ test.describe('real local authentication', () => {
         const newPassword = 'NewStrongPassword123!';
         await page.locator('.auth-inline-link').click();
         await page.locator('#email').fill(email);
+        const forgot = page.waitForResponse(
+            (response) =>
+                response.url().endsWith('/api/auth/forgot-password') &&
+                response.request().method() === 'POST'
+        );
         await page.locator('.auth-submit').click();
+        expect((await forgot).status()).toBe(200);
         await expect(
             page.locator('input[autocomplete="one-time-code"]')
         ).toBeVisible();
+        // the reset mail is a SECOND mail for this address: its code is the
+        // one the sign-up did not use, whatever order the server lists them in
         await expect
-            .poll(() => verificationCode(email), { timeout: 10_000 })
+            .poll(() => verificationCode(email, [signupCode]), {
+                timeout: 10_000,
+            })
             .toMatch(/^\d{6}$/);
+        const resetCode = await verificationCode(email, [signupCode]);
+        expect(resetCode).not.toBe(signupCode);
         await page
             .locator('input[autocomplete="one-time-code"]')
-            .fill(await verificationCode(email));
+            .fill(resetCode);
         await page.locator('#password').fill(newPassword);
         await page.locator('#confirm-password').fill(newPassword);
+        const reset = page.waitForResponse(
+            (response) =>
+                response.url().endsWith('/api/auth/reset-password') &&
+                response.request().method() === 'POST'
+        );
         await page.locator('.auth-submit').click();
+        expect((await reset).status()).toBe(200);
+        // back on the sign-in form
         await expect(page.locator('#email')).toBeVisible();
 
         await page.locator('#email').fill(email);

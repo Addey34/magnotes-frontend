@@ -28,6 +28,13 @@ import {
     ViewColumnsIcon,
     XMarkIcon,
 } from '@heroicons/react/24/solid';
+import { isDemoActive } from '../services/demoMode';
+import {
+    classifyWriteError,
+    isOutdatedResult,
+    isSupersededResult,
+} from '../services/concurrencyOutcome';
+import { getTokenUserId } from '../utils/tokenUtils';
 import React, {
     useCallback,
     useEffect,
@@ -72,7 +79,12 @@ import {
 } from '../utils/trelloImport';
 import { cardsToMarkdown } from '../utils/boardMarkdown';
 import { downloadTextFile, toFileStem } from '../utils/download';
-import { useAutosave } from '../hooks/useAutosave';
+import { CardWriteControl, useAutosave } from '../hooks/useAutosave';
+import { useJournalRecovery } from '../hooks/useJournalRecovery';
+import RecoveryPanel from '../components/recovery/RecoveryPanel';
+import { sharedJournal } from '../services/localJournal';
+import { createJournalPort } from '../services/journalBridge';
+import { holdWriterLock } from '../services/journalRecovery';
 import { BoardBounds, useBoardViewport } from '../hooks/useBoardViewport';
 import { useRevealSelectedHandle } from '../hooks/useRevealSelectedHandle';
 import { computeVisibleBounds, isRectVisible } from '../hooks/viewportCulling';
@@ -151,19 +163,21 @@ const BoardApp: React.FC<BoardAppProps> = ({
     );
     const notifySaveError = useCallback(
         (error?: unknown) => {
-            const status = (error as { response?: { status?: number } })
-                ?.response?.status;
+            // The card changed elsewhere (412), or its token cannot be used
+            // any more (400 malformed, historical 409): reload, do not retry.
+            const kind = classifyWriteError(error);
+            const conflict =
+                kind === 'precondition-failed' ||
+                kind === 'legacy-conflict' ||
+                kind === 'malformed-precondition';
             notify(
                 t(
-                    status === 409
+                    conflict
                         ? 'notification.saveConflict'
                         : 'notification.saveFailed'
                 ),
                 {
-                    key:
-                        status === 409
-                            ? 'board-save-conflict'
-                            : 'board-save-failed',
+                    key: conflict ? 'board-save-conflict' : 'board-save-failed',
                     kind: 'error',
                 }
             );
@@ -286,6 +300,68 @@ const BoardApp: React.FC<BoardAppProps> = ({
         reorderTabs,
         removeTab,
     } = useTabs(notifyLoadError, notifyActionError, initialTabId);
+    // usePostIts deletes cards, useAutosave owns their write queue; useAutosave
+    // needs usePostIts' local patcher, so the two meet through this stable ref.
+    // The durable journal of the page (shared) and its port for the autosave:
+    // nothing is recorded for the demo board or without an account.
+    const journal = useMemo(() => sharedJournal(), []);
+    const journalPort = useMemo(
+        () =>
+            createJournalPort(journal, () => (demo ? null : getTokenUserId())),
+        [journal, demo]
+    );
+    useEffect(() => {
+        holdWriterLock(journal);
+    }, [journal]);
+    const cardWritesRef = useRef<CardWriteControl | null>(null);
+    const deferredRef = useRef<(id: string) => void>(() => undefined);
+    const reloadCardRef = useRef<(id: string, keys: string[]) => Promise<void>>(
+        () => Promise.resolve()
+    );
+    const restoreDeletedRef = useRef<
+        (
+            snapshot: PostIt,
+            proof: { etag: string; mutationId?: string }
+        ) => Promise<void>
+    >(() => Promise.resolve());
+    const cardWrites = useMemo<CardWriteControl>(
+        () => ({
+            hold: (id) => cardWritesRef.current?.hold(id),
+            release: (id) => cardWritesRef.current?.release(id),
+            discard: (id) => cardWritesRef.current?.discard(id),
+            write: (id, updates) =>
+                cardWritesRef.current?.write
+                    ? cardWritesRef.current.write(id, updates)
+                    : updatePostIt(id, updates),
+            settle: (id, maxWaitMs) =>
+                cardWritesRef.current?.settle?.(id, maxWaitMs) ??
+                Promise.resolve(),
+            reloaded: (id) => cardWritesRef.current?.reloaded?.(id),
+            lifeOf: (id) => cardWritesRef.current?.lifeOf?.(id) ?? (() => true),
+            rebase: (id, base) =>
+                cardWritesRef.current?.rebase
+                    ? cardWritesRef.current.rebase(id, base)
+                    : base,
+            unsentFields: (id) =>
+                cardWritesRef.current?.unsentFields?.(id) ?? [],
+            deferred: (id) => deferredRef.current(id),
+            deletion: {
+                begin: (card, etag) =>
+                    cardWritesRef.current?.deletion?.begin(card, etag) ??
+                    Promise.resolve(),
+                outcome: (id, etag, result) =>
+                    cardWritesRef.current?.deletion?.outcome(
+                        id,
+                        etag,
+                        result
+                    ) ?? Promise.resolve(),
+                abort: (id, etag) =>
+                    cardWritesRef.current?.deletion?.abort(id, etag) ??
+                    Promise.resolve(),
+            },
+        }),
+        []
+    );
     const {
         postIts,
         isLoadingPostIts,
@@ -302,11 +378,16 @@ const BoardApp: React.FC<BoardAppProps> = ({
         movePostItToTab,
         removePostIt,
         clonePostIt,
+        reloadCard,
+        refreshCards,
+        restoreDeleted,
         undo,
         redo,
         canUndo,
         canRedo,
-    } = usePostIts(activeTabId, notifyLoadError, notifyActionError);
+    } = usePostIts(activeTabId, notifyLoadError, notifyActionError, cardWrites);
+    reloadCardRef.current = reloadCard;
+    restoreDeletedRef.current = restoreDeleted;
     const {
         stacks,
         isLoadingStacks,
@@ -314,7 +395,21 @@ const BoardApp: React.FC<BoardAppProps> = ({
         patchStackLocal,
         settleStack,
         toggleStack,
-    } = useStacks(activeTabId, notifyLoadError, notifyActionError);
+    } = useStacks(
+        activeTabId,
+        notifyLoadError,
+        notifyActionError,
+        // Deleting a stack renews the version of the cards it released: read
+        // them again. Intentions created before the cascade keep the base they
+        // were written on (they are refused, never replayed on the new token).
+        (stackId, tabId) =>
+            refreshCards(
+                tabId,
+                postItsRef.current
+                    .filter((card) => card.stackId === stackId)
+                    .map((card) => card._id)
+            )
+    );
     const {
         links,
         isLoadingConnections,
@@ -326,10 +421,22 @@ const BoardApp: React.FC<BoardAppProps> = ({
         restoreLinksLocal,
         restoreLinks,
     } = useConnections(activeTabId, notifyLoadError, notifyActionError);
-    const { saveState, scheduleSave } = useAutosave<
-        PostItSaveUpdate,
-        PostIt | undefined
-    >(
+    const {
+        saveState,
+        localSave,
+        flushPending,
+        scheduleSave,
+        holdCard,
+        releaseCard,
+        discardCard,
+        runExclusive,
+        writeDirect,
+        settle,
+        rebase,
+        reloaded,
+        lifeOf,
+        recoverable,
+    } = useAutosave<PostItSaveUpdate, PostIt | undefined>(
         useCallback(updatePostIt, []),
         500,
         notifySaveError,
@@ -343,17 +450,133 @@ const BoardApp: React.FC<BoardAppProps> = ({
                 // Never let the server's echo overwrite a field the user has
                 // edited since the request left: that reverts the textarea
                 // mid-sentence. `updatedAt` is always taken — the optimistic
-                // concurrency check on the next save depends on it.
+                // concurrency check on the next save depends on its `etag`
+                // (opaque token), except when the server says it was already
+                // overtaken: that token is never adopted, the card is read
+                // again (see `onSuperseded`).
+                // An answer older than a read of the card the board adopted
+                // since its request left must not rewind that read.
+                if (isOutdatedResult(savedPostIt)) return;
+                const overtaken = isSupersededResult(savedPostIt);
                 const echo = Object.fromEntries(
-                    Object.entries(savedPostIt).filter(
-                        ([key]) =>
-                            key === 'updatedAt' || !staleKeys.includes(key)
+                    Object.entries(savedPostIt).filter(([key]) =>
+                        key === 'etag'
+                            ? !overtaken
+                            : key === 'updatedAt' || !staleKeys.includes(key)
                     )
                 ) as Partial<PostIt>;
                 patchPostItLocal(postItId, echo);
             },
             [patchPostItLocal]
+        ),
+        // Authenticated boards never send a write without its base version;
+        // the local demo board has no server versions.
+        useMemo(
+            () => ({
+                requireVersion: () => !isDemoActive(),
+                journal: journalPort,
+                // The account that owns the session: nothing is sent, adopted
+                // or notified for a context that is no longer the current one.
+                owner: () => getTokenUserId(),
+                // Every (re)transmission also asks the card's life.
+                send: (
+                    id: string,
+                    updates: PostItSaveUpdate,
+                    guard: { canSend: () => boolean }
+                ) => updatePostIt(id, updates, guard),
+                onSuperseded: (id: string, _result: unknown, keys: string[]) =>
+                    reloadCardRef.current(id, keys),
+            }),
+            [journalPort]
         )
+    );
+    const recovery = useJournalRecovery({
+        owner: () => (demo ? null : getTokenUserId()),
+        journal,
+        port: journalPort,
+        cards: postIts,
+        activeTabId,
+        exclusive: runExclusive,
+        scheduleSave: (id, updates) =>
+            scheduleSave(id, updates as PostItSaveUpdate),
+        reloadCard: (id) => reloadCardRef.current(id, []),
+        restoreDeleted: (snapshot, proof) =>
+            restoreDeletedRef.current(snapshot, proof),
+        flush: flushPending,
+        tick: saveState,
+    });
+    deferredRef.current = () =>
+        notify(t('recovery.deleteDeferred'), {
+            key: 'delete-deferred',
+            kind: 'info',
+        });
+    // Leaving: what is pending goes out first (bounded); whatever could not
+    // is already in the journal for this account.
+    const logoutAfterFlush = () => {
+        if (demo) {
+            onLogout();
+            return;
+        }
+        void Promise.race([
+            flushPending(),
+            new Promise<void>((resolve) => setTimeout(resolve, 2500)),
+        ]).finally(onLogout);
+    };
+    const syncKey = (() => {
+        if (!isOnline) return 'sync.offline' as const;
+        if (recovery.items.some((i) => i.kind === 'conflict')) {
+            return 'sync.conflict' as const;
+        }
+        if (recovery.items.some((i) => i.kind === 'op')) {
+            return 'sync.uncertain' as const;
+        }
+        if (localSave.status === 'unavailable')
+            return 'local.unavailable' as const;
+        if (localSave.status === 'quota') return 'local.quota' as const;
+        if (saveState.status === 'saving') return 'sync.syncing' as const;
+        // "saved on this device" only on the explicit proof of a committed
+        // transaction (the journal read it back, or its commit completed)
+        if (recovery.items.length > 0) return 'local.saved' as const;
+        if (saveState.status === 'error') {
+            return localSave.status === 'saved'
+                ? ('local.saved' as const)
+                : ('sync.unconfirmed' as const);
+        }
+        if (saveState.status === 'saved') return 'sync.synced' as const;
+        return null;
+    })();
+    cardWritesRef.current = {
+        hold: holdCard,
+        release: releaseCard,
+        discard: discardCard,
+        write: writeDirect,
+        settle,
+        rebase,
+        reloaded,
+        lifeOf,
+        deletion: journalPort.deletion,
+        unsentFields: (id) =>
+            recoverable(id).flatMap((intent) => Object.keys(intent.fields)),
+    };
+
+    // Autosaves that do not come from a card's own text/style editing (Kanban
+    // status, pasted style) still carry the version they are based on, so an
+    // external change to the same card is refused instead of overwritten.
+    const postItsRef = useRef(postIts);
+    postItsRef.current = postIts;
+    const scheduleVersionedSave = useCallback(
+        (id: string, updates: PostItUpdate) => {
+            // An unknown version is not invented here: the coordinator keeps
+            // the content and refuses to send it (authenticated boards).
+            const base = postItsRef.current.find(
+                (card) => card._id === id
+            )?.etag;
+            scheduleSave(id, {
+                ...updates,
+                ...(base ? { etag: base } : {}),
+            });
+        },
+        [scheduleSave]
     );
 
     const activeTab = tabs.find((tab) => tab._id === activeTabId);
@@ -384,20 +607,27 @@ const BoardApp: React.FC<BoardAppProps> = ({
         isLoadingPostIts ||
         isLoadingStacks ||
         isLoadingConnections;
+    // An intention that is still uncertain, in conflict or kept only on this
+    // device is not "synced": the chip says so, like the status next to it.
+    const unresolvedWork = !demo && recovery.items.length > 0;
     const syncStatusClass = !isOnline
         ? 'offline'
         : demo
           ? 'local'
-          : saveState.status;
+          : unresolvedWork
+            ? 'error'
+            : saveState.status;
     const syncLabel = !isOnline
         ? t('app.sync.offline')
         : demo
           ? t('app.sync.local')
-          : saveState.status === 'saving'
-            ? t('app.sync.saving')
-            : saveState.status === 'error'
-              ? t('app.sync.error')
-              : t('app.sync.saved');
+          : unresolvedWork
+            ? t('app.sync.error')
+            : saveState.status === 'saving'
+              ? t('app.sync.saving')
+              : saveState.status === 'error'
+                ? t('app.sync.error')
+                : t('app.sync.saved');
     const viewOrder = ['canvas', 'kanban', 'agenda', 'timeline'] as const;
     const handleViewTabKeyDown = (
         event: React.KeyboardEvent<HTMLButtonElement>,
@@ -819,9 +1049,9 @@ const BoardApp: React.FC<BoardAppProps> = ({
     const handleCardStatus = useCallback(
         (id: string, status: PostItStatus | null) => {
             patchPostItLocal(id, { status });
-            scheduleSave(id, { status });
+            scheduleVersionedSave(id, { status });
         },
-        [patchPostItLocal, scheduleSave]
+        [patchPostItLocal, scheduleVersionedSave]
     );
 
     // Open a card from a list view: jump to the canvas and frame it once mounted.
@@ -1090,7 +1320,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
         if (!style) return;
         selectedCardIds.forEach((id) => {
             handleCardLocalChange(id, style);
-            scheduleSave(id, style);
+            scheduleVersionedSave(id, style);
         });
     };
 
@@ -1550,6 +1780,32 @@ const BoardApp: React.FC<BoardAppProps> = ({
                 notifications={notifications}
                 onDismiss={dismiss}
             />
+            {!demo && syncKey && (
+                <div
+                    className="sync-status"
+                    role="status"
+                    aria-live="polite"
+                    data-testid="sync-status"
+                    data-state={syncKey}
+                >
+                    {t(syncKey)}
+                </div>
+            )}
+            {!demo && (
+                <RecoveryPanel
+                    items={recovery.items}
+                    notes={recovery.notes}
+                    servers={recovery.servers}
+                    onCompare={(item) => void recovery.compare(item)}
+                    onResume={(item) => void recovery.resume(item)}
+                    onResolveDelete={(item) =>
+                        void recovery.resolveDelete(item)
+                    }
+                    onRetry={(item) => void recovery.retry(item)}
+                    onAbandon={(item) => void recovery.abandon(item)}
+                    onClearAll={() => void recovery.clearAll()}
+                />
+            )}
             {demo && (
                 <div className="demo-banner" role="status">
                     <span>
@@ -1827,7 +2083,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
                     <button
                         className="sidebar-command"
                         type="button"
-                        onClick={onLogout}
+                        onClick={logoutAfterFlush}
                         title={
                             demo ? t('app.menu.createAccount') : t('app.logout')
                         }

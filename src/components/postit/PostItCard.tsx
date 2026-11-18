@@ -300,7 +300,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
     const scheduleCardSave = (updates: PostItUpdate): void => {
         onAutosave(postIt._id, {
             ...updates,
-            expectedUpdatedAt: postIt.updatedAt,
+            etag: postIt.etag,
         });
     };
     const [newChecklistText, setNewChecklistText] = useState('');

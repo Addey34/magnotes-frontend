@@ -217,5 +217,69 @@ describe('installAuthInterceptor', () => {
             expect(refresh).toHaveBeenCalledTimes(1);
             dispose();
         });
+
+        // LOT-D1B-REV1 (D1B-AUD-03): the interceptor replays the VERY SAME
+        // request (same mutation id, same body); it never replays a request of
+        // another session generation (covered above).
+        it('replays a mutation with its original X-Mutation-Id, If-Match and body', async () => {
+            const seen: Array<{
+                id?: unknown;
+                match?: unknown;
+                data?: unknown;
+            }> = [];
+            const previous = axios.defaults.adapter;
+            axios.defaults.adapter = (config) => {
+                seen.push({
+                    id: config.headers?.['X-Mutation-Id'],
+                    match: config.headers?.['If-Match'],
+                    data: config.data,
+                });
+                const status = seen.length === 1 ? 401 : 200;
+                return status === 200
+                    ? Promise.resolve({
+                          data: {},
+                          status,
+                          statusText: 'OK',
+                          headers: {},
+                          config,
+                      })
+                    : Promise.reject(
+                          new axios.AxiosError(
+                              'unauthorized',
+                              'ERR_BAD_REQUEST',
+                              config,
+                              null,
+                              {
+                                  data: {},
+                                  status,
+                                  statusText: 'Unauthorized',
+                                  headers: {},
+                                  config,
+                              }
+                          )
+                      );
+            };
+            const dispose = installAuthInterceptor(
+                jest.fn().mockResolvedValue('token-fresh'),
+                jest.fn(),
+                () => generation
+            );
+            await axios.patch(
+                '/api/postits/c',
+                { content: 'x' },
+                {
+                    headers: {
+                        Authorization: 'Bearer token-old',
+                        'X-Mutation-Id': 'MUT-ID',
+                        'If-Match': '"E1"',
+                    },
+                }
+            );
+            expect(seen).toHaveLength(2);
+            expect(seen[1]).toEqual(seen[0]);
+            expect(seen[1].id).toBe('MUT-ID');
+            dispose();
+            axios.defaults.adapter = previous;
+        });
     });
 });
