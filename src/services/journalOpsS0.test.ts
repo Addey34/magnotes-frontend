@@ -33,6 +33,16 @@ const card = {
     etag: 'E1',
 } as PostIt;
 
+// A BroadcastChannel opened by a port would keep Jest alive with --runInBand
+// (as CI runs it); these tests do not need the cross-tab purge channel.
+const realBroadcastChannel = globalThis.BroadcastChannel;
+beforeAll(() => {
+    (globalThis as { BroadcastChannel?: unknown }).BroadcastChannel = undefined;
+});
+afterAll(() => {
+    globalThis.BroadcastChannel = realBroadcastChannel;
+});
+
 beforeEach(() => {
     mockGen = 1;
     mockUser = 'user-a';
