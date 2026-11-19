@@ -5197,6 +5197,14 @@
     display: none;
 }
 
+@media (max-width: 620px), (hover: none) and (max-height: 500px) {
+    /* Keep bulk actions out of the way while the selected card is being edited.
+       They return as soon as editing ends; selection itself is unchanged. */
+    .board-workspace:has(.post-it-card.is-editing) .board-selection-bar {
+        display: none;
+    }
+}
+
 @media (max-width: 620px) {
     .board-workspace {
         position: relative;
