@@ -2239,8 +2239,18 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                     className="board-shortcuts-tooltip"
                                     aria-label={t('app.help.title')}
                                     hidden={!helpOpen}
+                                    tabIndex={0}
                                 >
-                                    <strong>{t('app.help.title')}</strong>
+                                    <div className="board-help-heading">
+                                        <strong>{t('app.help.title')}</strong>
+                                        <button
+                                            type="button"
+                                            onClick={closeHelp}
+                                            aria-label={t('common.close')}
+                                        >
+                                            <XMarkIcon />
+                                        </button>
+                                    </div>
                                     {linkingSourceId ? (
                                         <span>{t('app.help.linking')}</span>
                                     ) : (

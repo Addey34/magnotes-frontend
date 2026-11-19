@@ -5341,6 +5341,15 @@
     color: var(--text-soft);
     display: grid;
     gap: 10px;
+    max-height: max(
+        0px,
+        calc(
+            100dvh - var(--demo-banner-height) - var(--board-topbar-height) -
+                70px
+        )
+    );
+    overflow-y: auto;
+    overscroll-behavior: contain;
     padding: 16px;
     position: absolute;
     right: 0;
@@ -5352,6 +5361,31 @@
 .board-shortcuts-tooltip strong {
     color: var(--text-main);
     font-size: 14px;
+}
+
+.board-help-heading {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.board-help-heading button {
+    align-items: center;
+    background: var(--control-bg);
+    border: 1px solid var(--control-border);
+    border-radius: 8px;
+    color: var(--text-main);
+    cursor: pointer;
+    display: inline-flex;
+    flex: 0 0 36px;
+    height: 36px;
+    justify-content: center;
+}
+
+.board-help-heading button svg {
+    height: 18px;
+    width: 18px;
 }
 
 .board-shortcuts-tooltip span {
@@ -5466,6 +5500,15 @@
     .board-shortcuts-tooltip {
         right: 10px;
         width: min(280px, calc(100vw - 20px));
+    }
+}
+
+@media (max-height: 480px) {
+    .board-shortcuts-tooltip {
+        max-height: calc(100dvh - 16px);
+        position: fixed;
+        right: 10px;
+        top: 8px;
     }
 }
 
