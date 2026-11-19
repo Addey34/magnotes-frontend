@@ -2243,13 +2243,15 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                 >
                                     <div className="board-help-heading">
                                         <strong>{t('app.help.title')}</strong>
-                                        <button
-                                            type="button"
-                                            onClick={closeHelp}
-                                            aria-label={t('common.close')}
-                                        >
-                                            <XMarkIcon />
-                                        </button>
+                                        {helpOpen && (
+                                            <button
+                                                type="button"
+                                                onClick={closeHelp}
+                                                aria-label={t('common.close')}
+                                            >
+                                                <XMarkIcon />
+                                            </button>
+                                        )}
                                     </div>
                                     {linkingSourceId ? (
                                         <span>{t('app.help.linking')}</span>
