@@ -56,6 +56,7 @@ export default defineConfig({
                 'cardFinishContrast.spec.ts',
                 'cardRotateHandle.spec.ts',
                 'selectionBar.spec.ts',
+                'gettingStarted.spec.ts',
             ],
             use: { ...devices['Pixel 7'] },
         },
@@ -76,6 +77,7 @@ export default defineConfig({
                 'cardFinishContrast.spec.ts',
                 'cardRotateHandle.spec.ts',
                 'selectionBar.spec.ts',
+                'gettingStarted.spec.ts',
             ],
             grepInvert:
                 /sidebar expands on hover without covering the workspace/,

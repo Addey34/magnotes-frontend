@@ -99,7 +99,7 @@ test.describe('guest demo surface', () => {
         const content = page.locator('.board-content');
         await expect(page.locator('.post-it-card').first()).toBeVisible();
         await page.getByRole('button', { name: 'Help and shortcuts' }).tap();
-        await expect(page.getByText(/Pinch to zoom/)).toBeVisible();
+        await expect(page.getByText(/pinch to zoom/i)).toBeVisible();
         await expect(page.locator('.board-shortcuts-tooltip')).toHaveCSS(
             'opacity',
             '1'
