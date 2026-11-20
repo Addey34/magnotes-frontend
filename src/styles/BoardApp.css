@@ -5205,6 +5205,12 @@
     }
 }
 
+@media (max-height: 500px) {
+    .board-workspace:has(.post-it-card.is-editing) .board-topbar-status {
+        display: none;
+    }
+}
+
 @media (max-width: 620px) {
     .board-workspace {
         position: relative;

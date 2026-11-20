@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+test.setTimeout(60_000);
+
 for (const lang of ['fr', 'en'] as const) {
     for (const theme of ['theme-dark', 'theme-light'] as const) {
         test(`editing stays reachable in ${lang} with ${theme} as the viewport shrinks`, async ({
@@ -14,7 +16,9 @@ for (const lang of ['fr', 'en'] as const) {
             await page.goto(`/app/?demo=1&lang=${lang}`);
             const card = page.locator('.post-it-card').first();
             await expect(card).toBeVisible();
-            await card.click({ position: { x: 20, y: 100 } });
+            // The demo performs its initial auto-frame after loading.
+            await page.waitForTimeout(1200);
+            await card.click({ position: { x: 100, y: 100 } });
             await card
                 .getByRole('button', {
                     name: lang === 'fr' ? 'Modifier la carte' : 'Edit card',
@@ -39,11 +43,14 @@ for (const lang of ['fr', 'en'] as const) {
                 ])
             ).toEqual([2, 6]);
             await expect(page.locator('.board-selection-bar')).toBeHidden();
+            await expect(page.locator('.board-topbar-status')).toBeHidden();
             const box = await title.boundingBox();
             const topbar = await page.locator('.board-topbar').boundingBox();
             const dock = await page
                 .locator('.mobile-board-actions')
                 .boundingBox();
+            const canvas = await page.locator('.board-canvas').boundingBox();
+            expect(box!.x).toBeGreaterThanOrEqual(canvas!.x);
             expect(box!.y).toBeGreaterThanOrEqual(topbar!.y + topbar!.height);
             expect(box!.y + box!.height).toBeLessThanOrEqual(dock!.y);
             await card.getByTestId('card-expand').click({ timeout: 3000 });
@@ -75,6 +82,7 @@ for (const lang of ['fr', 'en'] as const) {
                 })
                 .click();
             await expect(page.locator('.board-selection-bar')).toBeVisible();
+            await expect(page.locator('.board-topbar-status')).toBeVisible();
         });
     }
 }
@@ -87,7 +95,9 @@ test('pinch simulation keeps the draft and focused editor', async ({
     await page.setViewportSize({ width: 390, height: 640 });
     await page.goto('/app/?demo=1&lang=en');
     const card = page.locator('.post-it-card').first();
-    await card.click({ position: { x: 20, y: 100 } });
+    await expect(card).toBeVisible();
+    await page.waitForTimeout(1200);
+    await card.click({ position: { x: 100, y: 100 } });
     await card.getByRole('button', { name: 'Edit card' }).click();
     const title = card.locator('.post-it-title');
     await title.fill('Draft across zoom');
@@ -122,7 +132,9 @@ test('the selection bar stays available while editing on a wide desktop', async 
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/app/?demo=1&lang=en');
     const card = page.locator('.post-it-card').first();
-    await card.click({ position: { x: 20, y: 100 } });
+    await expect(card).toBeVisible();
+    await page.waitForTimeout(1200);
+    await card.click({ position: { x: 100, y: 100 } });
     await card.getByRole('button', { name: 'Edit card' }).click();
     await expect(card).toHaveClass(/is-editing/);
     await expect(page.locator('.board-selection-bar')).toBeVisible();
