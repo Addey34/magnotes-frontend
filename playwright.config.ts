@@ -58,6 +58,7 @@ export default defineConfig({
                 'selectionBar.spec.ts',
                 'gettingStarted.spec.ts',
                 'mobileEditing.spec.ts',
+                'discovery.spec.ts',
             ],
             use: { ...devices['Pixel 7'] },
         },
@@ -80,6 +81,7 @@ export default defineConfig({
                 'selectionBar.spec.ts',
                 'gettingStarted.spec.ts',
                 'mobileEditing.spec.ts',
+                'discovery.spec.ts',
             ],
             grepInvert:
                 /sidebar expands on hover without covering the workspace/,
