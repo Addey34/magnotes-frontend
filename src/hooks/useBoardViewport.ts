@@ -166,12 +166,14 @@ export function useBoardViewport() {
     // card's coordinates, focus, selection or zoom.
     useEffect(() => {
         let frame: number | null = null;
+        const pointers = new Set<number>();
         const cancel = () => {
             if (frame !== null) cancelAnimationFrame(frame);
             frame = null;
         };
         const schedule = () => {
             cancel();
+            if (pointers.size > 0) return;
             frame = requestAnimationFrame(() => {
                 frame = null;
                 if (
@@ -215,14 +217,31 @@ export function useBoardViewport() {
                 });
             });
         };
+        const pointerDown = (event: PointerEvent) => {
+            pointers.add(event.pointerId);
+            cancel();
+        };
+        const pointerEnd = (event: PointerEvent) => {
+            pointers.delete(event.pointerId);
+        };
+        const resetPointers = () => {
+            pointers.clear();
+            cancel();
+        };
         window.addEventListener('resize', schedule);
         window.visualViewport?.addEventListener('resize', schedule);
-        window.addEventListener('pointerdown', cancel, true);
+        window.addEventListener('pointerdown', pointerDown, true);
+        window.addEventListener('pointerup', pointerEnd, true);
+        window.addEventListener('pointercancel', pointerEnd, true);
+        window.addEventListener('blur', resetPointers);
         return () => {
             cancel();
             window.removeEventListener('resize', schedule);
             window.visualViewport?.removeEventListener('resize', schedule);
-            window.removeEventListener('pointerdown', cancel, true);
+            window.removeEventListener('pointerdown', pointerDown, true);
+            window.removeEventListener('pointerup', pointerEnd, true);
+            window.removeEventListener('pointercancel', pointerEnd, true);
+            window.removeEventListener('blur', resetPointers);
         };
     }, [setViewport]);
 
