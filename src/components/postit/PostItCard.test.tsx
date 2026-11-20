@@ -239,6 +239,90 @@ describe('PostItCard rendering', () => {
         expect(container.querySelector('textarea.post-it-content')).toBeNull();
     });
 
+    it('focuses the body on entering edit mode, unless the title already has focus', () => {
+        const first = renderCard();
+        fireEvent.click(screen.getByLabelText('Edit card'));
+        expect(document.activeElement).toBe(
+            first.container.querySelector('textarea.post-it-content')
+        );
+        first.unmount();
+
+        // R-A: the user taps the title first; entering edit mode must not
+        // move focus away from it (the title would be typed into the body).
+        const { container } = renderCard();
+        const title = container.querySelector<HTMLInputElement>(
+            'input.post-it-title'
+        )!;
+        title.focus();
+        fireEvent.click(screen.getByLabelText('Edit card'));
+        expect(document.activeElement).toBe(title);
+    });
+
+    it('keeps the focus and the selection of an already active title', () => {
+        const { container } = renderCard({ title: 'Groceries' });
+        const title = container.querySelector<HTMLInputElement>(
+            'input.post-it-title'
+        )!;
+        title.focus();
+        title.setSelectionRange(2, 5);
+        fireEvent.click(screen.getByLabelText('Edit card'));
+        expect(document.activeElement).toBe(title);
+        expect([title.selectionStart, title.selectionEnd]).toEqual([2, 5]);
+    });
+
+    it('still autofocuses when nothing is active: untitled card -> title, titled card -> body at the end', () => {
+        const fresh = renderCard(
+            { title: '', content: '' },
+            { autoEdit: true, onAutoEditHandled: jest.fn() }
+        );
+        expect(document.activeElement).toBe(
+            fresh.container.querySelector('input.post-it-title')
+        );
+        fresh.unmount();
+
+        // A card just created by the server carries the default title.
+        const created = renderCard(
+            { title: 'New note', content: '' },
+            { autoEdit: true, onAutoEditHandled: jest.fn() }
+        );
+        expect(document.activeElement).toBe(
+            created.container.querySelector('textarea.post-it-content')
+        );
+        created.unmount();
+
+        const existing = renderCard({ content: 'Buy milk' });
+        fireEvent.click(screen.getByLabelText('Edit card'));
+        const body = existing.container.querySelector<HTMLTextAreaElement>(
+            'textarea.post-it-content'
+        )!;
+        expect(document.activeElement).toBe(body);
+        expect(body.selectionStart).toBe(body.value.length);
+    });
+
+    it('keeps title then body typing in their own fields on a fresh card', () => {
+        const { container, onLocalChange } = renderCard(
+            { title: 'New note', content: '' },
+            { autoEdit: true, onAutoEditHandled: jest.fn() }
+        );
+        // The user taps the title after the body took focus, then the body.
+        const title = container.querySelector<HTMLInputElement>(
+            'input.post-it-title'
+        )!;
+        title.focus();
+        fireEvent.change(title, { target: { value: 'My title' } });
+        const body = container.querySelector<HTMLTextAreaElement>(
+            'textarea.post-it-content'
+        )!;
+        body.focus();
+        fireEvent.change(body, { target: { value: 'My body' } });
+        expect(onLocalChange).toHaveBeenNthCalledWith(1, 'card-1', {
+            title: 'My title',
+        });
+        expect(onLocalChange).toHaveBeenNthCalledWith(2, 'card-1', {
+            content: 'My body',
+        });
+    });
+
     it('enters edit mode on double-click and leaves it with Escape', () => {
         const { container } = renderCard();
 

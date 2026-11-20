@@ -342,6 +342,13 @@ const PostItCard: React.FC<PostItCardProps> = ({
     // with the caret at the end.
     useEffect(() => {
         if (!isEditing) return;
+        // The user may already have put the caret in one of the fields (for
+        // instance tapping the title right after creating the card) before this
+        // effect ran: moving focus now would send what they type to the wrong
+        // field (R-A: the title ended up in the body).
+        const active = document.activeElement;
+        if (active === titleRef.current || active === contentRef.current)
+            return;
         const el = !postIt.title.trim() ? titleRef.current : contentRef.current;
         if (!el) return;
         el.focus();
