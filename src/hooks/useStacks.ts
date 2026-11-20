@@ -11,7 +11,10 @@ import { snapToGrid } from './useDragGrid';
 export const useStacks = (
     activeTabId: string | null,
     onLoadError?: () => void,
-    onMutationError?: () => void
+    onMutationError?: () => void,
+    // Called once the server has deleted the stack: its released cards got a
+    // new server state (and token) that the board must read again.
+    onStackDeleted?: (stackId: string, tabId: string) => Promise<void> | void
 ) => {
     const [stacksByTab, setStacksByTab] = useState<
         Record<string, PostItStack[]>
@@ -156,6 +159,14 @@ export const useStacks = (
         }));
         try {
             await deleteStack(stackId);
+            try {
+                await onStackDeleted?.(stackId, activeTabId);
+            } catch {
+                // The deletion happened; only the re-read failed. Released
+                // cards keep their old tokens, so their next write is refused
+                // (never silently applied) until the board is reloaded.
+                onMutationError?.();
+            }
         } catch {
             setStacksByTab((current) => {
                 const next = [...(current[activeTabId] || [])];

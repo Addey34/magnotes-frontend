@@ -239,6 +239,36 @@ describe('PostItCard rendering', () => {
         expect(container.querySelector('textarea.post-it-content')).toBeNull();
     });
 
+    it('keeps the focus the user already put in the title when edit mode starts', () => {
+        // R-A: entering edit mode used to move the focus to the body, so what
+        // the user was typing in the title went into the body and the title
+        // was lost.
+        const { container } = renderCard({ title: 'New note' });
+        const title =
+            container.querySelector<HTMLInputElement>('.post-it-title')!;
+        title.focus();
+        expect(document.activeElement).toBe(title);
+
+        fireEvent.doubleClick(
+            container.querySelector('.post-it-content-view')!
+        );
+
+        expect(
+            container.querySelector('textarea.post-it-content')
+        ).toBeInTheDocument();
+        expect(document.activeElement).toBe(title);
+    });
+
+    it('still focuses the body when edit mode starts and nothing of the card has the focus', () => {
+        const { container } = renderCard({ title: 'New note' });
+        fireEvent.doubleClick(
+            container.querySelector('.post-it-content-view')!
+        );
+        expect(document.activeElement).toBe(
+            container.querySelector('textarea.post-it-content')
+        );
+    });
+
     it('enters edit mode on double-click and leaves it with Escape', () => {
         const { container } = renderCard();
 

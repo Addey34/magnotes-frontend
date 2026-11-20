@@ -19,7 +19,7 @@ describe('useHistory transactions', () => {
         expect(result.current.canRedo).toBe(true);
     });
 
-    it('compensates a failed undo and keeps it available', async () => {
+    it('keeps a failed undo available without replaying the opposite side (D1A: no blind compensation)', async () => {
         const undo = jest.fn().mockRejectedValue(new Error('network'));
         const redo = jest.fn().mockResolvedValue(undefined);
         const onError = jest.fn();
@@ -29,13 +29,15 @@ describe('useHistory transactions', () => {
         await act(async () => result.current.undo());
 
         expect(undo).toHaveBeenCalledTimes(1);
-        expect(redo).toHaveBeenCalledTimes(1);
+        // D1A: the outcome of the failed call is unknown; the opposite side is
+        // not replayed on top of it.
+        expect(redo).not.toHaveBeenCalled();
         expect(onError).toHaveBeenCalledTimes(1);
         expect(result.current.canUndo).toBe(true);
         expect(result.current.canRedo).toBe(false);
     });
 
-    it('compensates a failed redo and keeps it available', async () => {
+    it('keeps a failed redo available without replaying the opposite side (D1A: no blind compensation)', async () => {
         const undo = jest.fn().mockResolvedValue(undefined);
         const redo = jest.fn().mockRejectedValue(new Error('network'));
         const onError = jest.fn();
@@ -46,7 +48,7 @@ describe('useHistory transactions', () => {
         await act(async () => result.current.redo());
 
         expect(redo).toHaveBeenCalledTimes(1);
-        expect(undo).toHaveBeenCalledTimes(2);
+        expect(undo).toHaveBeenCalledTimes(1);
         expect(onError).toHaveBeenCalledTimes(1);
         expect(result.current.canUndo).toBe(false);
         expect(result.current.canRedo).toBe(true);

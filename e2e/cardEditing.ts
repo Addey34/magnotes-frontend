@@ -1,4 +1,4 @@
-import type { Locator } from '@playwright/test';
+import { expect, type Locator } from '@playwright/test';
 
 /**
  * Cards are move-first: the title and body are read-only until edit mode.
@@ -17,5 +17,9 @@ export async function startEditingCard(card: Locator): Promise<void> {
     }
     await card
         .getByRole('button', { name: /^(edit card|modifier la carte)$/i })
-        .dispatchEvent('click');
+        .dispatchEvent('click', {}, { timeout: 2_000 })
+        // A card the board puts in edit mode by itself can switch while this
+        // runs: its edit button then disappears, which is the outcome wanted.
+        .catch(() => undefined);
+    await expect(card).toHaveClass(/is-editing/);
 }

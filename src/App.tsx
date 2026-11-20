@@ -16,6 +16,9 @@ import {
     startSessionCoordination,
 } from './services/sessionCoordinator';
 import LogoutNotice, { LogoutNoticeState } from './components/ui/LogoutNotice';
+import { getTokenUserId } from './utils/tokenUtils';
+import { sharedJournal } from './services/localJournal';
+import { useT } from './i18n/LangContext';
 import DemoImportBanner from './components/ui/DemoImportBanner';
 import { importDemoBoardToAccount } from './services/demoImportRuntime';
 import {
@@ -72,6 +75,36 @@ const App: React.FC = () => {
         () => (hasPendingLogout() ? 'unconfirmed' : null)
     );
     const [demoActive, setDemoActive] = useState(false);
+    // D2: work of the account that just left (logout, ended session) that the
+    // server never saw. It is kept on this device, isolated by account, and
+    // resumed when that account signs in again; never shown to another one.
+    const { t } = useT();
+    const lastOwner = useRef<string | null>(null);
+    const [leftUnsynced, setLeftUnsynced] = useState(false);
+    useEffect(() => {
+        if (isLoggedIn) {
+            lastOwner.current = getTokenUserId() ?? lastOwner.current;
+            setLeftUnsynced(false);
+            return;
+        }
+        const owner = lastOwner.current;
+        if (!owner) return;
+        let active = true;
+        void sharedJournal()
+            .read(owner)
+            .then((snap) => {
+                if (!active) return;
+                setLeftUnsynced(
+                    snap.drafts.length +
+                        snap.ops.length +
+                        snap.conflicts.length >
+                        0
+                );
+            });
+        return () => {
+            active = false;
+        };
+    }, [isLoggedIn]);
     // Which form the sign-in screen opens on. Pure read of `?signup` (the URL is
     // cleaned in an effect below), and dropped back to "login" once a session
     // exists, so a later logout never reopens the sign-up form.
@@ -342,6 +375,17 @@ const App: React.FC = () => {
                     state={logoutNotice}
                     onRetry={() => runRevocation(retryLogout)}
                 />
+            )}
+            {leftUnsynced && (
+                <div
+                    className="demo-import-banner logout-notice"
+                    role="status"
+                    data-testid="unsynced-notice"
+                >
+                    <span className="demo-import-banner__text">
+                        {t('logout.unsynced')}
+                    </span>
+                </div>
             )}
             <LoginForm onLogin={handleLogin} initialMode={authIntent} />
         </div>

@@ -1049,6 +1049,214 @@ export const DICTIONARY = {
     },
 
     // --- post-it card (inline editing) --------------------------------------
+    // --- D2: local journal, recovery of unsynchronised work ---------------
+    'local.saving': {
+        fr: 'Enregistrement sur cet appareil…',
+        en: 'Saving on this device…',
+    },
+    'local.saved': {
+        fr: 'Brouillon enregistré sur cet appareil',
+        en: 'Draft saved on this device',
+    },
+    'local.unavailable': {
+        fr: 'Stockage local indisponible : sans réseau, ce que vous tapez ne survivrait pas à la fermeture de la page',
+        en: 'Local storage unavailable: without a network, what you type would not survive closing the page',
+    },
+    'local.quota': {
+        fr: 'Stockage local plein : les modifications ne sont pas protégées sur cet appareil',
+        en: 'Local storage full: changes are not protected on this device',
+    },
+    'sync.editing': { fr: 'Modification en cours', en: 'Editing' },
+    'sync.syncing': { fr: 'Synchronisation en cours', en: 'Syncing' },
+    'sync.offline': { fr: 'Hors ligne', en: 'Offline' },
+    'sync.synced': { fr: 'Synchronisé', en: 'Synced' },
+    'sync.uncertain': { fr: 'Écriture incertaine', en: 'Uncertain write' },
+    'sync.conflict': { fr: 'Conflit à résoudre', en: 'Conflict to resolve' },
+    'recovery.open': {
+        fr: 'Travail non synchronisé ({n})',
+        en: 'Unsynchronised work ({n})',
+    },
+    'recovery.title': {
+        fr: 'Travail non synchronisé',
+        en: 'Unsynchronised work',
+    },
+    'recovery.intro': {
+        fr: 'Ces contenus sont conservés sur cet appareil pour votre compte. Rien n’est écrasé sans votre accord.',
+        en: 'This content is kept on this device for your account. Nothing is overwritten without your consent.',
+    },
+    'recovery.kind.draft': { fr: 'Brouillon', en: 'Draft' },
+    'recovery.kind.op': { fr: 'Écriture incertaine', en: 'Uncertain write' },
+    'recovery.kind.conflict': { fr: 'Conflit', en: 'Conflict' },
+    'recovery.reason.precondition-failed': {
+        fr: 'La carte a changé sur le serveur depuis cette modification.',
+        en: 'The card changed on the server since this edit.',
+    },
+    'recovery.reason.not-found': {
+        fr: 'La carte n’existe plus sur le serveur.',
+        en: 'The card no longer exists on the server.',
+    },
+    'recovery.reason.receipt-unavailable': {
+        fr: 'Le serveur ne peut plus dire si cette écriture a été appliquée.',
+        en: 'The server can no longer tell whether this write was applied.',
+    },
+    'recovery.reason.session-ended': {
+        fr: 'La session a pris fin avant l’envoi.',
+        en: 'The session ended before it was sent.',
+    },
+    'recovery.reason.refused': {
+        fr: 'Le serveur a refusé cette écriture.',
+        en: 'The server refused this write.',
+    },
+    'recovery.reason.unknown': {
+        fr: 'Cette écriture n’a pas pu être résolue.',
+        en: 'This write could not be resolved.',
+    },
+    'recovery.uncertainNote': {
+        fr: 'Cette écriture a pu atteindre le serveur sans que vous en ayez la réponse. Réessayer renvoie exactement la même requête.',
+        en: 'This write may have reached the server without you getting the answer. Retrying sends exactly the same request.',
+    },
+    'recovery.local': {
+        fr: 'Votre texte (cet appareil)',
+        en: 'Your text (this device)',
+    },
+    'recovery.server.loading': {
+        fr: 'Lecture du serveur…',
+        en: 'Reading the server…',
+    },
+    'recovery.server.found': {
+        fr: 'Sur le serveur (lu à l’instant)',
+        en: 'On the server (just read)',
+    },
+    'recovery.server.absent': {
+        fr: 'Carte absente du serveur',
+        en: 'Card absent from the server',
+    },
+    'recovery.server.unavailable': {
+        fr: 'Comparaison indisponible : le serveur n’a pas pu être lu.',
+        en: 'Comparison unavailable: the server could not be read.',
+    },
+    'recovery.note.verify-failed': {
+        fr: 'La version du serveur n’a pas pu être vérifiée : rien n’a été envoyé, votre texte reste ici.',
+        en: 'The server version could not be verified: nothing was sent, your text stays here.',
+    },
+    'recovery.note.not-replayable': {
+        fr: 'La garantie du serveur n’a pas pu être prouvée : rien n’a été renvoyé. Copiez votre texte ou reprenez l’édition.',
+        en: 'The server guarantee could not be proven: nothing was resent. Copy your text or resume editing.',
+    },
+    'recovery.note.uncertain': {
+        fr: 'Toujours incertain : le serveur n’a pas confirmé. Votre texte est conservé.',
+        en: 'Still uncertain: the server did not confirm. Your text is kept.',
+    },
+    'recovery.note.context': {
+        fr: 'Le compte ou la session a changé : rien n’a été envoyé.',
+        en: 'The account or session changed: nothing was sent.',
+    },
+    'recovery.note.stale': {
+        fr: 'La carte a changé de vie depuis : votre texte est conservé comme conflit.',
+        en: 'The card has since changed life: your text is kept as a conflict.',
+    },
+    'recovery.note.refused': {
+        fr: 'Le serveur a refusé cette écriture : votre texte est conservé comme conflit.',
+        en: 'The server refused this write: your text is kept as a conflict.',
+    },
+    'recovery.note.storage': {
+        fr: 'Le stockage local n’a pas pu enregistrer le transfert : l’original est conservé.',
+        en: 'Local storage could not record the transfer: the original is kept.',
+    },
+    'recovery.note.taken-elsewhere': {
+        fr: 'Une autre page a déjà pris en charge cet élément.',
+        en: 'Another page already took this item over.',
+    },
+    'recovery.note.done': {
+        fr: 'Nouvelle écriture envoyée sur la version vérifiée du serveur.',
+        en: 'New write sent on the verified server version.',
+    },
+    'recovery.note.applied': {
+        fr: 'Le serveur a confirmé cette écriture.',
+        en: 'The server confirmed this write.',
+    },
+    'recovery.kind.delete': {
+        fr: 'Suppression incertaine',
+        en: 'Uncertain deletion',
+    },
+    'recovery.deleteNote': {
+        fr: 'Cette suppression a pu atteindre le serveur sans que vous en ayez la réponse ; la carte est restée affichée. « Vérifier et conserver la carte » lit le serveur : si la carte a disparu, elle est restaurée à partir de cette suppression précise ; si elle existe encore sur la même version, la suppression peut encore s’appliquer (une requête déjà envoyée ne peut pas être annulée) : votre texte reste conservé ici jusqu’à ce que vous l’abandonniez vous-même.',
+        en: 'This deletion may have reached the server without you getting the answer; the card stayed on screen. “Check and keep the card” reads the server: if the card is gone, it is restored from that very deletion; if it still exists on the same version, the deletion can still apply (a request already sent cannot be cancelled): your text stays saved here until you abandon it yourself.',
+    },
+    'recovery.keepCard': {
+        fr: 'Vérifier et conserver la carte',
+        en: 'Check and keep the card',
+    },
+    'recovery.note.kept': {
+        fr: 'La carte existe sur le serveur dans une autre version : la suppression envoyée ne peut plus s’appliquer, elle est abandonnée ici.',
+        en: 'The card exists on the server in another version: the deletion that was sent can no longer apply, it is dropped here.',
+    },
+    'recovery.note.in-doubt': {
+        fr: 'La carte existe encore sur le serveur, mais la suppression envoyée a pu ne pas être traitée : elle peut encore s’appliquer. Votre texte reste conservé ici. Vérifiez à nouveau plus tard, ou abandonnez la suppression vous-même.',
+        en: 'The card still exists on the server, but the deletion that was sent may not have been processed yet: it can still apply. Your text stays saved here. Check again later, or abandon the deletion yourself.',
+    },
+    'recovery.note.restored': {
+        fr: 'La suppression avait été appliquée : la carte est restaurée à partir de cette suppression.',
+        en: 'The deletion had been applied: the card is restored from that very deletion.',
+    },
+    'recovery.copied': { fr: 'Copié.', en: 'Copied.' },
+    'recovery.copyFailed': {
+        fr: 'Copie impossible : sélectionnez le texte et copiez-le à la main.',
+        en: 'Copy failed: select the text and copy it by hand.',
+    },
+    'recovery.undetermined': {
+        fr: 'Ce navigateur ne permet pas de savoir si l’autre page est fermée : rien n’est repris automatiquement, c’est à vous de décider.',
+        en: 'This browser cannot tell whether the other page is closed: nothing is taken automatically, it is up to you.',
+    },
+    'recovery.unknownBase': {
+        fr: 'La version de départ de ce brouillon est inconnue : il n’est jamais envoyé automatiquement.',
+        en: 'The starting version of this draft is unknown: it is never sent automatically.',
+    },
+    'sync.unconfirmed': {
+        fr: 'Non synchronisé — copie locale non confirmée',
+        en: 'Not synced — local copy not confirmed',
+    },
+    'recovery.card': { fr: 'Carte', en: 'Card' },
+    'recovery.unknownCard': {
+        fr: 'Carte d’un autre tableau ou supprimée',
+        en: 'Card of another board, or deleted',
+    },
+    'recovery.copy': { fr: 'Copier', en: 'Copy' },
+    'recovery.resume': { fr: 'Reprendre l’édition', en: 'Resume editing' },
+    'recovery.retry': {
+        fr: 'Réessayer la même écriture',
+        en: 'Retry the same write',
+    },
+    'recovery.abandon': { fr: 'Abandonner', en: 'Discard' },
+    'recovery.abandon.confirm': {
+        fr: 'Abandonner la copie locale de ce contenu ? Cela n’annule pas une requête déjà envoyée : le serveur peut encore l’appliquer.',
+        en: 'Discard the local copy of this content? This does not cancel a request that was already sent: the server may still apply it.',
+    },
+    'recovery.close': { fr: 'Fermer', en: 'Close' },
+    'recovery.deviceNote': {
+        fr: 'Appareil partagé : ces données sont stockées en clair dans le navigateur. Supprimez-les si d’autres personnes utilisent cet appareil.',
+        en: 'Shared device: this data is stored unencrypted in the browser. Delete it if other people use this device.',
+    },
+    'recovery.clearLocal': {
+        fr: 'Supprimer le stockage local',
+        en: 'Delete local storage',
+    },
+    'recovery.clearLocal.confirm': {
+        fr: 'Supprimer tout le travail non synchronisé de cet appareil ? Cette action est définitive.',
+        en: 'Delete all unsynchronised work from this device? This cannot be undone.',
+    },
+    'recovery.empty': {
+        fr: 'Aucun travail non synchronisé.',
+        en: 'No unsynchronised work.',
+    },
+    'recovery.deleteDeferred': {
+        fr: 'Suppression différée : une écriture de cette carte est encore incertaine. La carte et son contenu sont conservés.',
+        en: 'Deletion deferred: a write of this card is still uncertain. The card and its content are kept.',
+    },
+    'logout.unsynced': {
+        fr: 'Des modifications n’ont pas été enregistrées sur le serveur. Elles sont conservées sur cet appareil et reprises à votre prochaine connexion à ce compte.',
+        en: 'Some changes were not saved on the server (unsaved). They are kept on this device and resumed when you sign in to this account again.',
+    },
     'card.saving': { fr: 'Sauvegarde', en: 'Saving' },
     'card.saved': { fr: 'Enregistré', en: 'Saved' },
     'card.error': { fr: 'Erreur', en: 'Error' },

@@ -61,7 +61,13 @@ export interface PostIt {
     checklist?: ChecklistItem[];
     mediaUrl?: string | null;
     createdAt: string;
+    /** Business date of the last edit. Never a concurrency token. */
     updatedAt: string;
+    /**
+     * Opaque concurrency token of this card's current state (authenticated
+     * boards only). Never decoded, built, ordered or derived from `updatedAt`.
+     */
+    etag?: string;
 }
 
 export type PostItUpdate = Partial<
@@ -92,9 +98,12 @@ export type PostItUpdate = Partial<
     >
 >;
 
-/** A patch guarded by the card state that was last loaded by this client. */
+/**
+ * A patch guarded by the card token it is based on: `etag` is sent as
+ * `If-Match` and never as a body field.
+ */
 export type PostItSaveUpdate = PostItUpdate & {
-    expectedUpdatedAt?: string;
+    etag?: string;
 };
 
 export interface PostItStack {

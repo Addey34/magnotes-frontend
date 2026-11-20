@@ -21,6 +21,7 @@ import {
     PostIt,
     PostItStack,
     PostItStackUpdate,
+    PostItSaveUpdate,
     PostItUpdate,
 } from '../types/boardTypes';
 import { DemoSnapshot } from './demoBoard';
@@ -60,7 +61,7 @@ export interface ImportApi {
     createPostIt(input: CreatePostItInput): Promise<PostIt>;
     updatePostIt(
         postItId: string,
-        updates: PostItUpdate
+        updates: PostItSaveUpdate
     ): Promise<PostIt | void>;
     createConnection(
         input: Pick<CardLink, 'tabId' | 'sourceId' | 'targetId'> &
@@ -162,7 +163,12 @@ export async function importSnapshot(
                 : {}),
         };
         if (Object.keys(patch).length > 0) {
-            await api.updatePostIt(created._id, patch);
+            // The token of the card the server just created is the base of its
+            // first (and only) follow-up patch.
+            await api.updatePostIt(created._id, {
+                ...patch,
+                etag: created.etag,
+            });
         }
     }
 
