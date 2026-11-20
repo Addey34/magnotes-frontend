@@ -716,6 +716,34 @@ export const DICTIONARY = {
         en: 'Tap a note then Edit · Drag a note to move it · Drag the background to navigate · Pinch to zoom',
     },
     'app.help.title': { fr: 'Aide et raccourcis', en: 'Help and shortcuts' },
+    'app.help.pointer.create': {
+        fr: 'Double-cliquez sur le fond pour créer une note.',
+        en: 'Double-click the background to create a note.',
+    },
+    'app.help.pointer.edit': {
+        fr: 'Double-cliquez sur une note pour la modifier ; glissez-la pour la déplacer.',
+        en: 'Double-click a note to edit it; drag it to move it.',
+    },
+    'app.help.pointer.navigate': {
+        fr: 'Glissez le fond pour naviguer et utilisez la molette pour zoomer.',
+        en: 'Drag the background to move around and scroll to zoom.',
+    },
+    'app.help.mobile.create': {
+        fr: 'Touchez « Post-it » pour créer une note.',
+        en: 'Tap “Sticky note” to create a note.',
+    },
+    'app.help.mobile.edit': {
+        fr: 'Touchez une note puis Modifier ; glissez-la pour la déplacer.',
+        en: 'Tap a note, then Edit; drag it to move it.',
+    },
+    'app.help.mobile.navigate': {
+        fr: 'Glissez le fond pour naviguer et pincez pour zoomer.',
+        en: 'Drag the background to move around and pinch to zoom.',
+    },
+    'app.help.views': {
+        fr: 'Explorez les vues Kanban, Agenda et Planning en haut du tableau.',
+        en: 'Explore Kanban, Agenda and Timeline views at the top of the board.',
+    },
     'app.help.shortcuts': {
         fr: 'N créer · Suppr supprimer · Ctrl+D dupliquer · Ctrl+Z annuler · Ctrl+K palette',
         en: 'N create · Delete remove · Ctrl+D duplicate · Ctrl+Z undo · Ctrl+K palette',

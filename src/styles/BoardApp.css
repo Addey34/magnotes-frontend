@@ -5315,9 +5315,9 @@
     border: 1px solid var(--control-border);
     border-radius: 50%;
     color: var(--text-soft);
-    cursor: help;
+    cursor: pointer;
     display: inline-flex;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 800;
     height: 28px;
     justify-content: center;
@@ -5340,29 +5340,80 @@
     box-shadow: 0 16px 36px rgba(0, 0, 0, 0.28);
     color: var(--text-soft);
     display: grid;
-    gap: 6px;
-    opacity: 0;
-    padding: 10px 12px;
-    pointer-events: none;
+    gap: 10px;
+    max-height: max(
+        0px,
+        calc(
+            100dvh - var(--demo-banner-height) - var(--board-topbar-height) -
+                70px
+        )
+    );
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 16px;
     position: absolute;
     right: 0;
     top: calc(100% + 8px);
-    transform: translateY(-4px);
-    transition:
-        opacity 160ms ease,
-        transform 160ms ease;
-    width: min(300px, calc(100vw - 28px));
+    width: min(340px, calc(100vw - 28px));
     z-index: 320;
 }
 
 .board-shortcuts-tooltip strong {
     color: var(--text-main);
-    font-size: 11px;
+    font-size: 14px;
+}
+
+.board-help-heading {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.board-help-heading button {
+    align-items: center;
+    background: var(--control-bg);
+    border: 1px solid var(--control-border);
+    border-radius: 8px;
+    color: var(--text-main);
+    cursor: pointer;
+    display: inline-flex;
+    flex: 0 0 36px;
+    height: 36px;
+    justify-content: center;
+}
+
+.board-help-heading button svg {
+    height: 18px;
+    width: 18px;
 }
 
 .board-shortcuts-tooltip span {
-    font-size: 10px;
-    line-height: 1.45;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.board-shortcuts-tooltip[hidden] {
+    display: none;
+}
+
+.board-help-list {
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 0;
+    padding-left: 18px;
+}
+
+.board-help-list li + li {
+    margin-top: 6px;
+}
+
+.board-help-feature {
+    border-top: 1px solid var(--control-border);
+    font-size: 12px;
+    line-height: 1.5;
+    margin: 0;
+    padding-top: 10px;
 }
 
 .touch-help {
@@ -5375,19 +5426,13 @@
     }
 
     .touch-help {
-        display: inline;
+        display: revert;
     }
 }
 
 .board-shortcuts-tooltip-meta {
     color: var(--text-muted);
     font-size: 9px !important;
-}
-
-.board-shortcuts-help:hover .board-shortcuts-tooltip,
-.board-shortcuts-help:focus-within .board-shortcuts-tooltip {
-    opacity: 1;
-    transform: translateY(0);
 }
 
 .board-sync-dot {
@@ -5455,6 +5500,15 @@
     .board-shortcuts-tooltip {
         right: 10px;
         width: min(280px, calc(100vw - 20px));
+    }
+}
+
+@media (max-height: 480px) {
+    .board-shortcuts-tooltip {
+        max-height: calc(100dvh - 16px);
+        position: fixed;
+        right: 10px;
+        top: 8px;
     }
 }
 

@@ -225,6 +225,8 @@ const BoardApp: React.FC<BoardAppProps> = ({
     const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false);
     const [appearanceOpen, setAppearanceOpen] = useState(false);
     const appearanceRef = useRef<HTMLDivElement | null>(null);
+    const [helpOpen, setHelpOpen] = useState(false);
+    const helpRef = useRef<HTMLDivElement | null>(null);
     const importInputRef = useRef<HTMLInputElement | null>(null);
     const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
     const [paletteQuery, setPaletteQuery] = useState('');
@@ -378,6 +380,8 @@ const BoardApp: React.FC<BoardAppProps> = ({
     useDismiss(brandMenuOpen, brandRef, closeBrandMenu);
     const closeAppearance = useCallback(() => setAppearanceOpen(false), []);
     useDismiss(appearanceOpen, appearanceRef, closeAppearance);
+    const closeHelp = useCallback(() => setHelpOpen(false), []);
+    useDismiss(helpOpen, helpRef, closeHelp);
     useFocusTrap(deleteDialogOpen, deleteDialogRef);
     const isLoading =
         isLoadingTabs ||
@@ -2219,31 +2223,75 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                 />
                                 <span>{syncLabel}</span>
                             </div>
-                            <div className="board-shortcuts-help">
+                            <div className="board-shortcuts-help" ref={helpRef}>
                                 <button
                                     type="button"
                                     aria-label={t('app.help.title')}
                                     title={t('app.help.title')}
+                                    aria-expanded={helpOpen}
+                                    aria-controls="board-help"
+                                    onClick={() => setHelpOpen((open) => !open)}
                                 >
                                     ?
                                 </button>
-                                <div
+                                <section
+                                    id="board-help"
                                     className="board-shortcuts-tooltip"
-                                    role="tooltip"
+                                    aria-label={t('app.help.title')}
+                                    hidden={!helpOpen}
+                                    tabIndex={0}
                                 >
-                                    <strong>{t('app.help.title')}</strong>
+                                    <div className="board-help-heading">
+                                        <strong>{t('app.help.title')}</strong>
+                                        {helpOpen && (
+                                            <button
+                                                type="button"
+                                                onClick={closeHelp}
+                                                aria-label={t('common.close')}
+                                            >
+                                                <XMarkIcon />
+                                            </button>
+                                        )}
+                                    </div>
                                     {linkingSourceId ? (
                                         <span>{t('app.help.linking')}</span>
                                     ) : (
                                         <>
-                                            <span className="pointer-help">
-                                                {t('app.help.canvas')}
-                                            </span>
-                                            <span className="touch-help">
-                                                {t('app.help.touch')}
-                                            </span>
+                                            <ul className="board-help-list pointer-help">
+                                                <li>
+                                                    {t(
+                                                        'app.help.pointer.create'
+                                                    )}
+                                                </li>
+                                                <li>
+                                                    {t('app.help.pointer.edit')}
+                                                </li>
+                                                <li>
+                                                    {t(
+                                                        'app.help.pointer.navigate'
+                                                    )}
+                                                </li>
+                                            </ul>
+                                            <ul className="board-help-list touch-help">
+                                                <li>
+                                                    {t(
+                                                        'app.help.mobile.create'
+                                                    )}
+                                                </li>
+                                                <li>
+                                                    {t('app.help.mobile.edit')}
+                                                </li>
+                                                <li>
+                                                    {t(
+                                                        'app.help.mobile.navigate'
+                                                    )}
+                                                </li>
+                                            </ul>
                                         </>
                                     )}
+                                    <p className="board-help-feature">
+                                        {t('app.help.views')}
+                                    </p>
                                     <span className="pointer-help">
                                         {t('app.help.shortcuts')}
                                     </span>
@@ -2255,7 +2303,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
                                               })
                                             : t('app.status.free')}
                                     </span>
-                                </div>
+                                </section>
                             </div>
                         </div>
                     </div>
