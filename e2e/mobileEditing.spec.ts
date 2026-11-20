@@ -2,6 +2,47 @@ import { expect, test } from '@playwright/test';
 
 test.setTimeout(60_000);
 
+test('critical sync presentations and help stay reachable during compact editing', async ({
+    page,
+    context,
+}) => {
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto('/app/?demo=1&lang=en');
+    const card = page.locator('.post-it-card').first();
+    await expect(card).toBeVisible();
+    await page.waitForTimeout(1200);
+    await card.click({ position: { x: 100, y: 100 } });
+    await card.getByRole('button', { name: 'Edit card' }).click();
+    await page.setViewportSize({ width: 320, height: 400 });
+    await context.setOffline(true);
+    const status = page.locator('.board-sync-status');
+    await expect(status).toContainText('Offline');
+    await expect(status).toBeVisible();
+    await context.setOffline(false);
+    // Presentation-only fixtures for statuses that the backend-free demo cannot
+    // produce. This verifies CSS/accessibility, not autosave behavior.
+    for (const state of ['error', 'saving']) {
+        await status.evaluate((element, value) => {
+            element.className = `board-sync-status is-${value}`;
+            element.textContent =
+                value === 'error' ? 'Needs attention' : 'Saving…';
+        }, state);
+        await expect(status).toBeVisible();
+        const statusBox = await status.boundingBox();
+        const toolsBox = await card
+            .locator('.post-it-hover-tools')
+            .boundingBox();
+        expect(statusBox!.y + statusBox!.height).toBeLessThanOrEqual(
+            toolsBox!.y
+        );
+    }
+    await page.getByRole('button', { name: 'Help and shortcuts' }).click();
+    await expect(page.locator('#board-help')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await card.locator('.card-edit-done').click();
+    await expect(card).not.toHaveClass(/is-editing/);
+});
+
 for (const lang of ['fr', 'en'] as const) {
     for (const theme of ['theme-dark', 'theme-light'] as const) {
         test(`editing stays reachable in ${lang} with ${theme} as the viewport shrinks`, async ({
@@ -43,7 +84,7 @@ for (const lang of ['fr', 'en'] as const) {
                 ])
             ).toEqual([2, 6]);
             await expect(page.locator('.board-selection-bar')).toBeHidden();
-            await expect(page.locator('.board-topbar-status')).toBeHidden();
+            await expect(page.locator('.board-topbar-status')).toBeVisible();
             const box = await title.boundingBox();
             const topbar = await page.locator('.board-topbar').boundingBox();
             const dock = await page

@@ -5207,7 +5207,7 @@
 
 @media (max-height: 500px) {
     .board-workspace:has(.post-it-card.is-editing) .board-topbar-status {
-        display: none;
+        top: calc(var(--demo-banner-height) + 8px);
     }
 }
 
