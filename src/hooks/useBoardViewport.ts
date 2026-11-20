@@ -161,6 +161,90 @@ export function useBoardViewport() {
         []
     );
 
+    // A focused editor can end up partly behind the sidebar when a phone's
+    // visible viewport changes. Reveal it horizontally without changing the
+    // card's coordinates, focus, selection or zoom.
+    useEffect(() => {
+        let frame: number | null = null;
+        const pointers = new Set<number>();
+        const cancel = () => {
+            if (frame !== null) cancelAnimationFrame(frame);
+            frame = null;
+        };
+        const schedule = () => {
+            cancel();
+            if (pointers.size > 0) return;
+            frame = requestAnimationFrame(() => {
+                frame = null;
+                if (
+                    !window.matchMedia(
+                        '(max-width: 620px), (hover: none) and (max-height: 500px)'
+                    ).matches
+                )
+                    return;
+                const active = document.activeElement;
+                const canvas = canvasRef.current;
+                if (
+                    !(active instanceof HTMLElement) ||
+                    !canvas ||
+                    !active.matches('input, textarea') ||
+                    !active.closest('.post-it-card.is-editing')
+                )
+                    return;
+                const field = active.getBoundingClientRect();
+                const area = canvas.getBoundingClientRect();
+                if (
+                    field.right <= area.left ||
+                    field.left >= area.right ||
+                    field.bottom <= area.top ||
+                    field.top >= area.bottom
+                )
+                    return;
+                const margin = 4;
+                let dx = 0;
+                if (field.left < area.left + margin)
+                    dx = area.left + margin - field.left;
+                else if (
+                    field.right > area.right - margin &&
+                    field.width <= area.width - margin * 2
+                )
+                    dx = area.right - margin - field.right;
+                if (Math.abs(dx) < 0.5) return;
+                const current = viewportRef.current;
+                setViewport({
+                    zoom: current.zoom,
+                    offset: { x: current.offset.x + dx, y: current.offset.y },
+                });
+            });
+        };
+        const pointerDown = (event: PointerEvent) => {
+            pointers.add(event.pointerId);
+            cancel();
+        };
+        const pointerEnd = (event: PointerEvent) => {
+            pointers.delete(event.pointerId);
+        };
+        const resetPointers = () => {
+            pointers.clear();
+            cancel();
+        };
+        window.addEventListener('resize', schedule);
+        window.visualViewport?.addEventListener('resize', schedule);
+        window.addEventListener('pointerdown', pointerDown, true);
+        window.addEventListener('pointerup', pointerEnd, true);
+        window.addEventListener('pointercancel', pointerEnd, true);
+        window.addEventListener('blur', resetPointers);
+        return () => {
+            cancel();
+            window.removeEventListener('resize', schedule);
+            window.visualViewport?.removeEventListener('resize', schedule);
+            window.removeEventListener('pointerdown', pointerDown, true);
+            window.removeEventListener('pointerup', pointerEnd, true);
+            window.removeEventListener('pointercancel', pointerEnd, true);
+            window.removeEventListener('blur', resetPointers);
+        };
+    }, [setViewport]);
+
     const focusBounds = useCallback(
         (bounds: BoardBounds | null) => {
             const rect = canvasRef.current?.getBoundingClientRect();
