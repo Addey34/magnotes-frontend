@@ -19,9 +19,10 @@ test.beforeEach(async ({ page }) => {
             : resolve(root, `.${pathname}`);
         if (!file.startsWith(root + sep))
             throw new Error('Invalid fixture path');
+        // Read as raw bytes: decoding JPEGs as UTF-8 corrupts them.
         await route.fulfill({
             contentType: html ? 'text/html' : 'image/jpeg',
-            body: await readFile(file, 'utf8'),
+            body: await readFile(file),
         });
     });
 });
@@ -65,10 +66,35 @@ for (const lang of ['fr', 'en'] as const) {
                     () => document.documentElement.scrollWidth - innerWidth
                 )
             ).toBeLessThanOrEqual(0);
-            await page.screenshot({
+            const shot = await page.screenshot({
                 path: testInfo.outputPath('gallery.png'),
                 fullPage: true,
             });
+            // PNG signature + non-trivial payload: the capture is intact.
+            expect(shot.subarray(0, 8).toString('hex')).toBe(
+                '89504e470d0a1a0a'
+            );
+            expect(shot.length).toBeGreaterThan(5_000);
+            const brokenImages = await page.evaluate(async () => {
+                const imgs = [...document.images].filter((img) =>
+                    img.src.includes('/img/')
+                );
+                await Promise.all(
+                    imgs.map((img) => img.decode().catch(() => undefined))
+                );
+                return {
+                    count: imgs.length,
+                    broken: imgs
+                        .filter(
+                            (img) =>
+                                !img.complete ||
+                                img.naturalWidth < 100 ||
+                                img.naturalHeight < 100
+                        )
+                        .map((img) => img.src),
+                };
+            });
+            expect(brokenImages.broken).toEqual([]);
             const scan = await new AxeBuilder({ page })
                 .withTags(['wcag2a', 'wcag2aa'])
                 .analyze();
@@ -85,3 +111,41 @@ for (const lang of ['fr', 'en'] as const) {
         });
     }
 }
+
+test('landing CTAs, language switch and funnel attributes', async ({
+    page,
+}) => {
+    await page.goto('/?analytics=off');
+    // Landing images are real JPEGs, not UTF-8-mangled bytes.
+    const landingImages = await page.evaluate(async () => {
+        const imgs = [...document.images].filter((img) =>
+            img.src.includes('/img/view-')
+        );
+        imgs.forEach((img) => (img.loading = 'eager'));
+        await Promise.all(imgs.map((img) => img.decode().catch(() => 0)));
+        return imgs.map((img) => [img.naturalWidth, img.naturalHeight]);
+    });
+    expect(landingImages.length).toBeGreaterThan(0);
+    for (const [w, h] of landingImages) {
+        expect(w).toBeGreaterThan(100);
+        expect(h).toBeGreaterThan(100);
+    }
+    // Funnel: each CTA carries its Umami event and the right destination.
+    const demo = page.locator('[data-umami-event="landing_demo_started"]');
+    for (const cta of await demo.all())
+        await expect(cta).toHaveAttribute('href', '/app/?demo=1&lang=fr');
+    for (const cta of await page
+        .locator('[data-umami-event="landing_signup_clicked"]')
+        .all())
+        await expect(cta).toHaveAttribute('href', '/app/?lang=fr&signup=1');
+    // Language switch lands on the EN page and keeps EN CTAs.
+    await page.locator('a.btn-ghost[href="/en/"]').first().click();
+    await expect(page).toHaveURL(/\/en\/\?|\/en\/$/);
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    await expect(demo.first()).toHaveAttribute('href', '/app/?demo=1&lang=en');
+    // Real navigation of the demo CTA.
+    await Promise.all([
+        page.waitForURL(/\/app\/\?demo=1&lang=en/),
+        demo.first().click(),
+    ]);
+});
