@@ -8,11 +8,17 @@
 // against a local isolated stack (see playwright.real-focus.config.ts).
 import { expect, test, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
+import {
+    assertBackendBoundToIsolatedMongo,
+    isLoopbackHost,
+    parseApiUrl,
+    parseNetstat,
+} from './realStackGuard';
 
 const PASSWORD = 'StrongPassword123!';
 const env = (name: string): string => process.env[name] ?? '';
 const loopback = (url: string): boolean =>
-    ['127.0.0.1', 'localhost', '[::1]'].includes(new URL(url).hostname);
+    isLoopbackHost(new URL(url).hostname);
 
 const mongosh = (expression: string): string =>
     execFileSync(
@@ -37,6 +43,7 @@ function assertIsolatedStack(baseURL: string | undefined): void {
         'E2E_MONGO_CONTAINER',
         'E2E_DB',
         'E2E_MAILPIT_URL',
+        'E2E_API_URL',
     ].filter((name) => !env(name));
     if (missing.length)
         throw new Error(
@@ -46,6 +53,7 @@ function assertIsolatedStack(baseURL: string | undefined): void {
         throw new Error('E2E_REAL_API and E2E_ISOLATED_STACK must be "1".');
     if (!baseURL || !loopback(baseURL) || !loopback(env('E2E_MAILPIT_URL')))
         throw new Error('The app and the mailbox must be on a loopback host.');
+    const api = parseApiUrl(env('E2E_API_URL'));
     if (!/e2e|test|ra01|isolated|data01/i.test(env('E2E_DB')))
         throw new Error('E2E_DB must be an explicitly throw-away database.');
     const ports = JSON.parse(
@@ -59,11 +67,28 @@ function assertIsolatedStack(baseURL: string | undefined): void {
             ],
             { encoding: 'utf8' }
         )
-    ) as Record<string, Array<{ HostIp: string }> | null>;
-    for (const bindings of Object.values(ports))
-        for (const binding of bindings ?? [])
+    ) as Record<string, Array<{ HostIp: string; HostPort: string }> | null>;
+    let mongoHostPort = 0;
+    for (const [key, bindings] of Object.entries(ports))
+        for (const binding of bindings ?? []) {
             if (binding.HostIp !== '127.0.0.1')
                 throw new Error('MongoDB must only be published on 127.0.0.1.');
+            if (key === '27017/tcp') mongoHostPort = Number(binding.HostPort);
+        }
+    if (!mongoHostPort)
+        throw new Error('The isolated MongoDB publishes no host port.');
+    // The backend behind the API port must be the one wired to that MongoDB.
+    if (process.platform !== 'win32')
+        throw new Error(
+            'Backend identity check is only implemented on Windows.'
+        );
+    assertBackendBoundToIsolatedMongo(
+        parseNetstat(
+            execFileSync('netstat', ['-ano', '-p', 'TCP'], { encoding: 'utf8' })
+        ),
+        api.port,
+        mongoHostPort
+    );
     const foreign = mongosh(
         'db.Users.countDocuments({email: {$not: /@example\\.test$/}})'
     );
