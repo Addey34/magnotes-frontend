@@ -131,9 +131,9 @@ interface BoardAppProps {
 }
 
 const BoardApp: React.FC<BoardAppProps> = ({
-    onLogout,
+    onLogout: onLogoutNow,
     demo = false,
-    onRequestSignup,
+    onRequestSignup: onRequestSignupNow,
     initialTemplateId,
     initialTabId,
 }) => {
@@ -328,7 +328,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
         restoreLinksLocal,
         restoreLinks,
     } = useConnections(activeTabId, notifyLoadError, notifyActionError);
-    const { saveState, scheduleSave } = useAutosave<
+    const { saveState, scheduleSave, flushPending } = useAutosave<
         PostItSaveUpdate,
         PostIt | undefined
     >(
@@ -356,6 +356,29 @@ const BoardApp: React.FC<BoardAppProps> = ({
             },
             [patchPostItLocal]
         )
+    );
+
+    // Leaving the demo switches boardApi to the server: an edit still waiting in
+    // the autosave debounce would then miss the sandbox copy that gets imported
+    // into the account. Write it to the sandbox first, then leave.
+    const afterPendingSaves = useCallback(
+        (leave?: () => void) => {
+            if (!leave) return;
+            if (!demo) {
+                leave();
+                return;
+            }
+            void flushPending().then(leave);
+        },
+        [demo, flushPending]
+    );
+    const onLogout = useCallback(
+        () => afterPendingSaves(onLogoutNow),
+        [afterPendingSaves, onLogoutNow]
+    );
+    const onRequestSignup = useCallback(
+        () => afterPendingSaves(onRequestSignupNow),
+        [afterPendingSaves, onRequestSignupNow]
     );
 
     const activeTab = tabs.find((tab) => tab._id === activeTabId);
