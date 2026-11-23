@@ -1,10 +1,11 @@
 import * as React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import BoardApp from './pages/BoardApp';
+import SessionUnreachable from './components/ui/SessionUnreachable';
 import LoginForm from './pages/LoginForm';
 import PublicBoardView from './pages/PublicBoardView';
 import {
-    bootstrapSession,
+    bootstrapSessionOutcome,
     logout as logoutRequest,
     LogoutResult,
     retryLogout,
@@ -66,6 +67,8 @@ const IMPORT_GATE_MS = 3000;
 const App: React.FC = () => {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [isBooting, setIsBooting] = useState(true);
+    const [sessionUnreachable, setSessionUnreachable] = useState(false);
+    const retryBoot = useRef<() => void>(() => undefined);
     // Sign-in screen notice about server-side revocation. A logout left
     // unconfirmed (failure, closed tab) survives a reload and blocks silent
     // re-authentication until it is retried or the user signs in again.
@@ -198,26 +201,39 @@ const App: React.FC = () => {
         // automatically; the notice shows the outcome (retry stays manual).
         if (hasPendingLogout()) runRevocation(retryLogout);
 
-        const bootGeneration = currentGeneration();
-        bootstrapSession()
-            .then((valid) => {
-                // A login/logout happened while the bootstrap was in flight:
-                // its (late) answer describes an older session. Ignore it.
-                if (!active || bootGeneration !== currentGeneration()) return;
-                if (valid) {
-                    deactivateDemo();
-                    setIsLoggedIn(true);
-                    // Resume an import interrupted by a reload or a crash.
-                    if (isDemoImportPending()) runImportAtEntry();
-                } else if (isDemoRequested() || isDemoActive()) {
-                    resetPristineDemoForLanguage(detectLang());
-                    activateDemo();
-                    setDemoActive(true);
-                }
-            })
-            .finally(() => {
-                if (active) setIsBooting(false);
-            });
+        const boot = () => {
+            const bootGeneration = currentGeneration();
+            void bootstrapSessionOutcome()
+                .then((outcome) => {
+                    // A login/logout happened while the bootstrap was in
+                    // flight: its (late) answer describes an older session.
+                    if (!active || bootGeneration !== currentGeneration()) {
+                        return;
+                    }
+                    const demoWanted = isDemoRequested() || isDemoActive();
+                    if (outcome === 'signed-in') {
+                        setSessionUnreachable(false);
+                        deactivateDemo();
+                        setIsLoggedIn(true);
+                        // Resume an import interrupted by a reload or a crash.
+                        if (isDemoImportPending()) runImportAtEntry();
+                    } else if (demoWanted) {
+                        resetPristineDemoForLanguage(detectLang());
+                        activateDemo();
+                        setDemoActive(true);
+                    } else {
+                        // Offline / server down: the session may still be
+                        // valid, so never show the sign-in form as if the
+                        // account was lost.
+                        setSessionUnreachable(outcome === 'unreachable');
+                    }
+                })
+                .finally(() => {
+                    if (active) setIsBooting(false);
+                });
+        };
+        retryBoot.current = boot;
+        boot();
 
         return () => {
             active = false;
@@ -279,6 +295,10 @@ const App: React.FC = () => {
 
     if (isBooting) {
         return null;
+    }
+
+    if (sessionUnreachable && !isLoggedIn) {
+        return <SessionUnreachable onRetry={() => retryBoot.current()} />;
     }
 
     if (isLoggedIn) {

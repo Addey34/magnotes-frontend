@@ -236,4 +236,74 @@ describe('useAutosave', () => {
         expect(onSaved).toHaveBeenCalledTimes(1);
         expect(onSaved.mock.calls[0][2]).toEqual([]);
     });
+
+    describe('leaving the page with unsynced edits', () => {
+        const leave = () => {
+            const event = new Event('beforeunload', { cancelable: true });
+            window.dispatchEvent(event);
+            return event.defaultPrevented;
+        };
+        const setOnline = (value: boolean) =>
+            jest.spyOn(navigator, 'onLine', 'get').mockReturnValue(value);
+
+        it('never interrupts a normal reload when everything is saved', async () => {
+            setOnline(true);
+            const save = jest.fn().mockResolvedValue(undefined);
+            const { result } = renderHook(() => useAutosave(save, 500));
+            expect(leave()).toBe(false);
+
+            act(() => {
+                result.current.scheduleSave('card', { title: 'a' });
+                jest.advanceTimersByTime(500);
+            });
+            await act(async () => Promise.resolve());
+            expect(leave()).toBe(false);
+        });
+
+        it('asks for confirmation once a save has failed, and stops when it is retried', async () => {
+            setOnline(true);
+            const save = jest
+                .fn()
+                .mockRejectedValueOnce(new Error('Network Error'))
+                .mockResolvedValue(undefined);
+            jest.spyOn(console, 'error').mockImplementation(() => undefined);
+            const { result } = renderHook(() => useAutosave(save, 500));
+
+            act(() => {
+                result.current.scheduleSave('card', { title: 'a' });
+                jest.advanceTimersByTime(500);
+            });
+            await act(async () => Promise.resolve());
+            expect(leave()).toBe(true);
+
+            await act(async () => {
+                window.dispatchEvent(new Event('online'));
+                await Promise.resolve();
+            });
+            await act(async () => Promise.resolve());
+            expect(save).toHaveBeenCalledTimes(2);
+            expect(leave()).toBe(false);
+        });
+
+        it('asks for confirmation while offline with an edit still waiting', () => {
+            setOnline(false);
+            const save = jest.fn().mockResolvedValue(undefined);
+            const { result } = renderHook(() => useAutosave(save, 500));
+            expect(leave()).toBe(false);
+
+            act(() => result.current.scheduleSave('card', { title: 'a' }));
+            expect(leave()).toBe(true);
+        });
+
+        it('removes its listener with the owner', () => {
+            setOnline(false);
+            const save = jest.fn().mockResolvedValue(undefined);
+            const { result, unmount } = renderHook(() =>
+                useAutosave(save, 500)
+            );
+            act(() => result.current.scheduleSave('card', { title: 'a' }));
+            unmount();
+            expect(leave()).toBe(false);
+        });
+    });
 });

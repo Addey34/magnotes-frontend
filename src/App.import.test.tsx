@@ -40,7 +40,7 @@ jest.mock('./pages/PublicBoardView', () => ({
     default: () => null,
 }));
 jest.mock('./services/authApi', () => ({
-    bootstrapSession: jest.fn(() => Promise.resolve(false)),
+    bootstrapSessionOutcome: jest.fn(() => Promise.resolve('signed-out')),
     logout: jest.fn(() => Promise.resolve('confirmed')),
     setupAuthInterceptor: jest.fn(() => () => undefined),
 }));

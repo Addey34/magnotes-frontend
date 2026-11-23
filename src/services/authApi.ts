@@ -214,19 +214,26 @@ function refreshSession(): Promise<string | null> {
     return entry.promise;
 }
 
+export type BootstrapOutcome = 'signed-in' | 'signed-out' | 'unreachable';
+
 /**
  * Ensure there is a usable session on app start: reuse a valid access token,
- * otherwise silently refresh it from the HttpOnly cookie.
+ * otherwise silently refresh it from the HttpOnly cookie. "unreachable" means
+ * the outcome is unknown (offline / server down): the session may well still
+ * be valid, so callers must not present it as signed out.
  */
-export async function bootstrapSession(): Promise<boolean> {
+export async function bootstrapSessionOutcome(): Promise<BootstrapOutcome> {
     const token = getToken();
-    if (token && !isTokenExpired(token)) return true;
+    if (token && !isTokenExpired(token)) return 'signed-in';
     try {
-        return (await refreshSession()) !== null;
+        return (await refreshSession()) !== null ? 'signed-in' : 'signed-out';
     } catch {
-        // Unknown outcome (offline / server down): stay signed out for now.
-        return false;
+        return 'unreachable';
     }
+}
+
+export async function bootstrapSession(): Promise<boolean> {
+    return (await bootstrapSessionOutcome()) === 'signed-in';
 }
 
 /**
