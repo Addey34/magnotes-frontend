@@ -58,6 +58,15 @@ export const DICTIONARY = {
         fr: 'Un e-mail, un mot de passe, et c’est parti.',
         en: 'An email, a password, and you’re set.',
     },
+    // Shown instead of the two lines above when the visitor comes from the demo.
+    'auth.sub.login.demo': {
+        fr: 'Vos notes de démo seront ajoutées à votre compte.',
+        en: 'Your demo notes will be added to your account.',
+    },
+    'auth.sub.register.demo': {
+        fr: 'Un e-mail, un mot de passe : vos notes de démo seront conservées.',
+        en: 'An email, a password: your demo notes will be kept.',
+    },
     'auth.sub.verify': {
         fr: 'Entrez le code à 6 chiffres envoyé à {email}.',
         en: 'Enter the 6-digit code sent to {email}.',

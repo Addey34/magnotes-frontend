@@ -114,4 +114,27 @@ test.describe('sign-up entry', () => {
         ).not.toBeNull();
         expect(await noHorizontalOverflow(page)).toBe(true);
     });
+
+    test('tells a visitor coming from the demo that their notes come along', async ({
+        page,
+    }) => {
+        await page.goto('/app/?demo=1&lang=fr');
+        await expect(page.locator('.post-it-card').first()).toBeVisible();
+        await page.locator('.demo-banner__cta').click();
+
+        await expectSignUp(page);
+        await expect(page.locator('.auth-header p')).toContainText(
+            'vos notes de démo seront conservées'
+        );
+        expect(await noHorizontalOverflow(page)).toBe(true);
+    });
+
+    test('keeps the plain wording for a direct visitor', async ({ page }) => {
+        await page.goto('/app/?signup=1&lang=fr');
+
+        await expectSignUp(page);
+        await expect(page.locator('.auth-header p')).not.toContainText(
+            'notes de démo'
+        );
+    });
 });
