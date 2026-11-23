@@ -10,7 +10,6 @@ import {
 const CONFIG = {
     src: 'https://analytics.example.com/script.js',
     websiteId: 'abc-123',
-    isDemo: false,
 };
 
 function tracker(): HTMLScriptElement | null {
@@ -36,16 +35,15 @@ describe('initAnalytics', () => {
     });
 
     it('is a no-op when the src or website id is missing', () => {
-        expect(initAnalytics({ src: CONFIG.src, isDemo: false })).toBe(false);
-        expect(
-            initAnalytics({ websiteId: CONFIG.websiteId, isDemo: false })
-        ).toBe(false);
+        expect(initAnalytics({ src: CONFIG.src })).toBe(false);
+        expect(initAnalytics({ websiteId: CONFIG.websiteId })).toBe(false);
         expect(tracker()).toBeNull();
     });
 
-    it('does not track the demo sandbox', () => {
-        expect(initAnalytics({ ...CONFIG, isDemo: true })).toBe(false);
-        expect(tracker()).toBeNull();
+    it('measures the demo sandbox through the same tracker', () => {
+        window.history.replaceState({}, '', '/app/?demo=1');
+        expect(initAnalytics(CONFIG)).toBe(true);
+        expect(tracker()).not.toBeNull();
     });
 
     it('opts automated QA out through the analytics query parameter', () => {
@@ -92,5 +90,61 @@ describe('initAnalytics', () => {
 
         delete (window as typeof window & { umami?: unknown }).umami;
         expect(trackProductEvent('login_completed')).toBe(false);
+    });
+
+    describe('demo sandbox', () => {
+        const track = jest.fn();
+        beforeEach(() => {
+            track.mockClear();
+            window.history.replaceState({}, '', '/app/?demo=1');
+            (
+                window as typeof window & { umami?: { track: typeof track } }
+            ).umami = { track };
+        });
+
+        it('reports demo creation under demo_* names only', () => {
+            expect(trackProductEvent('card_created')).toBe(true);
+            expect(trackProductEvent('board_created')).toBe(true);
+            expect(track.mock.calls).toEqual([
+                ['demo_card_created'],
+                ['demo_board_created'],
+            ]);
+        });
+
+        it('sends demo journey events with no payload', () => {
+            expect(trackProductEvent('demo_signup_cta_clicked')).toBe(true);
+            expect(trackProductEvent('demo_import_started')).toBe(true);
+            for (const call of track.mock.calls) {
+                expect(call).toHaveLength(1);
+                expect(typeof call[0]).toBe('string');
+            }
+        });
+
+        it('never sends account milestones from the sandbox', () => {
+            for (const event of [
+                'signup_started',
+                'signup_registered',
+                'email_verified',
+                'login_completed',
+            ] as const) {
+                expect(trackProductEvent(event)).toBe(false);
+            }
+            expect(track).not.toHaveBeenCalled();
+        });
+
+        it('still honours analytics=off and share links', () => {
+            window.history.replaceState({}, '', '/app/?demo=1&analytics=off');
+            expect(trackProductEvent('card_created')).toBe(false);
+            expect(track).not.toHaveBeenCalled();
+        });
+    });
+
+    it('sends import events after the sandbox was left', () => {
+        const track = jest.fn();
+        (window as typeof window & { umami?: { track: typeof track } }).umami =
+            { track };
+        window.history.replaceState({}, '', '/app/');
+        expect(trackProductEvent('demo_import_completed')).toBe(true);
+        expect(track).toHaveBeenCalledWith('demo_import_completed');
     });
 });

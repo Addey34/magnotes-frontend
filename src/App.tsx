@@ -16,6 +16,7 @@ import {
     startSessionCoordination,
 } from './services/sessionCoordinator';
 import LogoutNotice, { LogoutNoticeState } from './components/ui/LogoutNotice';
+import { trackProductEvent } from './services/analytics';
 import DemoImportBanner from './components/ui/DemoImportBanner';
 import { importDemoBoardToAccount } from './services/demoImportRuntime';
 import {
@@ -112,6 +113,7 @@ const App: React.FC = () => {
     const runImport = async () => {
         const run = ++importRun.current;
         setImportUi({ state: 'running' });
+        trackProductEvent('demo_import_started');
         const outcome: DemoImportOutcome =
             await importDemoBoardToAccount().catch(
                 () => ({ status: 'failed', reason: 'unknown' }) as const
@@ -120,16 +122,19 @@ const App: React.FC = () => {
         // flight: nothing of this answer belongs to the current session.
         if (run !== importRun.current) return;
         if (outcome.status === 'failed') {
+            trackProductEvent('demo_import_failed');
             setImportUi({ state: 'failed', reason: outcome.reason });
             return;
         }
         if (outcome.status === 'partial') {
+            trackProductEvent('demo_import_completed');
             setImportUi({ state: 'partial', skipped: outcome.skipped });
             if (outcome.focusTabId) setFocusTabId(outcome.focusTabId);
             setBoardKey((k) => k + 1);
             return;
         }
         if (outcome.status === 'complete') {
+            trackProductEvent('demo_import_completed');
             setFocusTabId(outcome.focusTabId);
             setImportUi({
                 state: 'done',
@@ -259,6 +264,8 @@ const App: React.FC = () => {
     // From the demo banner: keep the sandbox for import, leave demo mode, and
     // show the login/signup screen.
     const handleRequestSignup = () => {
+        // Before the sandbox flag is cleared, so it is counted as a demo event.
+        trackProductEvent('demo_signup_cta_clicked');
         markDemoImportPending();
         deactivateDemo();
         stripDemoQuery();
