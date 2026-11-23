@@ -21,6 +21,7 @@ import { SessionLockTimeoutError } from '../services/sessionCoordinator';
 import { TranslationKey } from '../i18n/dictionary';
 import { useT } from '../i18n/LangContext';
 import { trackProductEvent } from '../services/analytics';
+import { isDemoImportPending } from '../services/demoMode';
 import { LanguageSwitch } from '../i18n/LanguageSwitch';
 import '../styles/LoginForm.css';
 
@@ -122,6 +123,9 @@ const LoginForm: React.FC<LoginFormProps> = ({
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');
+    // The visitor left the demo for this screen: say their notes come along.
+    // Read once, at mount (the flag is set just before this screen opens).
+    const [fromDemo] = useState(isDemoImportPending);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const goTo = (next: Mode) => {
@@ -314,7 +318,15 @@ const LoginForm: React.FC<LoginFormProps> = ({
                         <p>
                             {mode === 'verify'
                                 ? t('auth.sub.verify', { email: email.trim() })
-                                : t(`auth.sub.${mode}` as TranslationKey)}
+                                : t(
+                                      `auth.sub.${mode}${
+                                          fromDemo &&
+                                          (mode === 'login' ||
+                                              mode === 'register')
+                                              ? '.demo'
+                                              : ''
+                                      }` as TranslationKey
+                                  )}
                         </p>
                     </header>
 
