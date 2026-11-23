@@ -17,8 +17,12 @@ jobs:
         runs-on: ubuntu-24.04
         # Official image ships the browsers: avoids the apt mirror stalls of
         # `playwright install --with-deps`. Keep the tag equal to @playwright/test.
+        # Docker gives a container 64 MB of /dev/shm: Chrome crashes
+        # (TARGET_CRASHED) under Lighthouse. This is what turned the monitor red
+        # when it moved into the image on 2026-11-11.
         container:
             image: mcr.microsoft.com/playwright:v1.62.1-noble
+            options: --shm-size=1gb --ipc=host
         timeout-minutes: 25
         steps:
             - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
