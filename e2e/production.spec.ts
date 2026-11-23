@@ -179,7 +179,12 @@ test.describe('deployed production', () => {
         await expect(page.locator('.board-app')).toBeVisible();
         await expect(page.locator('.demo-banner')).toBeVisible();
         await expect(page.locator('.post-it-card')).toHaveCount(6);
-        await expect(page.locator('#umami-analytics')).toHaveCount(0);
+        // The demo is the top of the acquisition funnel: it is measured (only
+        // anonymous demo_* events, see analytics.ts).
+        await expect(page.locator('#umami-analytics')).toHaveAttribute(
+            'src',
+            'https://analytics-magnotes.adrianguichard.dev/script.js'
+        );
         await expectNoBlockingAccessibilityIssues(page);
         expect(failures).toEqual([]);
     });
