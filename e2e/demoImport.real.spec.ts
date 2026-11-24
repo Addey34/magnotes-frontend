@@ -311,6 +311,13 @@ test.describe('real demo import', () => {
         await codeInput.fill(await verificationCode(creds.email));
         await setupPage.locator('.auth-submit').click();
         await expect(setupPage.locator('.board-app')).toBeVisible();
+        // Let the welcome board finish seeding before taking the snapshot.
+        await expect(setupPage.locator('.post-it-card')).toHaveCount(6, {
+            timeout: 15_000,
+        });
+        await expect(
+            setupPage.locator('.board-tab-name').first()
+        ).not.toHaveText('Maison');
         const login = await setupPage.request.post(`${apiUrl}/api/auth/login`, {
             data: { email: creds.email, password: creds.password },
         });

@@ -1,4 +1,4 @@
-﻿import AxeBuilder from '@axe-core/playwright';
+import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { startEditingCard } from './cardEditing';
@@ -149,7 +149,7 @@ test.describe('guest demo surface', () => {
             'Welcome'
         );
         await expect(page.locator('.post-it-title').first()).toHaveValue(
-            'Welcome to MagNotes 👋'
+            'Welcome 👋'
         );
         await expect(page.locator('.post-it-card').first()).toContainText(
             'This board is yours.'
