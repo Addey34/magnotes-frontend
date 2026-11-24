@@ -96,7 +96,7 @@ for (const lang of ['fr', 'en'] as const) {
             expect(box!.y + box!.height).toBeLessThanOrEqual(dock!.y);
             await card.getByTestId('card-expand').click({ timeout: 3000 });
             await expect(page.locator('.card-detail')).toBeVisible();
-            await page.locator('.card-detail-close').click();
+            await page.getByTestId('card-detail-leave').click();
             await expect(page.locator('.card-detail')).toBeHidden();
             await expect(title).toHaveValue('A note in progress');
             await title.focus();

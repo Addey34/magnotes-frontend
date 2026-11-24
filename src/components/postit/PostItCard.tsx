@@ -46,6 +46,8 @@ import {
     snapResizeRect,
 } from '../../hooks/resizeSnap';
 import CardDetailModal from './CardDetailModal';
+import { useMarkdownFormat } from '../../hooks/useMarkdownFormat';
+import { MarkdownToolbar } from './MarkdownToolbar';
 import { renderMarkdown } from '../../utils/markdownRender';
 import { cardFontStack } from '../../utils/cardFont';
 import { firstImageFile, readImageFile } from '../../utils/imageFile';
@@ -307,6 +309,8 @@ const PostItCard: React.FC<PostItCardProps> = ({
     const [newChecklistText, setNewChecklistText] = useState('');
     const [newTag, setNewTag] = useState('');
     const [detailOpen, setDetailOpen] = useState(false);
+    // Text selected in the body: the floating formatting bar is shown.
+    const [textSelected, setTextSelected] = useState(false);
     // Cards are move-first: text is only editable in edit mode, so a drag can
     // start anywhere on the card (title and body included).
     const [isEditing, setIsEditing] = useState(false);
@@ -338,6 +342,11 @@ const PostItCard: React.FC<PostItCardProps> = ({
         stylePanel && narrowScreen
             ? (cardRef.current?.closest('.board-app') ?? null)
             : null;
+    // The expanded editor mounts inside the app root: the theme variables it
+    // is painted with are scoped to `.board-app`, not to `document.body`.
+    const detailHost =
+        (detailOpen ? cardRef.current?.closest('.board-app') : null) ??
+        document.body;
 
     // Entering edit mode focuses the title of an untitled card, else the body,
     // with the caret at the end.
@@ -946,6 +955,23 @@ const PostItCard: React.FC<PostItCardProps> = ({
         scheduleCardSave(updates);
     };
 
+    const { tools: formatTools, handleShortcut: handleFormatShortcut } =
+        useMarkdownFormat({
+            areaRef: contentRef,
+            content: postIt.content,
+            maxLength: 2000,
+            onChange: (value) => updateText('content', value),
+        });
+
+    const formatDockHost =
+        textSelected && narrowScreen
+            ? (cardRef.current?.closest('.board-app') ?? null)
+            : null;
+
+    useEffect(() => {
+        if (!isEditing) setTextSelected(false);
+    }, [isEditing]);
+
     const mentionSuggestions = openMention
         ? suggestMentionTitles(
               openMention.query,
@@ -981,6 +1007,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
     const handleContentKeyDown = (
         event: React.KeyboardEvent<HTMLTextAreaElement>
     ): void => {
+        if (handleFormatShortcut(event)) return;
         if (mentionSuggestions.length === 0) return;
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             event.preventDefault();
@@ -1255,7 +1282,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                         type="button"
                         className="card-edit-trigger"
                         onClick={startEditing}
-                        title={t('card.tool.edit')}
+                        data-tip={t('card.tool.edit')}
                         aria-label={t('card.tool.edit')}
                     >
                         <PencilSquareIcon />
@@ -1272,7 +1299,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                                     panel === 'style' ? null : 'style'
                                 )
                             }
-                            title={t('card.tool.style')}
+                            data-tip={t('card.tool.style')}
                             aria-label={t('card.tool.style')}
                             aria-expanded={stylePanel === 'style'}
                         >
@@ -1280,13 +1307,13 @@ const PostItCard: React.FC<PostItCardProps> = ({
                         </button>
                         <button
                             type="button"
-                            className={`icon-button ${status || checklist.length ? 'is-active' : ''}`}
+                            className={`icon-button ${stylePanel === 'task' ? 'is-active' : ''} ${status || checklist.length ? 'has-value' : ''}`}
                             onClick={() =>
                                 setStylePanel((panel) =>
                                     panel === 'task' ? null : 'task'
                                 )
                             }
-                            title={t('card.tool.task')}
+                            data-tip={t('card.tool.task')}
                             aria-label={t('card.tool.task')}
                             aria-expanded={stylePanel === 'task'}
                         >
@@ -1296,7 +1323,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                             type="button"
                             className={`icon-button ${isLinkSource ? 'is-active' : ''}`}
                             onClick={() => onStartLink(postIt._id)}
-                            title={
+                            data-tip={
                                 isLinkSource
                                     ? t('card.tool.linkActive')
                                     : t('card.tool.link')
@@ -1325,7 +1352,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                                     panel === 'media' ? null : 'media'
                                 );
                             }}
-                            title={t('card.tool.image')}
+                            data-tip={t('card.tool.image')}
                             aria-label={t('card.tool.image')}
                             aria-expanded={stylePanel === 'media'}
                         >
@@ -1336,7 +1363,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                             className="icon-button"
                             onClick={() => setDetailOpen(true)}
                             data-testid="card-expand"
-                            title={t('card.tool.expand')}
+                            data-tip={t('card.tool.expand')}
                             aria-label={t('card.tool.expand')}
                         >
                             <ArrowsPointingOutIcon />
@@ -1345,7 +1372,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                             type="button"
                             className="icon-button"
                             onClick={() => onDuplicate(postIt._id)}
-                            title={t('card.tool.duplicate')}
+                            data-tip={t('card.tool.duplicate')}
                             aria-label={t('card.tool.duplicate')}
                         >
                             <DocumentDuplicateIcon />
@@ -1354,7 +1381,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                             type="button"
                             className="icon-button danger"
                             onClick={() => onDelete(postIt._id)}
-                            title={t('card.tool.delete')}
+                            data-tip={t('card.tool.delete')}
                             aria-label={t('card.tool.delete')}
                         >
                             <TrashIcon />
@@ -1363,7 +1390,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                             type="button"
                             className="card-edit-done"
                             onClick={stopEditing}
-                            title={t('card.tool.done')}
+                            data-tip={t('card.tool.done')}
                             aria-label={t('card.tool.done')}
                         >
                             <CheckIcon />
@@ -2061,7 +2088,16 @@ const PostItCard: React.FC<PostItCardProps> = ({
                         onClick={(event) =>
                             syncOpenMention(event.currentTarget)
                         }
-                        onBlur={() => setOpenMention(null)}
+                        onSelect={(event) =>
+                            setTextSelected(
+                                event.currentTarget.selectionStart !==
+                                    event.currentTarget.selectionEnd
+                            )
+                        }
+                        onBlur={() => {
+                            setOpenMention(null);
+                            setTextSelected(false);
+                        }}
                         onFocus={() => onFocus(postIt._id)}
                         aria-label={t('card.content.aria')}
                         aria-autocomplete="list"
@@ -2072,6 +2108,43 @@ const PostItCard: React.FC<PostItCardProps> = ({
                             fontSize: textSize,
                         }}
                     />
+                    {textSelected &&
+                        (formatDockHost ? (
+                            // Narrow screens: docked on the screen (outside the
+                            // zoomed canvas) so it never gets cut or scaled.
+                            createPortal(
+                                <div
+                                    className="post-it-format-dock"
+                                    data-testid="card-format-float"
+                                    onPointerDown={(event) =>
+                                        event.stopPropagation()
+                                    }
+                                >
+                                    <MarkdownToolbar tools={formatTools} />
+                                </div>,
+                                formatDockHost
+                            )
+                        ) : (
+                            <div
+                                className="post-it-format-float"
+                                data-testid="card-format-float"
+                                // Controls keep a readable size when zoomed out.
+                                style={
+                                    zoom < 1
+                                        ? {
+                                              scale: String(
+                                                  Math.min(1.6, 1 / zoom)
+                                              ),
+                                          }
+                                        : undefined
+                                }
+                                onPointerDown={(event) =>
+                                    event.stopPropagation()
+                                }
+                            >
+                                <MarkdownToolbar tools={formatTools} />
+                            </div>
+                        ))}
                     {mentionSuggestions.length > 0 && (
                         <ul
                             className="post-it-mention-suggest"
@@ -2309,7 +2382,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                         onUpdateText={updateText}
                         onClose={() => setDetailOpen(false)}
                     />,
-                    document.body
+                    detailHost
                 )}
         </article>
     );

@@ -253,7 +253,7 @@ test.describe('guest demo surface', () => {
         const detail = page.locator('.card-detail');
         await expect(detail).toBeVisible();
         await expect(detail.locator('.card-detail-editor')).toBeVisible();
-        await expect(detail.locator('.card-detail-close')).toBeVisible();
+        await expect(detail.getByTestId('card-detail-leave')).toBeVisible();
         const detailBounds = await detail.boundingBox();
         expect(detailBounds).not.toBeNull();
         expect(detailBounds?.x ?? -1).toBeGreaterThanOrEqual(0);
@@ -264,7 +264,7 @@ test.describe('guest demo surface', () => {
         expect(
             (detailBounds?.y ?? 0) + (detailBounds?.height ?? 0)
         ).toBeLessThanOrEqual(500);
-        await detail.locator('.card-detail-close').click();
+        await detail.getByTestId('card-detail-leave').click();
         await expect(detail).toBeHidden();
     });
 
