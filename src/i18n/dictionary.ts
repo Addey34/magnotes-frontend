@@ -537,6 +537,17 @@ export const DICTIONARY = {
     },
     'logout.retry': { fr: 'Réessayer', en: 'Retry' },
 
+    // --- session unreachable (offline / server down at start) ----------------
+    'session.unreachable.title': {
+        fr: 'Connexion impossible pour le moment',
+        en: 'Can’t connect right now',
+    },
+    'session.unreachable.body': {
+        fr: 'Les notes déjà enregistrées sont en sécurité sur votre compte. Dès que la connexion revient, MagNotes se rouvre tout seul.',
+        en: 'Notes you have already saved are safe in your account. As soon as the connection is back, MagNotes reopens by itself.',
+    },
+    'session.unreachable.retry': { fr: 'Réessayer', en: 'Try again' },
+
     // --- share dialog --------------------------------------------------------
     'share.title': { fr: 'Partager « {name} »', en: 'Share “{name}”' },
     'share.close': { fr: 'Fermer', en: 'Close' },

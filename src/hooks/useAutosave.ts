@@ -144,13 +144,28 @@ export const useAutosave = <T extends object, TResult = void>(
         mounted.current = true;
         const handlePageHide = () => void flushPending();
         const handleOnline = () => void flushPending();
+        // Edits that cannot reach the server live in memory only: leaving the
+        // page now loses them. Ask the browser to confirm, but only in that
+        // case, so a normal reload or tab close is never interrupted.
+        const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+            const stuck =
+                Object.keys(failed.current).length > 0 ||
+                (!navigator.onLine &&
+                    (Object.keys(pending.current).length > 0 ||
+                        Object.keys(inFlight.current).length > 0));
+            if (!stuck) return;
+            event.preventDefault();
+            event.returnValue = '';
+        };
         window.addEventListener('pagehide', handlePageHide);
         window.addEventListener('online', handleOnline);
+        window.addEventListener('beforeunload', handleBeforeUnload);
 
         return () => {
             mounted.current = false;
             window.removeEventListener('pagehide', handlePageHide);
             window.removeEventListener('online', handleOnline);
+            window.removeEventListener('beforeunload', handleBeforeUnload);
             void flushPending();
         };
     }, [flushPending]);

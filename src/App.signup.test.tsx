@@ -5,7 +5,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import * as React from 'react';
 
 import { LangProvider } from './i18n/LangContext';
-import { bootstrapSession } from './services/authApi';
+import { bootstrapSessionOutcome } from './services/authApi';
 import { isDemoImportPending } from './services/demoMode';
 
 // Only the sign-in screen wiring of App is under test: the form and the board
@@ -61,7 +61,7 @@ jest.mock('./pages/PublicBoardView', () => ({
     default: () => null,
 }));
 jest.mock('./services/authApi', () => ({
-    bootstrapSession: jest.fn(() => Promise.resolve(false)),
+    bootstrapSessionOutcome: jest.fn(() => Promise.resolve('signed-out')),
     logout: jest.fn(() => Promise.resolve('confirmed')),
     setupAuthInterceptor: jest.fn(() => () => undefined),
 }));
@@ -77,8 +77,8 @@ jest.mock('./services/demoImportRuntime', () => ({
 
 import App from './App';
 
-const mockedBootstrap = bootstrapSession as jest.MockedFunction<
-    typeof bootstrapSession
+const mockedBootstrap = bootstrapSessionOutcome as jest.MockedFunction<
+    typeof bootstrapSessionOutcome
 >;
 
 function openAt(url: string) {
@@ -102,7 +102,7 @@ beforeEach(() => {
     sessionStorage.clear();
     localStorage.setItem('magnotes-lang', 'fr');
     mockedBootstrap.mockReset();
-    mockedBootstrap.mockResolvedValue(false);
+    mockedBootstrap.mockResolvedValue('signed-out');
 });
 
 afterEach(() => openAt('/'));
@@ -174,7 +174,7 @@ describe('sign-up entry', () => {
     });
 
     it('a valid session never shows the form, and a later logout opens sign in', async () => {
-        mockedBootstrap.mockResolvedValue(true);
+        mockedBootstrap.mockResolvedValue('signed-in');
         openAt('/app/?signup=1');
         renderApp();
 
@@ -183,6 +183,46 @@ describe('sign-up entry', () => {
 
         fireEvent.click(screen.getByText('logout'));
         expect(await mode()).toBe('login');
+    });
+});
+
+describe('session unreachable at start', () => {
+    it('never shows the sign-in form when the server cannot be reached, and reopens on retry', async () => {
+        mockedBootstrap.mockResolvedValue('unreachable');
+        openAt('/app/?lang=fr');
+        renderApp();
+
+        expect(
+            await screen.findByTestId('session-unreachable')
+        ).toBeInTheDocument();
+        expect(screen.queryByTestId('login-form')).toBeNull();
+
+        mockedBootstrap.mockResolvedValue('signed-in');
+        fireEvent(window, new Event('online'));
+
+        expect(await screen.findByTestId('board')).toBeInTheDocument();
+        expect(screen.queryByTestId('session-unreachable')).toBeNull();
+    });
+
+    it('falls back to the sign-in form once the session is really gone', async () => {
+        mockedBootstrap.mockResolvedValue('unreachable');
+        openAt('/app/?lang=fr');
+        renderApp();
+        await screen.findByTestId('session-unreachable');
+
+        mockedBootstrap.mockResolvedValue('signed-out');
+        fireEvent.click(screen.getByRole('button'));
+
+        expect(await mode()).toBe('login');
+    });
+
+    it('still opens the demo when the server is unreachable', async () => {
+        mockedBootstrap.mockResolvedValue('unreachable');
+        openAt('/app/?demo=1&lang=fr');
+        renderApp();
+
+        expect(await screen.findByTestId('demo-board')).toBeInTheDocument();
+        expect(screen.queryByTestId('session-unreachable')).toBeNull();
     });
 });
 

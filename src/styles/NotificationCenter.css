@@ -7,6 +7,15 @@
     right: 16px;
     top: 16px;
     z-index: 10000;
+    /* Toasts must never block the controls underneath; only their own
+       dismiss button is interactive (see .app-notification button). */
+    pointer-events: none;
+}
+
+/* Offline stays on screen for as long as the network is down: it must never
+   intercept a click meant for the toolbar. */
+.app-notification.is-offline {
+    pointer-events: none;
 }
 
 .app-notification {
@@ -36,6 +45,7 @@
 }
 
 .app-notification button {
+    pointer-events: auto;
     align-items: center;
     background: transparent;
     border: 0;

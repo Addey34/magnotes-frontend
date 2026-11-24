@@ -21,6 +21,7 @@ interface FakeServer {
     loginGate: Promise<void> | null;
     revokedCookies: string[];
     failLogout: boolean;
+    refreshOffline: boolean;
     counter: number;
     sentMessages: unknown[];
 }
@@ -78,6 +79,7 @@ function fakeAxiosError(status?: number) {
 async function fakePost(url: string) {
     if (url.endsWith('/api/auth/refresh')) {
         server.refreshCalls += 1;
+        if (server.refreshOffline) throw fakeAxiosError(); // no response at all
         const sent = server.jar.cookie; // the browser attaches it at send time
         await sleep(LATENCY_MS);
         if (sent && server.valid.delete(sent)) {
@@ -176,6 +178,7 @@ beforeEach(() => {
         loginGate: null,
         revokedCookies: [],
         failLogout: false,
+        refreshOffline: false,
         counter: 0,
         sentMessages: [],
     };
@@ -200,6 +203,20 @@ afterEach(() => {
 const settle = () => sleep(60);
 
 describe('multi-tab session coordination', () => {
+    it('tells an unreachable server apart from a lost session', async () => {
+        server.refreshOffline = true;
+        const offline = open();
+        expect(await offline.api.bootstrapSessionOutcome()).toBe('unreachable');
+        expect(await offline.api.bootstrapSession()).toBe(false);
+
+        server.refreshOffline = false;
+        expect(await offline.api.bootstrapSessionOutcome()).toBe('signed-in');
+
+        server.jar.cookie = 'refresh-stale'; // rejected for real (401)
+        const stale = open();
+        expect(await stale.api.bootstrapSessionOutcome()).toBe('signed-out');
+    });
+
     it('two tabs refreshing simultaneously both stay signed in, without any 401', async () => {
         const a = open();
         const b = open();

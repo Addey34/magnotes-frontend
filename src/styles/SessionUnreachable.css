@@ -1,0 +1,36 @@
+.session-unreachable {
+    align-items: center;
+    background: var(--app-bg, var(--panel-bg));
+    color: var(--text-main, #f2f2f7);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    justify-content: center;
+    min-height: 100dvh;
+    padding: 24px 16px;
+    text-align: center;
+}
+
+.session-unreachable h1 {
+    font-size: 20px;
+    margin: 0;
+}
+
+.session-unreachable p {
+    line-height: 1.5;
+    margin: 0;
+    max-width: 420px;
+    opacity: 0.85;
+}
+
+.session-unreachable button {
+    background: var(--accent, #8b7cf6);
+    border: 0;
+    border-radius: 10px;
+    color: #fff;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 600;
+    min-height: 44px;
+    padding: 0 20px;
+}
