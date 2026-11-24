@@ -1,0 +1,41 @@
+name: API health probe
+
+# The backend repository is private and its Actions budget can run out (its
+# "Production healthcheck" has not started since 2026-11-15). This repository
+# is public, so the probe costs nothing and keeps running. A failed run makes
+# GitHub send the usual failed-workflow notification to the repository owner.
+on:
+    schedule:
+        - cron: '*/30 * * * *'
+    workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+    group: magnotes-api-health
+    cancel-in-progress: true
+
+jobs:
+    probe:
+        if: github.repository == 'Addey34/magnotes-frontend'
+        runs-on: ubuntu-latest
+        timeout-minutes: 3
+        steps:
+            - name: API readiness (db up) and public app shell
+              run: |
+                  set -euo pipefail
+                  api=https://api-magnotes.adrianguichard.dev
+                  # A single transient blip must not page: three tries, 20 s apart.
+                  for attempt in 1 2 3; do
+                      if body="$(curl --fail --silent --show-error --max-time 15 "$api/health/ready")" \
+                          && echo "$body" | jq --exit-status '.status == "ok" and .db == "up"' >/dev/null \
+                          && curl --fail --silent --show-error --max-time 15 --output /dev/null \
+                              https://magnotes.adrianguichard.dev/app/; then
+                          echo "healthy: $body"
+                          exit 0
+                      fi
+                      echo "attempt $attempt failed"
+                      sleep 20
+                  done
+                  echo "::error::MagNotes API or app shell unavailable"
+                  exit 1
