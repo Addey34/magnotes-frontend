@@ -6,6 +6,7 @@ import { spreadStacks } from '../hooks/stackLayout';
 import { formatDueDate } from '../utils/cardMeta';
 import { linkAnchors } from '../utils/connectionGeometry';
 import { renderMarkdown } from '../utils/markdownRender';
+import { cardFontStack } from '../utils/cardFont';
 import { TranslationKey } from '../i18n/dictionary';
 import { useT } from '../i18n/LangContext';
 import { LanguageSwitch } from '../i18n/LanguageSwitch';
@@ -236,7 +237,9 @@ const PublicBoardView: React.FC<{ token: string }> = ({ token }) => {
                                 background: card.color,
                                 color: card.textColor || undefined,
                                 fontSize: card.textSize || undefined,
-                                fontFamily: card.fontFamily || undefined,
+                                fontFamily: card.fontFamily
+                                    ? cardFontStack(card.fontFamily)
+                                    : undefined,
                                 transform: card.rotation
                                     ? `rotate(${card.rotation}deg)`
                                     : undefined,

@@ -1666,6 +1666,8 @@
     font-size: 10px;
     font-weight: 700;
     padding: 1px 5px;
+    /* "Ctrl K" off Apple platforms: keep it on one line. */
+    white-space: nowrap;
 }
 
 .command-palette-backdrop {
@@ -1782,23 +1784,26 @@
     white-space: nowrap;
 }
 
+/* Secondary text uses the muted ink rather than opacity: at 0.55 the
+   "Insert" hint fell below 4.5:1 on the light palette. */
 .command-palette-item-label small {
+    color: var(--text-muted);
     font-size: 10px;
     font-weight: 500;
-    opacity: 0.55;
 }
 
 .command-palette-item-desc {
+    color: var(--text-muted);
     font-size: 11px;
     font-weight: 500;
-    opacity: 0.62;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .command-palette-item-group {
-    color: rgba(148, 163, 184, 0.95);
+    /* Was a fixed slate (2.4:1 on the light palette, axe "serious"). */
+    color: var(--text-muted);
     flex-shrink: 0;
     font-size: 10px;
     font-weight: 700;
@@ -1940,7 +1945,9 @@
 }
 
 .board-minimap {
-    background: color-mix(in srgb, var(--sidebar-bg) 90%, transparent);
+    /* --sidebar-bg is a gradient, which color-mix() rejects: the panel was
+       transparent and unreadable over a light custom canvas. */
+    background: color-mix(in srgb, var(--panel-bg) 90%, transparent);
     border: 1px solid var(--border-soft);
     border-radius: 8px;
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
@@ -4032,7 +4039,6 @@
         margin-right: 4px;
         order: -1;
     }
-
     /* The minimap would sit on top of the card being worked on. */
     .board-minimap {
         display: none;
@@ -4534,6 +4540,11 @@
 .board-alt-view {
     min-height: 0;
     overflow: auto;
+    /* .board-topbar-status (sync pill + help) is fixed at the top right of
+       the workspace. On the canvas it floats over empty board; here it sat on
+       the column headers (Kanban "Done", "To do" on a phone), so the list
+       views start below it. */
+    padding-top: 40px;
 }
 
 /* Kanban */
@@ -5292,7 +5303,8 @@
 .board-sync-status {
     align-items: center;
     backdrop-filter: blur(10px);
-    background: color-mix(in srgb, var(--sidebar-bg) 86%, transparent);
+    /* Solid panel colour: --sidebar-bg is a gradient (invalid in color-mix). */
+    background: color-mix(in srgb, var(--panel-bg) 86%, transparent);
     border: 1px solid var(--border-soft);
     border-radius: 999px;
     color: var(--text-muted);
