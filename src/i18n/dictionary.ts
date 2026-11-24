@@ -1060,7 +1060,21 @@ export const DICTIONARY = {
     },
     'card.title.placeholder': { fr: 'Titre', en: 'Title' },
     'card.untitled': { fr: 'Sans titre', en: 'Untitled' },
-    'card.detail.markdown': { fr: 'Markdown', en: 'Markdown' },
+    'card.format.aria': { fr: 'Mise en forme du texte', en: 'Text formatting' },
+    'card.format.bold': { fr: 'Gras', en: 'Bold' },
+    'card.format.italic': { fr: 'Italique', en: 'Italic' },
+    'card.format.code': { fr: 'Code', en: 'Code' },
+    'card.format.link': { fr: 'Lien', en: 'Link' },
+    'card.format.linkText': { fr: 'texte du lien', en: 'link text' },
+    'card.format.h1': { fr: 'Titre', en: 'Heading' },
+    'card.format.h2': { fr: 'Sous-titre', en: 'Subheading' },
+    'card.format.h3': { fr: 'Petit titre', en: 'Small heading' },
+    'card.format.bullets': { fr: 'Liste à puces', en: 'Bulleted list' },
+    'card.format.numbers': { fr: 'Liste numérotée', en: 'Numbered list' },
+    'card.detail.leave': {
+        fr: 'Quitter le plein écran',
+        en: 'Leave full screen',
+    },
     'card.detail.contentPlaceholder': {
         fr: 'Écris ici… **gras**, *italique*, - listes, [lien](https://…)',
         en: 'Write here… **bold**, *italic*, - lists, [link](https://…)',
@@ -1068,11 +1082,6 @@ export const DICTIONARY = {
     'card.detail.contentAria': {
         fr: 'Contenu Markdown',
         en: 'Markdown content',
-    },
-    'card.detail.preview': { fr: 'Aperçu', en: 'Preview' },
-    'card.detail.previewEmpty': {
-        fr: 'L’aperçu s’affiche ici.',
-        en: 'The preview appears here.',
     },
 
     // --- post-it card (inline editing) --------------------------------------

@@ -2475,7 +2475,7 @@
     color: var(--text-main);
     display: flex;
     flex-direction: column;
-    max-height: min(760px, 90vh);
+    height: min(760px, 90vh);
     max-width: 900px;
     width: 100%;
 }
@@ -2496,58 +2496,147 @@
     font: inherit;
     font-size: 18px;
     font-weight: 700;
+    min-width: 0;
     outline: none;
+    text-overflow: ellipsis;
 }
 
-.card-detail-close {
+.card-detail-leave {
     align-items: center;
     background: var(--control-bg);
     border: 1px solid var(--control-border);
     border-radius: 8px;
-    color: var(--text-soft);
+    color: var(--text-main);
     cursor: pointer;
     display: inline-flex;
     flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 700;
+    gap: 6px;
     height: 30px;
-    justify-content: center;
-    width: 30px;
+    padding: 0 12px 0 10px;
+    white-space: nowrap;
 }
 
-.card-detail-close:hover {
-    background: var(--control-hover);
-    color: var(--text-main);
-}
-
-.card-detail-close svg {
+.card-detail-leave svg {
     height: 16px;
     width: 16px;
 }
 
-.card-detail-body {
-    background: var(--border-soft);
-    display: grid;
-    flex: 1;
-    gap: 1px;
-    grid-template-columns: 1fr 1fr;
-    min-height: 0;
-    overflow: hidden;
+@media (hover: hover) {
+    .card-detail-leave:hover {
+        background: var(--control-hover);
+    }
 }
 
-.card-detail-pane {
-    background: var(--panel-bg);
+.md-toolbar {
     display: flex;
-    flex-direction: column;
-    min-height: 0;
-    overflow: hidden;
+    flex-wrap: wrap;
+    gap: 2px;
 }
 
-.card-detail-pane-label {
-    color: var(--text-muted);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    padding: 10px 16px 6px;
-    text-transform: uppercase;
+.card-detail-format {
+    border-bottom: 1px solid var(--border-soft);
+    gap: 4px;
+    padding: 8px 12px;
+}
+
+/* Floating bar under the card while some body text is selected. */
+.post-it-format-float {
+    background: var(--lum-panel, #1b1d35);
+    border: 1px solid var(--control-border, rgba(255, 255, 255, 0.14));
+    border-radius: 9px;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
+    left: 50%;
+    max-width: min(92vw, 340px);
+    padding: 3px;
+    position: absolute;
+    top: calc(100% + 12px);
+    transform-origin: center top;
+    translate: -50% 0;
+    width: max-content;
+    z-index: 85;
+}
+
+.post-it-format-float .md-toolbar-btn {
+    color: var(--lum-ink, #f4f5fb);
+    height: 30px;
+    width: 30px;
+}
+
+.post-it-format-float .md-toolbar-btn svg {
+    height: 16px;
+    width: 16px;
+}
+
+/* Narrow screens: a bar docked at the bottom of the screen. */
+.post-it-format-dock {
+    background: var(--lum-panel, #1b1d35);
+    border-top: 1px solid var(--control-border, rgba(255, 255, 255, 0.14));
+    bottom: 0;
+    box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.4);
+    left: 0;
+    overflow-x: auto;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+    position: fixed;
+    right: 0;
+    z-index: 410;
+}
+
+.post-it-format-dock .md-toolbar {
+    flex-wrap: nowrap;
+    justify-content: safe center;
+}
+
+.post-it-format-dock .md-toolbar-btn {
+    color: var(--lum-ink, #f4f5fb);
+    flex: 0 0 40px;
+    height: 40px;
+    width: 40px;
+}
+
+@media (pointer: coarse), (max-width: 620px) {
+    .post-it-format-float .md-toolbar-btn {
+        height: 36px;
+        width: 36px;
+    }
+}
+
+.md-toolbar-btn {
+    align-items: center;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    color: var(--text-soft);
+    cursor: pointer;
+    display: inline-flex;
+    height: 32px;
+    justify-content: center;
+    width: 32px;
+}
+
+.md-toolbar-btn svg {
+    height: 18px;
+    width: 18px;
+}
+
+@media (hover: hover) {
+    .md-toolbar-btn:hover {
+        background: var(--control-hover);
+        color: var(--text-main);
+    }
+}
+
+.md-toolbar-btn:focus-visible {
+    border-color: var(--accent);
+    outline: none;
+}
+
+.card-detail-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
 }
 
 .card-detail-editor {
@@ -2559,28 +2648,8 @@
     font-size: 14px;
     line-height: 1.5;
     outline: none;
-    padding: 0 16px 16px;
+    padding: 16px;
     resize: none;
-}
-
-.card-detail-preview {
-    flex: 1;
-    font-size: 14px;
-    line-height: 1.5;
-    overflow: auto;
-    padding: 0 16px 16px;
-}
-
-.card-detail-empty {
-    color: var(--text-muted);
-    font-style: italic;
-}
-
-@media (max-width: 720px) {
-    .card-detail-body {
-        grid-template-columns: 1fr;
-        grid-template-rows: 1fr 1fr;
-    }
 }
 
 .post-it-footer {
@@ -2981,10 +3050,14 @@
     width: 25px;
 }
 
-.icon-button:hover,
-.card-edit-trigger:hover,
-.card-edit-done:hover {
-    background: #f8fafc;
+/* Hover only where a real pointer hovers: on touch it sticks after a tap and
+   looked like a button stuck in its active state. */
+@media (hover: hover) {
+    .icon-button:hover,
+    .card-edit-trigger:hover,
+    .card-edit-done:hover {
+        background: #f8fafc;
+    }
 }
 
 .card-edit-trigger,
@@ -3043,6 +3116,38 @@
     opacity: 0.55;
 }
 
+/* Tooltips for the card toolbar (mouse and keyboard; touch has no hover, and
+   the toolbar scrolls there, which would clip them). */
+@media (hover: hover) and (pointer: fine) {
+    .post-it-hover-tools > [data-tip]::after {
+        background: var(--lum-panel, #1b1d35);
+        border-radius: 6px;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+        color: var(--lum-ink, #f4f5fb);
+        content: attr(data-tip);
+        font-size: 11px;
+        font-weight: 600;
+        opacity: 0;
+        padding: 4px 8px;
+        pointer-events: none;
+        position: absolute;
+        right: 0;
+        bottom: calc(100% + 6px);
+        transition: opacity 120ms ease 350ms;
+        white-space: nowrap;
+        z-index: 5;
+    }
+
+    .post-it-hover-tools > [data-tip]:hover::after,
+    .post-it-hover-tools > [data-tip]:focus-visible::after {
+        opacity: 1;
+    }
+}
+
+.post-it-hover-tools > [data-tip] {
+    position: relative;
+}
+
 /* Edit mode: the whole toolbar stays open and the card shows a clear ring. */
 .post-it-card.is-editing .post-it-hover-tools,
 .post-it-card.is-selected .post-it-hover-tools {
@@ -3051,8 +3156,17 @@
     transform: translateY(0);
 }
 
-.post-it-card.is-editing {
-    box-shadow: 0 0 0 2px #7c6cf0;
+.post-it-card.is-editing,
+.post-it-card.is-editing:hover {
+    box-shadow:
+        0 0 0 2px #7c6cf0,
+        0 14px 28px rgba(0, 0, 0, 0.24);
+}
+
+/* One contour at a time: editing replaces the selection ring and its dot, and
+   hover only lifts the card (shadow) instead of adding a second outline. */
+.post-it-card.is-editing.is-selected {
+    outline: none;
 }
 
 .icon-button svg {
@@ -3072,6 +3186,23 @@
 .icon-button.is-active {
     background: var(--accent-soft, #ece9fd);
     border-color: var(--accent, #6c53ee);
+}
+
+/* The control holds a value (a status or a checklist) without being open. */
+.icon-button.has-value {
+    position: relative;
+}
+
+.icon-button.has-value::before {
+    background: var(--accent, #6c53ee);
+    border: 1.5px solid #fff;
+    border-radius: 50%;
+    content: '';
+    height: 7px;
+    position: absolute;
+    right: -2px;
+    top: -2px;
+    width: 7px;
 }
 
 .post-it-style-popover {
@@ -5139,18 +5270,6 @@
 .post-it-card.is-selected {
     outline: 2px solid var(--accent);
     outline-offset: 3px;
-}
-
-.post-it-card.is-selected::after {
-    background: var(--accent);
-    border-radius: 999px;
-    box-shadow: 0 0 0 2px var(--panel-bg);
-    content: '';
-    height: 10px;
-    position: absolute;
-    right: -4px;
-    top: -4px;
-    width: 10px;
 }
 
 /* Timeline / Planning view */
