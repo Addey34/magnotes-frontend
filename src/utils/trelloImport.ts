@@ -9,6 +9,7 @@
 import { DEFAULT_POST_IT } from '../constants/boardDefaults';
 import { PostItStatus } from '../types/boardTypes';
 import { TemplateCardPayload } from './boardTemplate';
+import { todayIso } from './cardMeta';
 import { ParsedCard } from './markdownImport';
 
 export interface TrelloParsedCard extends ParsedCard {
@@ -66,6 +67,22 @@ function statusFromListName(
         return 'todo';
     }
     return undefined;
+}
+
+/**
+ * Trello exports `due` as a full UTC timestamp ("2026-05-01T10:00:00.000Z").
+ * MagNotes stores a calendar day and the API rejects anything else: the raw
+ * value made the follow-up save of every dated card fail, so it lost its due
+ * date, status, tags and checklist. Keep the day as the user saw it in Trello,
+ * i.e. in local time.
+ */
+export function trelloDueDate(due: unknown): string | undefined {
+    if (typeof due !== 'string' || !due.trim()) return undefined;
+    const value = due.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return undefined;
+    return todayIso(date);
 }
 
 function asArray<T>(value: unknown): T[] {
@@ -141,7 +158,11 @@ export function parseTrelloBoard(data: unknown): TrelloParsedCard[] {
                 ...(statusFromListName(listName)
                     ? { status: statusFromListName(listName) }
                     : {}),
-                ...(card.due ? { dueDate: card.due } : {}),
+                ...(trelloDueDate(card.due)
+                    ? { dueDate: trelloDueDate(card.due) }
+                    : typeof card.due === 'string' && card.due.trim()
+                      ? { unreadDueDate: card.due.trim() }
+                      : {}),
             };
             return parsed;
         })

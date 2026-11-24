@@ -17,6 +17,12 @@ export interface ParsedCard {
     tags: string[];
     status?: PostItStatus;
     dueDate?: string;
+    /**
+     * A due date was given in a form MagNotes cannot store (it keeps a
+     * calendar day, YYYY-MM-DD). The card is imported without it, and the
+     * import result says so instead of dropping it silently.
+     */
+    unreadDueDate?: string;
 }
 
 const HEADING = /^(#{1,6})\s+(.*)$/;
@@ -60,7 +66,12 @@ function buildCard(titleLine: string, bodyLines: string[]): ParsedCard {
         }
         const due = line.match(META_DUE);
         if (due) {
-            card.dueDate = unescapeMarkdown(due[1].trim());
+            // Only a calendar day (what the export writes): the API rejects
+            // any other form, and that refusal made the card lose its status,
+            // tags and checklist too.
+            const value = unescapeMarkdown(due[1].trim());
+            if (/^\d{4}-\d{2}-\d{2}$/.test(value)) card.dueDate = value;
+            else if (value) card.unreadDueDate = value;
             continue;
         }
         const tags = line.match(META_TAGS);

@@ -106,8 +106,9 @@ export function parseNotionCsv(csv: string): ParsedCard[] {
                 contentIndex >= 0 ? (row[contentIndex] ?? '').trim() : '';
             const status =
                 statusIndex >= 0 ? statusOf(row[statusIndex] ?? '') : undefined;
-            const dueDate =
-                dueIndex >= 0 ? dueDateOf(row[dueIndex] ?? '') : undefined;
+            const rawDue = dueIndex >= 0 ? (row[dueIndex] ?? '').trim() : '';
+            const dueDate = rawDue ? dueDateOf(rawDue) : undefined;
+            const unreadDueDate = rawDue && !dueDate ? rawDue : undefined;
             const tags =
                 tagsIndex >= 0
                     ? (row[tagsIndex] ?? '')
@@ -122,6 +123,7 @@ export function parseNotionCsv(csv: string): ParsedCard[] {
                 tags,
                 ...(status ? { status } : {}),
                 ...(dueDate ? { dueDate } : {}),
+                ...(unreadDueDate ? { unreadDueDate } : {}),
             } satisfies ParsedCard;
         })
         .filter((card) => card.title !== '' || card.content !== '');

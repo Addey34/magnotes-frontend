@@ -36,7 +36,7 @@ describe('Notion CSV import', () => {
         ]);
     });
 
-    it('supports French headers and ignores unsafe date formats', () => {
+    it('supports French headers and flags (not stores) ambiguous dates', () => {
         expect(
             parseNotionCsv(
                 'Titre,Contenu,Statut,Échéance,Étiquettes\nTâche,Texte,À faire,04/09/2026,"client; important"'
@@ -48,6 +48,8 @@ describe('Notion CSV import', () => {
                 status: 'todo',
                 tags: ['client', 'important'],
                 checklist: [],
+                // Reported to the user by the import result.
+                unreadDueDate: '04/09/2026',
             },
         ]);
     });
