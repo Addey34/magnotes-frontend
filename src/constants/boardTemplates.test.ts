@@ -67,6 +67,6 @@ describe('localized board templates', () => {
 
         expect(frenchWelcome?.label).toBe('Bienvenue');
         expect(englishWelcome?.label).toBe('Welcome');
-        expect(englishWelcome?.cards[0].title).toBe('Welcome to MagNotes 👋');
+        expect(englishWelcome?.cards[0].title).toBe('Welcome 👋');
     });
 });
