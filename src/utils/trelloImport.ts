@@ -10,6 +10,7 @@ import { DEFAULT_POST_IT } from '../constants/boardDefaults';
 import { PostItStatus } from '../types/boardTypes';
 import { TemplateCardPayload } from './boardTemplate';
 import { todayIso } from './cardMeta';
+import { stackByColumn } from './importLayout';
 import { ParsedCard } from './markdownImport';
 
 export interface TrelloParsedCard extends ParsedCard {
@@ -183,15 +184,17 @@ export function buildTrelloCards(
     if (cards.length === 0) return [];
 
     const gapX = DEFAULT_POST_IT.width + 60;
-    const gapY = DEFAULT_POST_IT.height + 30;
     const maxColumn = Math.max(...cards.map((card) => card.column));
-    const maxRow = Math.max(...cards.map((card) => card.row));
+    // Stack each list under its own cards' estimated heights (see importLayout).
+    const stacked = stackByColumn(
+        cards.map((card) => ({ card, column: card.column, row: card.row }))
+    );
     const gridWidth = maxColumn * gapX + DEFAULT_POST_IT.width;
-    const gridHeight = maxRow * gapY + DEFAULT_POST_IT.height;
+    const gridHeight = stacked.height;
     const originX = center ? center.x - gridWidth / 2 : 48;
     const originY = center ? center.y - gridHeight / 2 : 48;
 
-    return cards.map((card) => ({
+    return cards.map((card, index) => ({
         tabId,
         title: card.title || 'Sans titre',
         content: card.content,
@@ -200,7 +203,7 @@ export function buildTrelloCards(
         textSize: DEFAULT_POST_IT.textSize,
         fontFamily: DEFAULT_POST_IT.fontFamily,
         x: originX + card.column * gapX,
-        y: originY + card.row * gapY,
+        y: originY + stacked.offsets[index],
         width: DEFAULT_POST_IT.width,
         height: DEFAULT_POST_IT.height,
         ...(card.status !== undefined ? { status: card.status } : {}),

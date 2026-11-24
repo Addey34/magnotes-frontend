@@ -9,6 +9,7 @@
 import { DEFAULT_POST_IT } from '../constants/boardDefaults';
 import { ChecklistItem, PostItStatus } from '../types/boardTypes';
 import { TemplateCardPayload } from './boardTemplate';
+import { stackByColumn } from './importLayout';
 
 export interface ParsedCard {
     title: string;
@@ -156,19 +157,24 @@ export function buildImportedCards(
     if (cards.length === 0) return [];
 
     const gapX = DEFAULT_POST_IT.width + 40;
-    const gapY = DEFAULT_POST_IT.height + 40;
     const columns = Math.ceil(Math.sqrt(cards.length));
-    const rows = Math.ceil(cards.length / columns);
+    // Stack each grid column under its own cards' estimated heights.
+    const stacked = stackByColumn(
+        cards.map((card, cardIndex) => ({
+            card,
+            column: cardIndex % columns,
+            row: Math.floor(cardIndex / columns),
+        }))
+    );
 
     // Center the whole grid's bounding box on `center` when provided.
     const gridWidth = (columns - 1) * gapX + DEFAULT_POST_IT.width;
-    const gridHeight = (rows - 1) * gapY + DEFAULT_POST_IT.height;
+    const gridHeight = stacked.height;
     const originX = center ? center.x - gridWidth / 2 : 48;
     const originY = center ? center.y - gridHeight / 2 : 48;
 
     return cards.map((card, cardIndex) => {
         const column = cardIndex % columns;
-        const row = Math.floor(cardIndex / columns);
         return {
             tabId,
             title: card.title || '',
@@ -178,7 +184,7 @@ export function buildImportedCards(
             textSize: DEFAULT_POST_IT.textSize,
             fontFamily: DEFAULT_POST_IT.fontFamily,
             x: originX + column * gapX,
-            y: originY + row * gapY,
+            y: originY + stacked.offsets[cardIndex],
             width: DEFAULT_POST_IT.width,
             height: DEFAULT_POST_IT.height,
             ...(card.status !== undefined ? { status: card.status } : {}),
