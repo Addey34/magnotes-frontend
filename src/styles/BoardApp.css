@@ -1030,6 +1030,9 @@
 }
 
 .board-title-group {
+    /* The title and its rename field share one fixed-height slot, so entering
+       the edit mode moves nothing around them. */
+    --title-slot: 20px;
     align-items: center;
     display: flex;
     flex: 0 1 min(240px, 32%);
@@ -1051,14 +1054,16 @@
 }
 
 .board-title {
+    align-items: center;
     color: var(--text-main);
+    display: flex;
     font-size: 13px;
     font-weight: 740;
-    line-height: 1.1;
+    height: var(--title-slot);
+    line-height: var(--title-slot);
     margin: 0;
     max-width: 180px;
     overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
 }
 .board-title-trigger {
@@ -1068,7 +1073,10 @@
     cursor: text;
     display: block;
     font: inherit;
+    height: var(--title-slot);
+    line-height: var(--title-slot);
     max-width: 100%;
+    min-width: 0;
     overflow: hidden;
     padding: 0;
     text-align: left;
@@ -1086,6 +1094,12 @@
     align-items: center;
     display: flex;
     gap: 4px;
+    height: var(--title-slot);
+}
+
+.board-title-editor input:focus-visible {
+    /* The accent border is already the focus indicator: no second ring. */
+    outline: none;
 }
 
 .board-title-editor input {
@@ -1096,7 +1110,9 @@
     font: inherit;
     font-size: 13px;
     font-weight: 740;
-    height: 28px;
+    height: var(--title-slot);
+    line-height: 1;
+    min-width: 0;
     outline: none;
     padding: 0 7px;
     width: 180px;
@@ -1110,15 +1126,16 @@
     color: #fff;
     cursor: pointer;
     display: inline-flex;
-    height: 28px;
+    flex: none;
+    height: var(--title-slot);
     justify-content: center;
     padding: 0;
-    width: 28px;
+    width: var(--title-slot);
 }
 
 .board-title-editor button svg {
-    height: 14px;
-    width: 14px;
+    height: 12px;
+    width: 12px;
 }
 
 .board-subtitle {
@@ -1126,6 +1143,24 @@
     font-size: 10px;
     margin: 4px 0 0;
     white-space: nowrap;
+}
+
+/* Zoom and appearance only exist on the canvas. On wide screens (right-aligned
+   bar) they sit to the left of the view switch so that the switch and the
+   controls after it never move when the view changes. */
+@media (min-width: 1181px) {
+    .board-topbar-tools > .board-zoom-controls,
+    .board-topbar-tools > .board-appearance {
+        order: -1;
+    }
+}
+
+/* Compact, left-aligned bar: the switch sits right after the title, so the
+   title keeps one width in every view. */
+@media (min-width: 621px) and (max-width: 1180px) {
+    .board-title-group {
+        flex: 0 0 clamp(132px, 17vw, 240px);
+    }
 }
 
 .board-topbar-tools {
@@ -4110,9 +4145,13 @@
         min-width: 40px;
     }
 
-    .board-title-trigger {
-        min-height: 32px;
-        padding-block: 8px;
+    .board-title-group {
+        --title-slot: 32px;
+    }
+
+    .board-title-editor button svg {
+        height: 16px;
+        width: 16px;
     }
 
     .agenda-title,
@@ -4554,6 +4593,18 @@
     height: 100%;
     overflow-x: auto;
     padding: 14px;
+}
+
+/* Centred when they fit; auto margins (unlike justify-content: center) keep the
+   first column reachable when they overflow and scroll. */
+.board-kanban > :first-child,
+.board-timeline > :first-child {
+    margin-left: auto;
+}
+
+.board-kanban > :last-child,
+.board-timeline > :last-child {
+    margin-right: auto;
 }
 
 .kanban-column {
@@ -5329,6 +5380,18 @@
     right: 14px;
     top: calc(var(--demo-banner-height) + var(--board-topbar-height) + 14px);
     z-index: 240;
+}
+
+/* Wide screens: the sync pill and help button sit at the end of the top bar in
+   every view, so list views do not need to leave room for them. */
+@media (min-width: 1700px) {
+    .board-topbar-status {
+        position: static;
+    }
+
+    .board-workspace > .board-alt-view {
+        padding-top: 0;
+    }
 }
 
 .board-shortcuts-help {
