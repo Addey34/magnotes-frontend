@@ -92,6 +92,81 @@ describe('initAnalytics', () => {
         expect(trackProductEvent('login_completed')).toBe(false);
     });
 
+    describe('tracker that loads late', () => {
+        const setUmami = (track: jest.Mock) => {
+            (window as typeof window & { umami?: { track: jest.Mock } }).umami =
+                { track };
+        };
+
+        it('holds early milestones and sends them once the tracker loaded', () => {
+            initAnalytics(CONFIG);
+            expect(trackProductEvent('signup_started')).toBe(false);
+            expect(trackProductEvent('card_created')).toBe(false);
+
+            const track = jest.fn();
+            setUmami(track);
+            tracker()!.dispatchEvent(new Event('load'));
+
+            expect(track.mock.calls).toEqual([
+                ['signup_started'],
+                ['card_created'],
+            ]);
+            // Sent once, and later events go straight through.
+            tracker()!.dispatchEvent(new Event('load'));
+            expect(track).toHaveBeenCalledTimes(2);
+            expect(trackProductEvent('login_completed')).toBe(true);
+        });
+
+        it('drops held events when the tracker cannot load', () => {
+            initAnalytics(CONFIG);
+            trackProductEvent('signup_started');
+            tracker()!.dispatchEvent(new Event('error'));
+            const track = jest.fn();
+            setUmami(track);
+            tracker()!.dispatchEvent(new Event('load'));
+            expect(track).not.toHaveBeenCalled();
+            // No unbounded buffering behind a blocked tracker.
+            delete (window as typeof window & { umami?: unknown }).umami;
+            trackProductEvent('signup_started');
+            setUmami(track);
+            tracker()!.dispatchEvent(new Event('load'));
+            expect(track).not.toHaveBeenCalled();
+        });
+
+        it('never holds opted-out, shared-link or sandbox account events', () => {
+            const track = jest.fn();
+            window.history.replaceState({}, '', '/app/?analytics=off');
+            initAnalytics({ ...CONFIG, disabled: false });
+            trackProductEvent('signup_started');
+            window.history.replaceState({}, '', '/app/?demo=1');
+            trackProductEvent('login_completed');
+            window.history.replaceState({}, '', '/');
+            setUmami(track);
+            tracker()?.dispatchEvent(new Event('load'));
+            expect(track).not.toHaveBeenCalled();
+        });
+
+        it('keeps the demo_* name chosen when the event happened', () => {
+            initAnalytics(CONFIG);
+            window.history.replaceState({}, '', '/app/?demo=1');
+            trackProductEvent('card_created');
+            window.history.replaceState({}, '', '/app/');
+            const track = jest.fn();
+            setUmami(track);
+            tracker()!.dispatchEvent(new Event('load'));
+            expect(track).toHaveBeenCalledWith('demo_card_created');
+        });
+
+        it('bounds the number of held events', () => {
+            initAnalytics(CONFIG);
+            for (let i = 0; i < 100; i++) trackProductEvent('card_created');
+            const track = jest.fn();
+            setUmami(track);
+            tracker()!.dispatchEvent(new Event('load'));
+            expect(track).toHaveBeenCalledTimes(20);
+        });
+    });
+
     describe('demo sandbox', () => {
         const track = jest.fn();
         beforeEach(() => {
