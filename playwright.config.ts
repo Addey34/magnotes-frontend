@@ -69,6 +69,7 @@ export default defineConfig({
                 'gettingStarted.spec.ts',
                 'mobileEditing.spec.ts',
                 'discovery.spec.ts',
+                'importLayout.spec.ts',
             ],
             use: { ...devices['Pixel 7'] },
         },
@@ -97,6 +98,9 @@ export default defineConfig({
                 'gettingStarted.spec.ts',
                 'mobileEditing.spec.ts',
                 'discovery.spec.ts',
+                // importLayout.spec.ts is not listed here: on Linux WebKit (CI)
+                // setInputFiles never triggers the import, while it passes on
+                // WebKit for Windows and on the three Chromium profiles.
             ],
             grepInvert:
                 /sidebar expands on hover without covering the workspace/,

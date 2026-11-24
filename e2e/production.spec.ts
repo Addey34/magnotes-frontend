@@ -114,9 +114,14 @@ test.describe('deployed production', () => {
         expect(analyticsRequests).toBe(0);
     });
 
-    for (const [path, heading, alternate] of [
-        ['/confidentialite/', 'Politique de confidentialité', '/en/privacy/'],
-        ['/en/privacy/', 'Privacy policy', '/confidentialite/'],
+    for (const [path, heading, alternate, alternateLang] of [
+        [
+            '/confidentialite/',
+            'Politique de confidentialité',
+            '/en/privacy/',
+            'en',
+        ],
+        ['/en/privacy/', 'Privacy policy', '/confidentialite/', 'fr'],
     ] as const) {
         test(`serves an indexable privacy page (${path})`, async ({ page }) => {
             const failures = monitorBrowserFailures(page);
@@ -133,7 +138,13 @@ test.describe('deployed production', () => {
                 'index, follow'
             );
             await expect(
-                page.locator(`link[rel="alternate"][href$="${alternate}"]`)
+                page.locator(
+                    `link[rel="alternate"][hreflang="${alternateLang}"][href$="${alternate}"]`
+                )
+            ).toHaveCount(1);
+            // x-default plus the page's own language complete the set.
+            await expect(
+                page.locator('link[rel="alternate"][hreflang="x-default"]')
             ).toHaveCount(1);
             await expectNoBlockingAccessibilityIssues(page);
             expect(failures).toEqual([]);
