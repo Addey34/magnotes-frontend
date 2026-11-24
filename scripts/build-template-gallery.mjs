@@ -5,6 +5,7 @@ import {
     getBoardTemplates,
     WELCOME_TEMPLATE_ID,
 } from '../src/constants/boardTemplates.ts';
+import { GUIDES, buildGuidePages, guidePath } from './guide-pages.mjs';
 
 const ORIGIN = 'https://magnotes.adrianguichard.dev';
 
@@ -79,7 +80,7 @@ function pathFor(lang, suffix = '') {
     return `${prefix}/templates/${suffix}`;
 }
 
-function shell({
+export function shell({
     lang,
     title,
     description,
@@ -88,13 +89,34 @@ function shell({
     body,
     schema,
     analytics,
+    extraCss = '',
 }) {
     const c = copy[lang];
+    // Complete, reciprocal set: self + the other language + x-default (French,
+    // like the root page). Search engines ignore a set that omits itself.
+    const frPath = lang === 'fr' ? canonical : alternate.path;
+    const hreflangLinks = [
+        [lang, canonical],
+        [alternate.lang, alternate.path],
+        ['x-default', frPath],
+    ]
+        .map(
+            ([code, path]) =>
+                `<link rel="alternate" hreflang="${code}" href="${ORIGIN}${path}">`
+        )
+        .join('');
+    const footerLinks = [
+        `<a href="${pathFor(lang)}">${c.galleryTitle}</a>`,
+        ...GUIDES.map(
+            (guide) =>
+                `<a href="${guidePath(lang, guide)}">${escapeHtml(guide[lang].nav)}</a>`
+        ),
+    ].join(' · ');
     const tracker =
         analytics?.src && analytics?.websiteId
             ? `<script src="/analytics-control.js"></script><script defer src="${escapeHtml(analytics.src)}" data-website-id="${escapeHtml(analytics.websiteId)}" data-before-send="magNotesAnalyticsBeforeSend"></script>`
             : '';
-    return `<!doctype html><html lang="${lang}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="index, follow"><link rel="canonical" href="${ORIGIN}${canonical}"><link rel="alternate" hreflang="${alternate.lang}" href="${ORIGIN}${alternate.path}"><meta property="og:type" content="website"><meta property="og:locale" content="${c.locale}"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${ORIGIN}${canonical}"><meta property="og:image" content="${ORIGIN}/og-image.png"><style>${css}</style>${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replaceAll('<', '\\u003c')}</script>` : ''}${tracker}</head><body><header><div class="wrap nav"><a class="brand" href="${lang === 'en' ? '/en/' : '/'}"><span>🧲</span>MagNotes</a><nav class="nav-links"><a class="btn" href="${alternate.path}">${c.lang}</a><a class="btn btn-primary" href="/app/?lang=${lang}" data-umami-event="template_login_clicked">${c.login}</a></nav></div></header><main>${body}</main><footer>© 2026 MagNotes · ${c.galleryTitle}</footer></body></html>`;
+    return `<!doctype html><html lang="${lang}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="index, follow"><link rel="canonical" href="${ORIGIN}${canonical}">${hreflangLinks}<meta property="og:type" content="website"><meta property="og:locale" content="${c.locale}"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${ORIGIN}${canonical}"><meta property="og:image" content="${ORIGIN}/og-image.png"><style>${css}${extraCss}</style>${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replaceAll('<', '\\u003c')}</script>` : ''}${tracker}</head><body><header><div class="wrap nav"><a class="brand" href="${lang === 'en' ? '/en/' : '/'}"><span>🧲</span>MagNotes</a><nav class="nav-links"><a class="btn" href="${alternate.path}">${c.lang}</a><a class="btn btn-primary" href="/app/?lang=${lang}" data-umami-event="template_login_clicked">${c.login}</a></nav></div></header><main>${body}</main><footer>© 2026 MagNotes · ${footerLinks}</footer></body></html>`;
 }
 
 function miniBoard(template) {
@@ -201,6 +223,7 @@ export async function buildTemplateGallery(out, analytics = {}) {
             );
         }
     }
+    await buildGuidePages(out, analytics);
     const urls = [
         '/',
         '/en/',
@@ -210,6 +233,7 @@ export async function buildTemplateGallery(out, analytics = {}) {
         '/en/templates/',
     ];
     for (const lang of ['fr', 'en']) {
+        for (const guide of GUIDES) urls.push(guidePath(lang, guide));
         for (const template of localized[lang]) {
             urls.push(pathFor(lang, `${template.id}/`));
         }
@@ -220,6 +244,8 @@ export async function buildTemplateGallery(out, analytics = {}) {
     const priorityFor = (url) => {
         if (url === '/' || url === '/en/') return '1.0';
         if (url.endsWith('/templates/')) return '0.9';
+        if (GUIDES.some((g) => [g.fr.path, g.en.path].includes(url)))
+            return '0.9';
         if (url === '/confidentialite/' || url === '/en/privacy/') return '0.5';
         return '0.8';
     };

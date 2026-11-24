@@ -7,6 +7,8 @@ a command palette (`Ctrl`/`Cmd`+K).
 
 **Live:** https://magnotes.adrianguichard.dev
 
+**Try it without an account:** https://magnotes.adrianguichard.dev/app/?demo=1 · Guides: [online sticky notes](https://magnotes.adrianguichard.dev/en/online-sticky-notes/), [import a Trello board](https://magnotes.adrianguichard.dev/en/import-trello/).
+
 > This repository contains the **frontend only**. The API is a separate,
 > private service; this app talks to it over HTTPS via `VITE_API_URL`. Local environment files are ignored; use
 > `.env.production.example` as the template. A guest **demo mode** (`/app/?demo=1`) runs entirely
