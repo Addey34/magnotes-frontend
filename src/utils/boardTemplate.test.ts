@@ -1,6 +1,6 @@
 import { DEFAULT_POST_IT } from '../constants/boardDefaults';
 import { BoardTemplate } from '../constants/boardTemplates';
-import { buildTemplateCards } from './boardTemplate';
+import { buildTemplateCards, relativeDueDate } from './boardTemplate';
 
 const template: BoardTemplate = {
     id: 'test-template',
@@ -98,5 +98,35 @@ describe('buildTemplateCards', () => {
         expect(card.tags).not.toBe(template.cards[1].tags);
         expect(card.checklist).not.toBe(template.cards[1].checklist);
         expect(card.checklist?.[0]).not.toBe(template.cards[1].checklist?.[0]);
+    });
+
+    it('turns a relative due date into a calendar day from the insertion date', () => {
+        const dated: BoardTemplate = {
+            ...template,
+            cards: [
+                { ...template.cards[0], dueInDays: 0 },
+                { ...template.cards[1], dueInDays: 3 },
+            ],
+        };
+        const now = new Date(2026, 11, 30, 23, 30); // 30 Dec, late evening
+        const cards = buildTemplateCards(dated, 'tab-123', undefined, now);
+        expect(cards.map((card) => card.dueDate)).toEqual([
+            '2026-12-30',
+            '2027-01-02',
+        ]);
+        // No due date when the template does not ask for one.
+        expect(buildTemplateCards(template, 'tab-123')[0]).not.toHaveProperty(
+            'dueDate'
+        );
+    });
+
+    it('crosses a daylight-saving change without skipping a day', () => {
+        // Europe moves clocks forward on the last Sunday of March.
+        expect(relativeDueDate(1, new Date(2026, 2, 28, 12))).toBe(
+            '2026-03-29'
+        );
+        expect(relativeDueDate(2, new Date(2026, 2, 28, 12))).toBe(
+            '2026-03-30'
+        );
     });
 });

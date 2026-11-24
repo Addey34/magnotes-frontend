@@ -47,7 +47,7 @@ test.describe('English demo', () => {
     }) => {
         await page.goto('/app/?demo=1&lang=en');
         await expect(page.locator('.post-it-title').first()).toHaveValue(
-            'Welcome to MagNotes 👋'
+            'Welcome 👋'
         );
 
         const views = ['canvas', 'kanban', 'agenda', 'timeline'];
@@ -105,7 +105,7 @@ test.describe('English demo', () => {
     test('a french landing link keeps the demo in French', async ({ page }) => {
         await page.goto('/app/?demo=1&lang=fr');
         await expect(page.locator('.post-it-title').first()).toHaveValue(
-            'Bienvenue sur MagNotes 👋'
+            'Bienvenue 👋'
         );
     });
 
@@ -114,11 +114,11 @@ test.describe('English demo', () => {
     }) => {
         await page.goto('/app/?demo=1&lang=fr');
         await expect(page.locator('.post-it-title').first()).toHaveValue(
-            'Bienvenue sur MagNotes 👋'
+            'Bienvenue 👋'
         );
         await page.goto('/app/?demo=1&lang=en');
         await expect(page.locator('.post-it-title').first()).toHaveValue(
-            'Welcome to MagNotes 👋'
+            'Welcome 👋'
         );
     });
 });

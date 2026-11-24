@@ -385,6 +385,25 @@
     padding: 0;
 }
 
+.auth-try-demo {
+    margin-top: 12px;
+}
+
+.auth-try-demo a {
+    border: 1px solid rgba(155, 136, 255, 0.35);
+    border-radius: 999px;
+    color: #b6a8ff;
+    font-weight: 700;
+    padding: 7px 14px;
+    text-decoration: none;
+}
+
+.auth-try-demo a:hover,
+.auth-try-demo a:focus-visible {
+    background: rgba(155, 136, 255, 0.12);
+    color: #d4cbff;
+}
+
 .auth-legal {
     color: #8289aa;
     display: flex;

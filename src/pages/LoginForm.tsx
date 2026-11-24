@@ -1,6 +1,5 @@
 import {
     ArrowRightIcon,
-    DocumentIcon,
     EnvelopeIcon,
     EyeIcon,
     EyeSlashIcon,
@@ -22,6 +21,7 @@ import { TranslationKey } from '../i18n/dictionary';
 import { useT } from '../i18n/LangContext';
 import { trackProductEvent } from '../services/analytics';
 import { isDemoImportPending } from '../services/demoMode';
+import { markFreshSignup } from '../utils/onboarding';
 import { LanguageSwitch } from '../i18n/LanguageSwitch';
 import '../styles/LoginForm.css';
 
@@ -206,6 +206,9 @@ const LoginForm: React.FC<LoginFormProps> = ({
             } else if (mode === 'verify') {
                 requireValidCode();
                 const session = await verifyEmail(email.trim(), code.trim());
+                // A confirmed sign-up, the only case that may seed the
+                // welcome board (see utils/onboarding.ts).
+                markFreshSignup();
                 finishSession();
                 trackProductEvent('email_verified');
             } else if (mode === 'forgot') {
@@ -538,6 +541,17 @@ const LoginForm: React.FC<LoginFormProps> = ({
                         </p>
                     )}
 
+                    {/* Someone who reaches /app/ directly (shared link,
+                        bookmark) had no way to try MagNotes before signing
+                        up: the demo was only linked from the landing page. */}
+                    {(mode === 'login' || mode === 'register') && !fromDemo && (
+                        <p className="auth-switch auth-try-demo">
+                            <a href={`/app/?demo=1&lang=${lang}`}>
+                                {t('auth.tryDemo')}
+                            </a>
+                        </p>
+                    )}
+
                     <nav
                         className="auth-legal"
                         aria-label={t('auth.legal.nav')}
@@ -563,9 +577,14 @@ const LoginForm: React.FC<LoginFormProps> = ({
 
 const Brand: React.FC<{ t: Translate }> = ({ t }) => (
     <div className="auth-brand">
-        <span className="auth-logo-mark">
-            <DocumentIcon />
-        </span>
+        {/* Same mark as the favicon and the landing page. */}
+        <img
+            className="auth-logo-mark"
+            src="/app/icon.svg"
+            alt=""
+            width={34}
+            height={34}
+        />
         <div>
             <strong>MagNotes</strong>
             <span>{t('auth.brand.tagline')}</span>

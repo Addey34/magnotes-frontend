@@ -47,6 +47,7 @@ import {
 } from '../../hooks/resizeSnap';
 import CardDetailModal from './CardDetailModal';
 import { renderMarkdown } from '../../utils/markdownRender';
+import { cardFontStack } from '../../utils/cardFont';
 import { firstImageFile, readImageFile } from '../../utils/imageFile';
 import {
     addChecklistItem,
@@ -468,6 +469,21 @@ const PostItCard: React.FC<PostItCardProps> = ({
     const textSize = postIt.textSize || 13;
     const textColor = postIt.textColor || '#172033';
     const fontFamily = postIt.fontFamily || 'Inter';
+    // Rendering uses a full stack: a bare name the device lacks falls back to
+    // the browser's serif default (see utils/cardFont.ts).
+    const fontStack = cardFontStack(fontFamily);
+
+    // In edit mode the body is a textarea, which does not size to its text:
+    // entering edit mode shrank the card to ~3 lines and hid the rest of the
+    // note behind an inner scrollbar. Keep it at least as tall as its text so
+    // the card (whose drawn height is measured) grows with what is typed.
+    // min-height, not height: `flex: 1` still lets it fill a taller card.
+    useLayoutEffect(() => {
+        const el = contentRef.current;
+        if (!isEditing || !el) return;
+        el.style.minHeight = '';
+        el.style.minHeight = `${el.scrollHeight}px`;
+    }, [isEditing, postIt.content, textSize, fontStack, postIt.width]);
 
     const checklist = useMemo(() => postIt.checklist || [], [postIt.checklist]);
     const tags = useMemo(() => postIt.tags || [], [postIt.tags]);
@@ -1945,6 +1961,11 @@ const PostItCard: React.FC<PostItCardProps> = ({
                     readOnly={!isEditing}
                     tabIndex={isEditing ? 0 : -1}
                     value={postIt.title}
+                    // A long title is cut with an ellipsis on the card: show
+                    // it whole on hover while reading.
+                    title={
+                        !isEditing && postIt.title ? postIt.title : undefined
+                    }
                     maxLength={80}
                     onChange={(event) =>
                         updateText('title', event.target.value)
@@ -1953,7 +1974,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                     aria-label={t('card.title.placeholder')}
                     style={{
                         color: textColor,
-                        fontFamily,
+                        fontFamily: fontStack,
                         fontSize: textSize + 1,
                     }}
                 />
@@ -2047,7 +2068,7 @@ const PostItCard: React.FC<PostItCardProps> = ({
                         placeholder={t('card.content.placeholder')}
                         style={{
                             color: textColor,
-                            fontFamily,
+                            fontFamily: fontStack,
                             fontSize: textSize,
                         }}
                     />
@@ -2091,7 +2112,11 @@ const PostItCard: React.FC<PostItCardProps> = ({
                             ? t('stack.fanOut', { n: stackView.count })
                             : undefined
                     }
-                    style={{ color: textColor, fontFamily, fontSize: textSize }}
+                    style={{
+                        color: textColor,
+                        fontFamily: fontStack,
+                        fontSize: textSize,
+                    }}
                 >
                     {postIt.content.trim() ? (
                         renderMarkdown(postIt.content)

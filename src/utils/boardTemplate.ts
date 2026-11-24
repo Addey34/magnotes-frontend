@@ -1,6 +1,7 @@
 import { DEFAULT_POST_IT } from '../constants/boardDefaults';
 import { BoardTemplate, BoardTemplateCard } from '../constants/boardTemplates';
 import { PostIt } from '../types/boardTypes';
+import { todayIso } from './cardMeta';
 
 const TEMPLATE_POSITION_OFFSET = 48;
 
@@ -22,11 +23,22 @@ export type TemplateCardPayload = Required<
 > &
     Partial<Pick<PostIt, 'status' | 'checklist' | 'tags' | 'dueDate'>>;
 
+/** Local calendar day `days` after `now`, as YYYY-MM-DD (DST-safe). */
+export function relativeDueDate(days: number, now: Date = new Date()): string {
+    const day = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    day.setDate(day.getDate() + days);
+    return todayIso(day);
+}
+
 function buildTaskFields(
-    card: BoardTemplateCard
-): Partial<Pick<PostIt, 'status' | 'checklist' | 'tags'>> {
+    card: BoardTemplateCard,
+    now: Date
+): Partial<Pick<PostIt, 'status' | 'checklist' | 'tags' | 'dueDate'>> {
     return {
         ...(card.status !== undefined ? { status: card.status } : {}),
+        ...(card.dueInDays !== undefined
+            ? { dueDate: relativeDueDate(card.dueInDays, now) }
+            : {}),
         ...(card.checklist !== undefined
             ? {
                   checklist: card.checklist.map((item) => ({ ...item })),
@@ -42,7 +54,8 @@ function buildTaskFields(
 export function buildTemplateCards(
     template: BoardTemplate,
     tabId: string,
-    center?: { x: number; y: number }
+    center?: { x: number; y: number },
+    now: Date = new Date()
 ): TemplateCardPayload[] {
     let offsetX = TEMPLATE_POSITION_OFFSET;
     let offsetY = TEMPLATE_POSITION_OFFSET;
@@ -73,6 +86,6 @@ export function buildTemplateCards(
         width: DEFAULT_POST_IT.width,
         height: DEFAULT_POST_IT.height,
         rotation: DEFAULT_POST_IT.rotation,
-        ...buildTaskFields(card),
+        ...buildTaskFields(card, now),
     }));
 }

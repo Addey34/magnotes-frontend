@@ -42,6 +42,22 @@ describe('parseMarkdownCards', () => {
         ]);
     });
 
+    it('drops a due date that is not a calendar day, flags it, keeps the rest', () => {
+        const [card] = parseMarkdownCards(
+            [
+                '## Tâche',
+                '',
+                '**Statut :** doing',
+                '**Échéance :** 25/12/2026',
+                '**Tags :** #client',
+            ].join('\n')
+        );
+        expect(card.dueDate).toBeUndefined();
+        expect(card.unreadDueDate).toBe('25/12/2026');
+        expect(card.status).toBe('doing');
+        expect(card.tags).toEqual(['client']);
+    });
+
     it('ignores an unknown status value', () => {
         const [card] = parseMarkdownCards('## X\n\n**Statut :** bloqué');
         expect(card.status).toBeUndefined();

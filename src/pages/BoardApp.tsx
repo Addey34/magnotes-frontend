@@ -56,6 +56,7 @@ import {
     WELCOME_TEMPLATE_ID,
 } from '../constants/boardTemplates';
 import {
+    fitCardsToApiLimits,
     isImportCardCountTooHigh,
     isImportFileTooLarge,
 } from '../utils/importLimits';
@@ -106,6 +107,14 @@ import { LanguageSwitch } from '../i18n/LanguageSwitch';
 import { useNotifications } from '../hooks/useNotifications';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { readCopiedStyle } from '../utils/cardStyleMemory';
+import { paletteShortcutLabel } from '../utils/platformKeys';
+import {
+    clearFreshSignup,
+    freshServerDefaultBoard,
+    hasFreshSignup,
+} from '../utils/onboarding';
+import { placeBesideContent } from '../utils/importPlacement';
+import { isDemoImportPending } from '../services/demoMode';
 import {
     LayoutOptions,
     buildStackViews,
@@ -291,6 +300,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
     const {
         postIts,
         isLoadingPostIts,
+        hasLoadedPostIts,
         addPostIt,
         addTemplateCards,
         patchPostItLocal,
@@ -1260,36 +1270,37 @@ const BoardApp: React.FC<BoardAppProps> = ({
         }
 
         let cards: ReturnType<typeof buildImportedCards> = [];
+        // Parsed cards, kept to report what could not be carried over.
+        let parsed: { unreadDueDate?: string }[] = [];
         const trimmed = text.trimStart();
         const isCsv = file.name.toLowerCase().endsWith('.csv');
         if (isCsv) {
-            cards = buildImportedCards(
-                parseNotionCsv(text),
-                activeTabId,
-                center
-            );
+            const notion = parseNotionCsv(text);
+            parsed = notion;
+            cards = buildImportedCards(notion, activeTabId, center);
         } else if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
             try {
                 const data = JSON.parse(text);
                 if (isTrelloBoard(data)) {
-                    cards = buildTrelloCards(
-                        parseTrelloBoard(data),
-                        activeTabId,
-                        center
-                    );
+                    const trello = parseTrelloBoard(data);
+                    parsed = trello;
+                    cards = buildTrelloCards(trello, activeTabId, center);
                 }
             } catch {
                 // Not valid JSON — fall through to the Markdown parser below.
             }
         }
         if (!isCsv && cards.length === 0) {
-            cards = buildImportedCards(
-                parseMarkdownCards(text),
-                activeTabId,
-                center
-            );
+            const markdown = parseMarkdownCards(text);
+            parsed = markdown;
+            cards = buildImportedCards(markdown, activeTabId, center);
         }
-        if (cards.length === 0) return;
+        if (cards.length === 0) {
+            // Before, an unreadable file closed the picker and nothing
+            // happened, which looked like a broken button.
+            showImportResult(t('notification.importEmpty'), 'error');
+            return;
+        }
         if (isImportCardCountTooHigh(cards.length)) {
             notify(t('notification.importTooManyCards'), {
                 key: 'board-import-limit',
@@ -1299,12 +1310,54 @@ const BoardApp: React.FC<BoardAppProps> = ({
         }
 
         setView('canvas');
-        await addTemplateCards(cards);
+        cards = placeBesideContent(cards, contentBounds);
+        // Fit to the API's limits, and count what that changed: nothing is
+        // dropped silently any more.
+        const fitted = fitCardsToApiLimits(cards);
+        const failed = await addTemplateCards(fitted.cards);
         focusBounds({
             minX: Math.min(...cards.map((card) => card.x)),
             minY: Math.min(...cards.map((card) => card.y)),
             maxX: Math.max(...cards.map((card) => card.x + card.width)),
             maxY: Math.max(...cards.map((card) => card.y + card.height)),
+        });
+        const unreadDue = parsed.filter((card) => card.unreadDueDate).length;
+        const parts = [
+            failed > 0
+                ? t('notification.importPartial', {
+                      n: cards.length,
+                      saved: cards.length - failed,
+                      failed,
+                  })
+                : t('notification.importDone', { n: cards.length }),
+        ];
+        if (fitted.adjusted > 0) {
+            parts.push(
+                t('notification.importAdjusted', { n: fitted.adjusted })
+            );
+        }
+        if (unreadDue > 0) {
+            parts.push(t('notification.importUnreadDue', { n: unreadDue }));
+        }
+        showImportResult(
+            parts.join(' '),
+            failed > 0 ? 'error' : parts.length > 1 ? 'info' : 'success'
+        );
+    };
+
+    // One import result on screen at a time: a keyed notify() keeps the
+    // first message and drops the next one, so a second import within five
+    // seconds reported nothing. Replace the previous result instead. A
+    // result with details stays longer, so it can be read.
+    const importNoticeRef = useRef<number | null>(null);
+    const showImportResult = (
+        message: string,
+        kind: 'error' | 'info' | 'success'
+    ) => {
+        if (importNoticeRef.current !== null) dismiss(importNoticeRef.current);
+        importNoticeRef.current = notify(message, {
+            kind,
+            duration: kind === 'success' ? 5000 : 12000,
         });
     };
 
@@ -1335,8 +1388,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
         // the canvas colour (a frozen background would override every ambiance).
         addTab(undefined, { trackCreation: false });
     }, [hasLoadedTabs, isLoadingTabs, tabs.length]);
-    useEffect(() => {
-        if (onboardingRef.current !== 'creating' || !activeTabId) return;
+    const seedOnboardingBoard = (tabId: string) => {
         onboardingRef.current = 'done';
         const requestedTemplate = boardTemplates.find(
             (template) => template.id === initialTemplateId
@@ -1345,11 +1397,43 @@ const BoardApp: React.FC<BoardAppProps> = ({
             requestedTemplate ??
             boardTemplates.find((item) => item.id === WELCOME_TEMPLATE_ID);
         renameTab(
-            activeTabId,
+            tabId,
             template?.label ?? (lang === 'en' ? 'Welcome' : 'Bienvenue')
         );
         applyTemplate(template?.id ?? WELCOME_TEMPLATE_ID);
+    };
+    useEffect(() => {
+        if (onboardingRef.current !== 'creating' || !activeTabId) return;
+        seedOnboardingBoard(activeTabId);
     }, [activeTabId]);
+    // The real API answers the first board request with a default "Maison"
+    // board it just created, so the empty-list branch above never runs for a
+    // new account (see utils/onboarding.ts). Seed that board instead, once its
+    // cards are known to be empty. Not in the demo (its storage starts with
+    // no board) nor while a demo import is bringing the visitor's own notes.
+    useEffect(() => {
+        if (demo || onboardingRef.current !== 'idle') return;
+        // Only the tab that just confirmed a sign-up (see utils/onboarding).
+        if (!hasFreshSignup()) return;
+        if (!hasLoadedTabs || isLoadingTabs || !hasLoadedPostIts) return;
+        // A demo import brings the visitor's own notes: wait for it, then
+        // decide on the boards it leaves behind.
+        if (isDemoImportPending()) return;
+        const fresh = freshServerDefaultBoard(tabs);
+        // Single decision per sign-up: seed or not, the marker is spent, so
+        // a reload or a later state change can never seed again.
+        clearFreshSignup();
+        if (!fresh || fresh._id !== activeTabId || postIts.length > 0) return;
+        seedOnboardingBoard(fresh._id);
+    }, [
+        demo,
+        hasLoadedTabs,
+        isLoadingTabs,
+        hasLoadedPostIts,
+        tabs,
+        activeTabId,
+        postIts.length,
+    ]);
 
     const commands: PaletteCommand[] = [
         {
@@ -2218,7 +2302,7 @@ const BoardApp: React.FC<BoardAppProps> = ({
                             title={t('app.palette.title')}
                         >
                             <CommandLineIcon />
-                            <kbd>⌘K</kbd>
+                            <kbd>{paletteShortcutLabel()}</kbd>
                         </button>
 
                         <button

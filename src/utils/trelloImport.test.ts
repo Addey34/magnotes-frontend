@@ -1,8 +1,35 @@
+import { todayIso } from './cardMeta';
 import {
     buildTrelloCards,
     isTrelloBoard,
     parseTrelloBoard,
+    trelloDueDate,
 } from './trelloImport';
+
+describe('trelloDueDate', () => {
+    it('keeps a calendar day and converts a timestamp to a local day', () => {
+        expect(trelloDueDate('2026-05-01')).toBe('2026-05-01');
+        const stamp = '2026-05-01T22:30:00.000Z';
+        expect(trelloDueDate(stamp)).toBe(todayIso(new Date(stamp)));
+    });
+
+    it('drops empty or unreadable values instead of sending them', () => {
+        expect(trelloDueDate(null)).toBeUndefined();
+        expect(trelloDueDate('')).toBeUndefined();
+        expect(trelloDueDate('soon')).toBeUndefined();
+        expect(trelloDueDate(42)).toBeUndefined();
+    });
+
+    it('flags an unreadable due date on the parsed card', () => {
+        const [card] = parseTrelloBoard({
+            name: 'B',
+            lists: [{ id: 'l', name: 'Todo', pos: 1 }],
+            cards: [{ id: 'c', name: 'X', idList: 'l', pos: 1, due: 'soon' }],
+        });
+        expect(card.dueDate).toBeUndefined();
+        expect(card.unreadDueDate).toBe('soon');
+    });
+});
 
 const sampleBoard = {
     name: 'Projet',
@@ -82,7 +109,11 @@ describe('parseTrelloBoard', () => {
     it('maps labels to tags, due date, and merges checklist items in order', () => {
         const card = cards.find((c) => c.title === 'Première tâche');
         expect(card?.tags).toEqual(['urgent']);
-        expect(card?.dueDate).toBe('2026-05-01T10:00:00.000Z');
+        // A calendar day, the only form the API accepts (local time).
+        expect(card?.dueDate).toBe(
+            todayIso(new Date('2026-05-01T10:00:00.000Z'))
+        );
+        expect(card?.dueDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
         expect(card?.checklist.map((item) => [item.text, item.done])).toEqual([
             ['étape 1', true],
             ['étape 2', false],

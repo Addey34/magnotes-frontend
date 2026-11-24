@@ -117,7 +117,9 @@ test.describe('real local authentication', () => {
 
         await expect(page.locator('.board-app')).toBeVisible();
 
+        // A new account opens on the seeded welcome board (six cards).
         const cards = page.locator('.post-it-card');
+        await expect(cards).toHaveCount(6, { timeout: 15_000 });
         const initialCardCount = await cards.count();
         let title = `E2E card ${testInfo.project.name}`;
         await page.locator('.create-card-button').click();

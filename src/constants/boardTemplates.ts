@@ -10,6 +10,8 @@ export interface BoardTemplateCard {
     status?: PostItStatus;
     checklist?: ChecklistItem[];
     tags?: string[];
+    /** Due date relative to the day the template is inserted (0 = today). */
+    dueInDays?: number;
 }
 
 export interface BoardTemplate {
@@ -32,7 +34,9 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
             'Le tableau de démarrage : apprenez MagNotes par l’exemple en manipulant ces cartes.',
         cards: [
             {
-                title: 'Bienvenue sur MagNotes 👋',
+                // Welcome titles must fit a default card (220 px) at the
+                // default size: the first card read used to end in "MagNo…".
+                title: 'Bienvenue 👋',
                 content:
                     'Ce tableau est à vous. **Double-cliquez** sur le fond pour créer un post-it, glissez-le pour le déplacer, attrapez un coin pour le redimensionner.',
                 color: '#fef08a',
@@ -48,7 +52,7 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
                 y: 0,
             },
             {
-                title: 'Ctrl+K ouvre la palette',
+                title: 'Ctrl+K, la palette',
                 content:
                     'Recherche sur tous vos tableaux, capture rapide d’une note, changement de vue, insertion de modèles : tout est à un raccourci.',
                 color: '#e9d5ff',
@@ -56,13 +60,17 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
                 y: 0,
             },
             {
-                title: 'Une vraie carte de travail',
+                title: 'Une carte-tâche',
                 content:
                     'Statut, priorité, échéance, tags et checklist : chaque post-it peut devenir une tâche. Cochez la case ci-dessous 👇',
                 color: '#bbf7d0',
                 x: 0,
                 y: 272,
                 status: 'doing',
+                // Gives Agenda and Planning something to show on the very
+                // first visit; they opened empty before ("Changez de vue"
+                // sent the visitor to two blank screens).
+                dueInDays: 1,
                 tags: ['exemple'],
                 checklist: [
                     {
@@ -80,7 +88,7 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
             {
                 title: 'Reliez vos idées',
                 content:
-                    'Citez une carte avec [[Bienvenue sur MagNotes 👋]]. Elle devient cliquable sous cette carte. Le bouton lien crée aussi des flèches entre cartes.',
+                    'Citez une carte avec [[Bienvenue 👋]]. Elle devient cliquable sous cette carte. Le bouton lien crée aussi des flèches entre cartes.',
                 color: '#fbcfe8',
                 x: 284,
                 y: 272,
@@ -92,6 +100,7 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
                 color: '#fed7aa',
                 x: 568,
                 y: 272,
+                dueInDays: 4,
             },
         ],
     },
@@ -132,6 +141,7 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
                 x: 284,
                 y: 0,
                 status: 'todo',
+                dueInDays: 1,
                 tags: ['priorité'],
             },
             {
@@ -141,6 +151,7 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
                 x: 568,
                 y: 0,
                 status: 'todo',
+                dueInDays: 3,
                 tags: ['production'],
                 checklist: [
                     {
@@ -162,6 +173,7 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
                 color: '#fecdd3',
                 x: 0,
                 y: 284,
+                dueInDays: 5,
                 tags: ['feedback'],
             },
             {
@@ -171,6 +183,7 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
                 color: '#fdba74',
                 x: 284,
                 y: 284,
+                dueInDays: 12,
                 tags: ['pilotage'],
             },
             {
@@ -542,7 +555,7 @@ const ENGLISH_TEMPLATE_TEXT: Record<string, LocalizedTemplateText> = {
             'The starter board: learn MagNotes by experimenting with these cards.',
         cards: [
             {
-                title: 'Welcome to MagNotes 👋',
+                title: 'Welcome 👋',
                 content:
                     'This board is yours. **Double-click** the background to create a sticky note, drag it to move it, and grab a corner to resize it.',
             },
@@ -552,7 +565,7 @@ const ENGLISH_TEMPLATE_TEXT: Record<string, LocalizedTemplateText> = {
                     'Drop a card **in the center** of another to create a stack. Drop it **on an edge** to snap them neatly together.',
             },
             {
-                title: 'Ctrl+K opens the command palette',
+                title: 'The Ctrl+K palette',
                 content:
                     'Search across all your boards, quickly capture a note, switch views, and insert templates — everything is one shortcut away.',
             },
@@ -566,7 +579,7 @@ const ENGLISH_TEMPLATE_TEXT: Record<string, LocalizedTemplateText> = {
             {
                 title: 'Connect your ideas',
                 content:
-                    'Mention a card with [[Welcome to MagNotes 👋]] — it becomes clickable below this card. The link button can also draw arrows between cards.',
+                    'Mention a card with [[Welcome 👋]] — it becomes clickable below this card. The link button can also draw arrows between cards.',
             },
             {
                 title: 'Switch views',
