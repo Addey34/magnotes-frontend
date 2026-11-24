@@ -72,7 +72,7 @@ async function setCardContent(
     const editor = page.locator('.card-detail-editor');
     await expect(editor).toBeVisible();
     await editor.fill(content);
-    await page.locator('.card-detail-close').click();
+    await page.getByTestId('card-detail-leave').click();
 }
 
 test.describe('real local authentication', () => {
