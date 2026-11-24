@@ -139,6 +139,10 @@ export const DICTIONARY = {
     },
     'auth.switch.register': { fr: 'Créer un compte', en: 'Create an account' },
     'auth.switch.login': { fr: 'Se connecter', en: 'Sign in' },
+    'auth.tryDemo': {
+        fr: 'Essayer sans compte',
+        en: 'Try it without an account',
+    },
 
     'auth.notice.codeSent': {
         fr: 'Code envoyé. Vérifiez votre boîte mail.',
@@ -238,15 +242,18 @@ export const DICTIONARY = {
         fr: 'Définir les priorités du Q3',
         en: 'Set the Q3 priorities',
     },
-    'auth.demo.2.title': { fr: 'Bug critique', en: 'Critical bug' },
+    // Decorative notes: everyday examples for the freelancers the landing
+    // addresses. They must not read as product features MagNotes lacks (the
+    // old "Real-time collaboration" note did) nor as developer jargon.
+    'auth.demo.2.title': { fr: 'Relance facture', en: 'Invoice follow-up' },
     'auth.demo.2.content': {
-        fr: 'Revoir le refresh token',
-        en: 'Review the refresh token',
+        fr: 'Client Dupont · jeudi',
+        en: 'Dupont account · Thursday',
     },
-    'auth.demo.3.title': { fr: 'Idée produit', en: 'Product idea' },
+    'auth.demo.3.title': { fr: 'Idée d’offre', en: 'Offer idea' },
     'auth.demo.3.content': {
-        fr: 'Collaboration en temps réel',
-        en: 'Real-time collaboration',
+        fr: 'Pack audit + atelier',
+        en: 'Audit + workshop bundle',
     },
     'auth.demo.4.title': { fr: 'Design system', en: 'Design system' },
     'auth.demo.4.content': {
@@ -1257,6 +1264,26 @@ export const DICTIONARY = {
     'notification.importTooManyCards': {
         fr: 'Import refusé : 100 cartes maximum par fichier. Découpez-le en plusieurs fichiers.',
         en: 'Import refused: 100 cards maximum per file. Split it into several files.',
+    },
+    'notification.importEmpty': {
+        fr: 'Aucune note trouvée dans ce fichier. Formats pris en charge : Markdown (.md, .txt), Trello (.json), Notion (.csv).',
+        en: 'No notes found in this file. Supported formats: Markdown (.md, .txt), Trello (.json), Notion (.csv).',
+    },
+    'notification.importDone': {
+        fr: '{n} note(s) importée(s) dans ce tableau.',
+        en: '{n} note(s) imported into this board.',
+    },
+    'notification.importPartial': {
+        fr: '{saved} note(s) sur {n} importée(s) en entier : {failed} n’ont pas pu être enregistrée(s) complètement.',
+        en: '{saved} of {n} note(s) imported in full: {failed} could not be saved completely.',
+    },
+    'notification.importAdjusted': {
+        fr: '{n} raccourcie(s) aux limites (titre 80 caractères, texte 2000, 12 tags, 50 cases).',
+        en: '{n} shortened to the limits (title 80 characters, text 2000, 12 tags, 50 checklist items).',
+    },
+    'notification.importUnreadDue': {
+        fr: '{n} échéance(s) au format non reconnu, importée(s) sans date.',
+        en: '{n} due date(s) in an unrecognised format, imported without a date.',
     },
     'notification.searchFailed': {
         fr: 'La recherche globale est momentanément indisponible.',

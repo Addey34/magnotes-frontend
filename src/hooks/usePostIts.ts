@@ -178,20 +178,29 @@ export const usePostIts = (
     // Insert a template's cards into the active board. The create endpoint only
     // persists base fields, so task metadata (status/checklist/tags) is applied
     // with a follow-up patch. Not undoable — creation is a history barrier.
-    const addTemplateCards = async (cards: TemplateCardPayload[]) => {
-        if (!activeTabId || cards.length === 0) return;
+    /**
+     * Resolves to how many cards were not saved in full: not created at all,
+     * or created without their task fields. 0 means everything was saved.
+     */
+    const addTemplateCards = async (
+        cards: TemplateCardPayload[]
+    ): Promise<number> => {
+        if (!activeTabId || cards.length === 0) return 0;
 
-        let hadFailure = false;
+        let failures = 0;
         for (const card of cards) {
             const { status, checklist, tags, dueDate, ...base } = card;
             let created: PostIt;
             try {
                 created = await createPostIt(base);
             } catch {
-                hadFailure = true;
+                failures += 1;
                 continue;
             }
-            if (!created?._id) continue;
+            if (!created?._id) {
+                failures += 1;
+                continue;
+            }
 
             // Show the persisted card immediately, before the task-fields patch,
             // so a rejected PATCH can't leave a card in the DB but absent from
@@ -228,12 +237,13 @@ export const usePostIts = (
                     }));
                 } catch {
                     // Keep the base card; its task metadata just stays unset.
-                    hadFailure = true;
+                    failures += 1;
                 }
             }
         }
-        if (hadFailure) onMutationError?.();
+        if (failures > 0) onMutationError?.();
         history.clear();
+        return failures;
     };
 
     const patchPostItLocal = (postItId: string, updates: PostItUpdate) => {
@@ -1033,6 +1043,8 @@ export const usePostIts = (
     return {
         postIts,
         isLoadingPostIts: activeTabId ? loadingTabs.has(activeTabId) : false,
+        /** The active board's cards came back from the server (not just []). */
+        hasLoadedPostIts: activeTabId ? loadedTabs.has(activeTabId) : false,
         addPostIt,
         addTemplateCards,
         patchPostItLocal,
