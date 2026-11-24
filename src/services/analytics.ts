@@ -66,6 +66,26 @@ type UmamiTracker = {
     track: (event: ProductEvent) => void;
 };
 
+// The tracker script is async/defer: a fast visitor can click "sign up" or
+// create a demo card before it has loaded. Those milestones are held here
+// (names only, already resolved to their demo_* variant) and sent on `load`.
+// The queue is dropped if the script fails (ad blocker, tracker down).
+const MAX_PENDING_EVENTS = 20;
+let trackerState: 'idle' | 'pending' | 'failed' = 'idle';
+let pendingEvents: ProductEvent[] = [];
+
+function getTracker(): UmamiTracker | undefined {
+    const tracker = (window as typeof window & { umami?: UmamiTracker }).umami;
+    return typeof tracker?.track === 'function' ? tracker : undefined;
+}
+
+function flushPendingEvents(): void {
+    const tracker = getTracker();
+    const events = pendingEvents;
+    pendingEvents = [];
+    if (tracker) events.forEach((name) => tracker.track(name));
+}
+
 export function isAnalyticsDisabled(): boolean {
     if (typeof window === 'undefined') return false;
     return (
@@ -95,8 +115,16 @@ export function trackProductEvent(event: ProductEvent): boolean {
     // milestones, which describe a real account).
     if (isInDemoSandbox() && !DEMO_JOURNEY_EVENTS.has(name)) return false;
 
-    const tracker = (window as typeof window & { umami?: UmamiTracker }).umami;
-    if (typeof tracker?.track !== 'function') return false;
+    const tracker = getTracker();
+    if (!tracker) {
+        if (
+            trackerState === 'pending' &&
+            pendingEvents.length < MAX_PENDING_EVENTS
+        ) {
+            pendingEvents.push(name);
+        }
+        return false;
+    }
 
     tracker.track(name);
     return true;
@@ -123,6 +151,16 @@ export function initAnalytics(config: AnalyticsConfig = {}): boolean {
     script.defer = true;
     script.src = src;
     script.setAttribute('data-website-id', websiteId);
+    trackerState = 'pending';
+    pendingEvents = [];
+    script.addEventListener('load', () => {
+        trackerState = 'idle';
+        flushPendingEvents();
+    });
+    script.addEventListener('error', () => {
+        trackerState = 'failed';
+        pendingEvents = [];
+    });
     document.head.appendChild(script);
     return true;
 }

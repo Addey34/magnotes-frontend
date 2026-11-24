@@ -54,6 +54,23 @@ export const useAutosave = <T extends object, TResult = void>(
             .catch(() => undefined)
             .then(() => saveRef.current(id, updatesToSave))
             .then((result) => {
+                // Writes for one card are serialized, so anything still parked
+                // in `failed` for these keys comes from an older request. It
+                // is superseded now: replaying it would rewind the card.
+                if (failed.current[id]) {
+                    const remaining = { ...failed.current[id] } as Record<
+                        string,
+                        unknown
+                    >;
+                    Object.keys(updatesToSave).forEach(
+                        (k) => delete remaining[k]
+                    );
+                    if (Object.keys(remaining).length > 0) {
+                        failed.current[id] = remaining as T;
+                    } else {
+                        delete failed.current[id];
+                    }
+                }
                 // Fields the user has kept editing while this request was in
                 // flight. The response echoes the card as it was *sent*, so
                 // applying those keys would rewind the textarea to an older
@@ -82,9 +99,11 @@ export const useAutosave = <T extends object, TResult = void>(
             })
             .catch((error) => {
                 console.error('Autosave failed:', error);
+                // This request is newer than whatever failed before it
+                // (serialized), so its values win on shared keys.
                 failed.current[id] = {
-                    ...updatesToSave,
                     ...(failed.current[id] || {}),
+                    ...updatesToSave,
                 } as T;
                 onErrorRef.current?.(error);
                 if (mounted.current) {

@@ -237,6 +237,118 @@ describe('useAutosave', () => {
         expect(onSaved.mock.calls[0][2]).toEqual([]);
     });
 
+    describe('a failed write overtaken by a newer one', () => {
+        const setup = () => {
+            let rejectA: (e: unknown) => void = () => {};
+            const save = jest
+                .fn()
+                .mockImplementationOnce(
+                    () =>
+                        new Promise((_, reject) => {
+                            rejectA = reject;
+                        })
+                )
+                .mockResolvedValue(undefined);
+            jest.spyOn(console, 'error').mockImplementation(() => {});
+            const hook = renderHook(() => useAutosave(save, 500));
+            return { save, hook, rejectA: (e: unknown) => rejectA(e) };
+        };
+
+        it('never replays the older value after the newer one was saved', async () => {
+            const { save, hook, rejectA } = setup();
+            await act(async () => {
+                hook.result.current.scheduleSave('c', { title: 'A' });
+                jest.advanceTimersByTime(500);
+            });
+            // B is queued while A is still in flight.
+            await act(async () => {
+                hook.result.current.scheduleSave('c', { title: 'B' });
+                jest.advanceTimersByTime(500);
+            });
+            await act(async () => {
+                rejectA(new Error('boom'));
+                await Promise.resolve();
+            });
+            await act(async () => {
+                await hook.result.current.flushPending();
+            });
+            expect(save.mock.calls.map((c) => c[1])).toEqual([
+                { title: 'A' },
+                { title: 'B' },
+            ]);
+            // Retry trigger (e.g. the browser comes back online).
+            await act(async () => {
+                window.dispatchEvent(new Event('online'));
+                await hook.result.current.flushPending();
+            });
+            expect(save).toHaveBeenCalledTimes(2);
+        });
+
+        it('keeps independent fields of the failed write for the retry', async () => {
+            const { save, hook, rejectA } = setup();
+            await act(async () => {
+                hook.result.current.scheduleSave('c', {
+                    title: 'A',
+                    content: 'text',
+                });
+                jest.advanceTimersByTime(500);
+            });
+            await act(async () => {
+                hook.result.current.scheduleSave('c', { title: 'B' });
+                jest.advanceTimersByTime(500);
+            });
+            await act(async () => {
+                rejectA(new Error('boom'));
+                await Promise.resolve();
+            });
+            await act(async () => {
+                await hook.result.current.flushPending();
+            });
+            await act(async () => {
+                await hook.result.current.flushPending();
+            });
+            expect(save).toHaveBeenLastCalledWith('c', { content: 'text' });
+        });
+
+        it('lets the newest value win when both writes fail', async () => {
+            let rejectA: (e: unknown) => void = () => {};
+            let rejectB: (e: unknown) => void = () => {};
+            const save = jest
+                .fn()
+                .mockImplementationOnce(
+                    () => new Promise((_, r) => (rejectA = r))
+                )
+                .mockImplementationOnce(
+                    () => new Promise((_, r) => (rejectB = r))
+                )
+                .mockResolvedValue(undefined);
+            jest.spyOn(console, 'error').mockImplementation(() => {});
+            const { result } = renderHook(() => useAutosave(save, 500));
+            await act(async () => {
+                result.current.scheduleSave('c', { title: 'A' });
+                jest.advanceTimersByTime(500);
+            });
+            await act(async () => {
+                result.current.scheduleSave('c', { title: 'B' });
+                jest.advanceTimersByTime(500);
+            });
+            await act(async () => {
+                rejectA(new Error('a'));
+                await Promise.resolve();
+                await Promise.resolve();
+            });
+            await act(async () => {
+                rejectB(new Error('b'));
+                await Promise.resolve();
+                await Promise.resolve();
+            });
+            await act(async () => {
+                await result.current.flushPending();
+            });
+            expect(save).toHaveBeenLastCalledWith('c', { title: 'B' });
+        });
+    });
+
     describe('leaving the page with unsynced edits', () => {
         const leave = () => {
             const event = new Event('beforeunload', { cancelable: true });
