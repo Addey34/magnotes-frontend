@@ -9,6 +9,7 @@ import {
     createContext,
     useCallback,
     useContext,
+    useEffect,
     useMemo,
     useState,
 } from 'react';
@@ -30,6 +31,11 @@ export const LangProvider: React.FC<{ children: React.ReactNode }> = ({
     children,
 }) => {
     const [lang, setLangState] = useState<Lang>(() => detectLang());
+
+    // Screen readers pick the voice from <html lang>; the static shell is "fr".
+    useEffect(() => {
+        document.documentElement.lang = lang;
+    }, [lang]);
 
     const setLang = useCallback((next: Lang) => {
         storeLang(next);
